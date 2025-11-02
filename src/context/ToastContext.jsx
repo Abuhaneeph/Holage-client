@@ -48,10 +48,10 @@ export const ToastProvider = ({ children }) => {
 
   const getStyles = (type) => {
     switch (type) {
-      case "success": return "bg-success/10 border-success/30 text-success"
-      case "error": return "bg-destructive/10 border-destructive/30 text-destructive"
-      case "warning": return "bg-warning/10 border-warning/30 text-warning"
-      case "info": return "bg-primary/10 border-primary/30 text-primary"
+      case "success": return "bg-success border-success text-white"
+      case "error": return "bg-destructive border-destructive text-white"
+      case "warning": return "bg-warning border-warning text-white"
+      case "info": return "bg-primary border-primary text-white"
       default: return "bg-muted border-border text-text-primary"
     }
   }
@@ -65,17 +65,17 @@ export const ToastProvider = ({ children }) => {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`${getStyles(toast.type)} border rounded-xl p-4 shadow-lg backdrop-blur-sm animate-slideIn flex items-start space-x-3`}
+            className={`${getStyles(toast.type)} border-2 rounded-xl p-4 shadow-lg backdrop-blur-sm animate-slideIn flex items-start space-x-3`}
           >
-            <div className="flex-shrink-0 mt-0.5">
+            <div className="flex-shrink-0 mt-0.5 text-white">
               {getIcon(toast.type)}
             </div>
             <div className="flex-1">
-              <p className="font-medium text-sm">{toast.message}</p>
+              <p className="font-medium text-sm text-white">{toast.message}</p>
             </div>
             <button
               onClick={() => removeToast(toast.id)}
-              className="flex-shrink-0 hover:opacity-70 transition-opacity"
+              className="flex-shrink-0 text-white hover:opacity-70 transition-opacity"
             >
               <X className="w-4 h-4" />
             </button>

@@ -28,14 +28,18 @@ const SignupPage = () => {
       toast.warning("Password must be at least 6 characters")
       return
     }
-    if (!formData.fullName || !formData.email || !formData.password) {
+    if (!formData.fullName || !formData.email || !formData.password || !formData.nin || !formData.bvn) {
       toast.warning("Please fill in all required fields")
+      return
+    }
+    if (!/^\d{11}$/.test(String(formData.nin)) || !/^\d{11}$/.test(String(formData.bvn))) {
+      toast.error("NIN and BVN must be 11 digits")
       return
     }
 
     try {
       // Call the API endpoint
-      await registerUser(formData.fullName, formData.email, formData.password, userRole)
+      await registerUser(formData.fullName, formData.email, formData.password, userRole, formData.nin, formData.bvn)
       
       // If successful, navigate to email verification
       navigateTo("email-verification")
@@ -120,6 +124,36 @@ const SignupPage = () => {
                     disabled={loading}
                   />
                 </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">NIN</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formData.nin}
+                  onChange={(e) => handleInputChange("nin", e.target.value)}
+                  className="w-full pl-4 pr-4 py-3 bg-input border border-border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200 text-text-primary placeholder-text-secondary tracking-widest"
+                  placeholder="11-digit NIN"
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">BVN</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formData.bvn}
+                  onChange={(e) => handleInputChange("bvn", e.target.value)}
+                  className="w-full pl-4 pr-4 py-3 bg-input border border-border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200 text-text-primary placeholder-text-secondary tracking-widest"
+                  placeholder="11-digit BVN"
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </div>
               </div>
 
               <div>
@@ -135,12 +169,12 @@ const SignupPage = () => {
                     required
                     disabled={loading}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-text-secondary hover:text-text-primary"
-                    disabled={loading}
-                  >
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-text-secondary hover:text-text-primary"
+                  disabled={loading}
+                >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>

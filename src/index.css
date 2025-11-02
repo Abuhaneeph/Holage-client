@@ -60,3 +60,16 @@ body {
 .delay-400 {
   animation-delay: 0.4s;
 }
+
+/* Better select styling for mobile devices */
+select {
+  /* Ensure select dropdowns don't overflow */
+  max-height: 50vh;
+}
+
+/* On mobile, ensure select options are scrollable */
+@media (max-width: 640px) {
+  select {
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+}

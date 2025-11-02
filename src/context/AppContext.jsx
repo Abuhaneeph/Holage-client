@@ -44,6 +44,7 @@ export const AppProvider = ({ children }) => {
     plateNumber: "",
     vehicleType: "",
     nin: "",
+    bvn: "",
     utilityBill: null,
   })
 
@@ -81,6 +82,7 @@ export const AppProvider = ({ children }) => {
       plateNumber: "",
       vehicleType: "",
       nin: "",
+      bvn: "",
       utilityBill: null,
       passportPhoto: null,
     })
@@ -180,9 +182,9 @@ export const AppProvider = ({ children }) => {
   }
 
   // Auth functions
-  const registerUser = async (fullName, email, password, role) => {
+  const registerUser = async (fullName, email, password, role, nin, bvn) => {
     try {
-      const data = await callApi("/auth/register", "POST", { fullName, email, password, role })
+      const data = await callApi("/auth/register", "POST", { fullName, email, password, role, nin, bvn })
       toast.success(data.message)
       return data
     } catch (err) {
