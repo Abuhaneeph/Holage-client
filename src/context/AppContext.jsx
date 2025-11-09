@@ -184,7 +184,25 @@ export const AppProvider = ({ children }) => {
   // Auth functions
   const registerUser = async (fullName, email, password, role, nin, bvn) => {
     try {
-      const data = await callApi("/auth/register", "POST", { fullName, email, password, role, nin, bvn })
+      const payload = { fullName, email, password, role }
+
+      const normalizeOptional = (value) => {
+        if (value === undefined || value === null) return undefined
+        const trimmed = String(value).trim()
+        return trimmed.length ? trimmed : undefined
+      }
+
+      const normalizedNin = normalizeOptional(nin)
+      const normalizedBvn = normalizeOptional(bvn)
+
+      if (normalizedNin) {
+        payload.nin = normalizedNin
+      }
+      if (normalizedBvn) {
+        payload.bvn = normalizedBvn
+      }
+
+      const data = await callApi("/auth/register", "POST", payload)
       toast.success(data.message)
       return data
     } catch (err) {

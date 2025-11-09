@@ -1,10 +1,12 @@
+"use client"
+
 import { useState } from "react"
 import { ChevronDown } from "lucide-react"
 import SelectModal from "./SelectModal"
 
-const StateSelect = ({
+const LgaSelect = ({
   label,
-  placeholder = "Select state",
+  placeholder = "Select LGA",
   value,
   onChange,
   name,
@@ -54,7 +56,7 @@ const StateSelect = ({
       <SelectModal
         isOpen={isModalOpen && !disabled}
         onClose={() => setIsModalOpen(false)}
-        title={label || "Select State"}
+        title={label || "Select LGA"}
         options={options}
         value={value}
         onChange={handleChange}
@@ -64,5 +66,6 @@ const StateSelect = ({
   )
 }
 
-export default StateSelect
+export default LgaSelect
+
 

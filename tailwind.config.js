@@ -44,6 +44,37 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      keyframes: {
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        "slide-up": {
+          "0%": { opacity: "0", transform: "translateY(32px)" },
+          "60%": { opacity: "1" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-right": {
+          "0%": { opacity: "0", transform: "translateX(-24px)" },
+          "60%": { opacity: "1" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-12px)" },
+        },
+        "pulse-soft": {
+          "0%, 100%": { transform: "scale(1)", opacity: "0.7" },
+          "50%": { transform: "scale(1.05)", opacity: "1" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 0.7s ease-out forwards",
+        "slide-up": "slide-up 0.8s ease-out forwards",
+        "slide-right": "slide-right 0.8s ease-out forwards",
+        float: "float 6s ease-in-out infinite",
+        "pulse-soft": "pulse-soft 7s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

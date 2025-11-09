@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
  * @param {string} destinationState - Destination state code
  * @returns {Promise<object>} Distance calculation result
  */
-export const calculateDistance = async (pickupState, destinationState) => {
+export const calculateDistance = async (pickupState, pickupLga, destinationState, destinationLga) => {
   try {
     const response = await fetch(`${API_BASE_URL}/shipping/calculate-distance`, {
       method: 'POST',
@@ -15,7 +15,9 @@ export const calculateDistance = async (pickupState, destinationState) => {
       },
       body: JSON.stringify({
         pickupState,
-        destinationState
+        pickupLga,
+        destinationState,
+        destinationLga,
       })
     });
 
@@ -39,7 +41,7 @@ export const calculateDistance = async (pickupState, destinationState) => {
  * @param {number} weight - Weight in tons
  * @returns {Promise<object>} Cost estimation result
  */
-export const estimateShippingCost = async (pickupState, destinationState, weight = 1) => {
+export const estimateShippingCost = async (pickupState, pickupLga, destinationState, destinationLga, weight = 1) => {
   try {
     const response = await fetch(`${API_BASE_URL}/shipping/estimate-cost`, {
       method: 'POST',
@@ -48,7 +50,9 @@ export const estimateShippingCost = async (pickupState, destinationState, weight
       },
       body: JSON.stringify({
         pickupState,
+        pickupLga,
         destinationState,
+        destinationLga,
         weight
       })
     });

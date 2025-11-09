@@ -28,6 +28,9 @@ import { useToast } from "../context/ToastContext"
 import StateSelect from "../components/StateSelect"
 import SelectModal from "../components/SelectModal"
 import { calculateDistance, estimateShippingCost } from "../utils/distanceCalculator"
+import LgaSelect from "../components/LgaSelect"
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
 const ShipperDashboard = () => {
   const { user, logoutUser, navigateTo } = useAppContext()
@@ -38,6 +41,11 @@ const ShipperDashboard = () => {
   const [walletError, setWalletError] = useState("")
   const [kycCheckDone, setKycCheckDone] = useState(false)
   const [showCreateShipment, setShowCreateShipment] = useState(false)
+  const [states, setStates] = useState([])
+  const [locationsLoading, setLocationsLoading] = useState(true)
+  const [locationsError, setLocationsError] = useState("")
+  const [pickupLgaOptions, setPickupLgaOptions] = useState([])
+  const [destinationLgaOptions, setDestinationLgaOptions] = useState([])
   
   // Wallet state
   const [walletBalance, setWalletBalance] = useState(0)
@@ -55,11 +63,20 @@ const ShipperDashboard = () => {
   // Shipments state
   const [shipments, setShipments] = useState([])
   const [loadingShipments, setLoadingShipments] = useState(false)
+  const [creatingShipment, setCreatingShipment] = useState(false)
+  
+  // Pagination
+  const [activeShipmentsPage, setActiveShipmentsPage] = useState(1)
+  const activeShipmentsPerPage = 3
+  const [transactionsPage, setTransactionsPage] = useState(1)
+  const transactionsPerPage = 3
   
   // Shipment form state
   const [shipmentForm, setShipmentForm] = useState({
     pickupState: '',
+    pickupLga: '',
     destinationState: '',
+    destinationLga: '',
     cargoType: '',
     weight: '',
     truckType: '',
@@ -71,6 +88,77 @@ const ShipperDashboard = () => {
   const [costEstimate, setCostEstimate] = useState(null)
   const [calculating, setCalculating] = useState(false)
 
+  const slugifyValue = (value) => {
+    if (!value) return ""
+    return value
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/['’]/g, "")
+      .replace(/&/g, "and")
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/[\s_]+/g, "-")
+  }
+
+  const toTitleCase = (value) => {
+    if (!value) return ""
+    return value
+      .toString()
+      .split(/[-_]/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  }
+
+  const formatLocation = (stateSlug, lgaSlug) => {
+    const stateName = toTitleCase(stateSlug)
+    if (lgaSlug) {
+      return `${toTitleCase(lgaSlug)}, ${stateName}`
+    }
+    return stateName
+  }
+
+  const getLgaOptionsForState = (stateSlug) => {
+    if (!stateSlug) return []
+    const match = states.find((state) => state.slug === stateSlug)
+    if (!match || !Array.isArray(match.lgas)) return []
+    return match.lgas.map((lga) => ({
+      label: lga.name,
+      value: lga.slug,
+    }))
+  }
+
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        setLocationsLoading(true)
+        setLocationsError("")
+        const response = await fetch(`${API_BASE_URL}/shipping/locations/states`)
+        const data = await response.json()
+        if (!data.success) {
+          throw new Error(data.message || "Unable to load locations")
+        }
+        setStates(data.data || [])
+      } catch (error) {
+        console.error("Error fetching locations:", error)
+        setLocationsError(error.message || "Unable to load locations")
+        setStates([])
+      } finally {
+        setLocationsLoading(false)
+      }
+    }
+
+    fetchLocations()
+  }, [])
+
+  useEffect(() => {
+    setPickupLgaOptions(getLgaOptionsForState(shipmentForm.pickupState))
+  }, [states, shipmentForm.pickupState])
+
+  useEffect(() => {
+    setDestinationLgaOptions(getLgaOptionsForState(shipmentForm.destinationState))
+  }, [states, shipmentForm.destinationState])
+
   // Bank transfer funding state
   const [showFundModal, setShowFundModal] = useState(false)
   const [fundAmount, setFundAmount] = useState("")
@@ -78,9 +166,11 @@ const ShipperDashboard = () => {
   const [fundAccount, setFundAccount] = useState(null) // { account_number, bank_name, expiry_date_in_utc }
   const [fundReference, setFundReference] = useState("")
   
+  // Delete shipment state
+  const [deletingShipmentId, setDeletingShipmentId] = useState(null)
+  
   // Fetch my shipments
   const fetchMyShipments = async () => {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
     setLoadingShipments(true)
     try {
       const token = localStorage.getItem('authToken')
@@ -107,7 +197,6 @@ const ShipperDashboard = () => {
   useEffect(() => {
     const checkKYC = async () => {
       try {
-        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
         const token = localStorage.getItem('authToken')
         
         if (!token) {
@@ -134,19 +223,24 @@ const ShipperDashboard = () => {
         fetchMyShipments()
         // Fetch wallet
         try {
-          const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
           const token = localStorage.getItem('authToken')
           const wr = await fetch(`${API_BASE_URL}/wallet`, { headers: { 'Authorization': `Bearer ${token}` } })
           const wd = await wr.json()
           if (wr.ok && wd.wallet) {
             setWallet(wd.wallet)
             setWalletBalance(parseFloat(wd.wallet.balance || 0))
-          } else setWalletError(wd.message || 'No wallet found')
+          } else {
+            setWallet(null)
+            setWalletError('Add your BVN in your KYC profile to unlock your Holage wallet.')
+          }
           // Load transactions
           const tr = await fetch(`${API_BASE_URL}/wallet/transactions`, { headers: { 'Authorization': `Bearer ${token}` } })
           const td = await tr.json()
           if (tr.ok && td.transactions) setTransactions(td.transactions)
-        } catch (e) { setWalletError('Failed to load wallet') }
+        } catch (e) {
+          setWallet(null)
+          setWalletError('Add your BVN in your KYC profile to unlock your Holage wallet.')
+        }
       } catch (error) {
         console.error('Error checking KYC status:', error)
         setKycCheckDone(true)
@@ -159,9 +253,9 @@ const ShipperDashboard = () => {
   // Auto-calculate distance and cost
   useEffect(() => {
     const calculateShipmentDetails = async () => {
-      const { pickupState, destinationState, weight } = shipmentForm
+      const { pickupState, pickupLga, destinationState, destinationLga, weight } = shipmentForm
       
-      if (!pickupState || !destinationState) {
+      if (!pickupState || !pickupLga || !destinationState || !destinationLga) {
         setDistanceInfo(null)
         setCostEstimate(null)
         return
@@ -170,13 +264,15 @@ const ShipperDashboard = () => {
       setCalculating(true)
       
       try {
-        const distance = await calculateDistance(pickupState, destinationState)
+        const distance = await calculateDistance(pickupState, pickupLga, destinationState, destinationLga)
         setDistanceInfo(distance)
         
         if (weight && parseFloat(weight) > 0) {
           const cost = await estimateShippingCost(
             pickupState, 
+            pickupLga,
             destinationState, 
+            destinationLga,
             parseFloat(weight)
           )
           setCostEstimate(cost)
@@ -193,24 +289,48 @@ const ShipperDashboard = () => {
     }
 
     calculateShipmentDetails()
-  }, [shipmentForm.pickupState, shipmentForm.destinationState, shipmentForm.weight])
+  }, [shipmentForm.pickupState, shipmentForm.pickupLga, shipmentForm.destinationState, shipmentForm.destinationLga, shipmentForm.weight])
   
   const handleFormChange = (field, value) => {
-    setShipmentForm(prev => ({ ...prev, [field]: value }))
+    setShipmentForm((prev) => {
+      const next = { ...prev, [field]: value }
+      if (field === "pickupState") {
+        next.pickupLga = ""
+      }
+      if (field === "destinationState") {
+        next.destinationLga = ""
+      }
+      return next
+    })
+
+    if (field === "pickupState") {
+      setPickupLgaOptions(getLgaOptionsForState(value))
+    }
+
+    if (field === "destinationState") {
+      setDestinationLgaOptions(getLgaOptionsForState(value))
+    }
   }
   
   const handleCreateShipment = async (e) => {
     e.preventDefault()
     
-    // Validate that pickup and destination states are different
-    if (shipmentForm.pickupState === shipmentForm.destinationState) {
-      toast.error('Pickup and destination states cannot be the same!')
+    if (!shipmentForm.pickupState || !shipmentForm.pickupLga || !shipmentForm.destinationState || !shipmentForm.destinationLga) {
+      toast.error("Please select both state and LGA for pickup and destination.")
       return
     }
     
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+    const pickupSlug = `${slugifyValue(shipmentForm.pickupState)}-${slugifyValue(shipmentForm.pickupLga)}`
+    const destinationSlug = `${slugifyValue(shipmentForm.destinationState)}-${slugifyValue(shipmentForm.destinationLga)}`
+
+    if (pickupSlug === destinationSlug) {
+      toast.error("Pickup and destination locations cannot be the same.")
+      return
+    }
+
     const token = localStorage.getItem('authToken')
     
+    setCreatingShipment(true)
     try {
       const response = await fetch(`${API_BASE_URL}/shipping/shipments`, {
         method: 'POST',
@@ -231,20 +351,24 @@ const ShipperDashboard = () => {
       setShowCreateShipment(false)
       setShipmentForm({
         pickupState: '',
+        pickupLga: '',
         destinationState: '',
+        destinationLga: '',
         cargoType: '',
         weight: '',
         truckType: '',
         pickupDate: '',
         fragileItems: false
       })
+      setPickupLgaOptions([])
+      setDestinationLgaOptions([])
       
-      // Refresh shipments list
       fetchMyShipments()
-      
     } catch (error) {
       console.error('Error creating shipment:', error)
       toast.error(error.message || 'Failed to create shipment')
+    } finally {
+      setCreatingShipment(false)
     }
   }
 
@@ -252,7 +376,6 @@ const ShipperDashboard = () => {
   const handleDocumentUpload = async (documentType, file) => {
     if (!file) return
     
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
     setUploadingDoc(documentType)
     try {
       const formData = new FormData()
@@ -310,6 +433,27 @@ const ShipperDashboard = () => {
     input.click()
   }
 
+  // Delete shipment
+  const handleDeleteShipment = async (shipmentId) => {
+    if (!confirm('Delete this shipment?')) return
+    setDeletingShipmentId(shipmentId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const resp = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.message || 'Delete failed')
+      toast.success('Shipment deleted')
+      fetchMyShipments()
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setDeletingShipmentId(null)
+    }
+  }
+
   // Bank transfer: initiate
   const initiateBankTransfer = async () => {
     try {
@@ -319,7 +463,6 @@ const ShipperDashboard = () => {
         return
       }
       setFundLoading(true)
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
       const token = localStorage.getItem('authToken')
       const reference = `holage-ref-${Date.now()}`
       const resp = await fetch(`${API_BASE_URL}/wallet/korapay/charges/bank-transfer`, {
@@ -351,7 +494,6 @@ const ShipperDashboard = () => {
     if (!fundReference) { toast.error('No reference to confirm'); return }
     try {
       setFundLoading(true)
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
       const token = localStorage.getItem('authToken')
       // Retry loop if still processing on provider side
       const maxTries = 6
@@ -421,11 +563,7 @@ const ShipperDashboard = () => {
     { label: "Other", value: "other" }
   ]
 
-  // Helper function to format state name
-  const formatStateName = (stateSlug) => {
-    if (!stateSlug) return ''
-    return stateSlug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-  }
+  const formatStateName = (stateSlug) => toTitleCase(stateSlug)
 
   // Helper function to get status info
   const getStatusInfo = (status) => {
@@ -440,6 +578,20 @@ const ShipperDashboard = () => {
   }
 
   const activeShipments = shipments.filter(s => s.status === 'pending' || s.status === 'in_transit' || s.status === 'assigned')
+  
+  // Pagination for active shipments (home view only)
+  const totalActivePages = Math.ceil(activeShipments.length / activeShipmentsPerPage)
+  const paginatedActiveShipments = activeShipments.slice(
+    (activeShipmentsPage - 1) * activeShipmentsPerPage,
+    activeShipmentsPage * activeShipmentsPerPage
+  )
+  
+  // Pagination for transactions (wallet view)
+  const totalTransactionsPages = Math.ceil(transactions.length / transactionsPerPage)
+  const paginatedTransactions = transactions.slice(
+    (transactionsPage - 1) * transactionsPerPage,
+    transactionsPage * transactionsPerPage
+  )
 
   if (!kycCheckDone) {
     return (
@@ -488,44 +640,36 @@ const ShipperDashboard = () => {
           </div>
         </div>
 
+        {wallet && (
         <div className="mt-6">
           <p className="text-white/80 text-sm mb-1">Wallet Balance</p>
           <p className="text-white text-3xl font-bold">
-            {showBalance ? `₦${walletBalance.toLocaleString()}` : '₦ • • • • • •'}
+            {showBalance ? `₦${Number(walletBalance || 0).toLocaleString()}` : '₦ • • • • • •'}
           </p>
-        {wallet && (
-          <div className="mt-3 text-white/90 text-sm">
-            <div>Account: <span className="font-semibold tracking-wider">{wallet.accountNumber}</span></div>
-            <div>Name: <span className="font-semibold">{wallet.accountName}</span></div>
-            <div>Bank: <span className="font-semibold">{wallet.bankName}</span></div>
-          </div>
-        )}
-        {!wallet && walletError && (
-          <div className="mt-3 text-white/80 text-xs">{walletError}</div>
-        )}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3 mt-6">
-          <button 
-            onClick={() => setShowFundModal(true)}
-            className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 flex items-center space-x-3 hover:bg-white/30 transition-colors"
-          >
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-              <ArrowDown className="w-5 h-5 text-primary" />
+            <div className="mt-3 text-white/90 text-sm">
+              <div>Account: <span className="font-semibold tracking-wider">{wallet.accountNumber}</span></div>
+              <div>Name: <span className="font-semibold">{wallet.accountName}</span></div>
+              <div>Bank: <span className="font-semibold">{wallet.bankName}</span></div>
             </div>
-            <span className="text-white font-medium">Add Money</span>
-          </button>
-          <button 
-            onClick={() => toast.info('Withdraw - coming soon!')}
-            className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 flex items-center space-x-3 hover:bg-white/30 transition-colors"
-          >
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-              <ArrowUp className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-white font-medium">Withdraw</span>
-          </button>
         </div>
+          )}
+          {!wallet && walletError && (
+            <div className="mt-3 text-white/80 text-xs">{walletError}</div>
+          )}
+        {!wallet && (
+          <div className="mt-6 bg-white/10 border border-white/20 rounded-2xl p-4 text-left">
+            <p className="text-white font-semibold mb-2">Add your BVN to unlock your Holage wallet.</p>
+            <p className="text-white/80 text-sm mb-3">
+              Complete your BVN details in the KYC profile to generate your virtual account instantly.
+            </p>
+            <button
+              onClick={() => navigateTo('kyc')}
+              className="inline-flex items-center justify-center px-4 py-2 bg-white text-primary font-semibold rounded-xl hover:bg-white/90 transition-colors"
+            >
+              Update BVN
+            </button>
+        </div>
+        )}
       </div>
 
       {/* Main Content */}
@@ -555,7 +699,7 @@ const ShipperDashboard = () => {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-text-primary font-bold text-lg">Active Shipments</h3>
-                <span className="text-primary text-sm font-medium">See all</span>
+                <button onClick={() => setActiveView("shipments")} className="text-primary text-sm font-medium">See all</button>
               </div>
               
               {loadingShipments ? (
@@ -564,8 +708,9 @@ const ShipperDashboard = () => {
                   <p className="text-text-secondary text-sm">Loading shipments...</p>
                 </div>
               ) : activeShipments.length > 0 ? (
+                <>
                 <div className="space-y-3">
-                  {activeShipments.map((shipment) => {
+                    {paginatedActiveShipments.map((shipment) => {
                     const statusInfo = getStatusInfo(shipment.status)
                     const StatusIcon = statusInfo.icon
                     return (
@@ -577,7 +722,7 @@ const ShipperDashboard = () => {
                             </div>
                             <div>
                               <p className="text-text-primary font-bold">
-                                {formatStateName(shipment.pickupState)} → {formatStateName(shipment.destinationState)}
+                                {formatLocation(shipment.pickupState, shipment.pickupLga)} → {formatLocation(shipment.destinationState, shipment.destinationLga)}
                               </p>
                               <p className="text-text-secondary text-sm">#{shipment.id} • {shipment.weight}t • {shipment.distance}km</p>
                             </div>
@@ -587,10 +732,23 @@ const ShipperDashboard = () => {
                             <p className="text-text-secondary text-xs">{statusInfo.label}</p>
                           </div>
                         </div>
+                        {shipment.status === 'pending' && (
+                          <button onClick={() => handleDeleteShipment(shipment.id)} disabled={deletingShipmentId === shipment.id} className="mt-2 text-error text-sm underline disabled:opacity-50">
+                            {deletingShipmentId === shipment.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        )}
                       </div>
                     )
                   })}
                 </div>
+                  {totalActivePages > 1 && (
+                    <div className="flex items-center justify-center space-x-2 mt-4">
+                      <button onClick={() => setActiveShipmentsPage(p => Math.max(1, p - 1))} disabled={activeShipmentsPage === 1} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Prev</button>
+                      <span className="text-text-secondary text-sm">Page {activeShipmentsPage} of {totalActivePages}</span>
+                      <button onClick={() => setActiveShipmentsPage(p => Math.min(totalActivePages, p + 1))} disabled={activeShipmentsPage === totalActivePages} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Next</button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="bg-muted/30 rounded-2xl p-8 text-center">
                   <Package className="w-12 h-12 text-text-secondary mx-auto mb-2" />
@@ -642,7 +800,7 @@ const ShipperDashboard = () => {
                         </div>
                         <div>
                           <p className="text-text-primary font-bold text-lg">
-                            {formatStateName(shipment.pickupState)} → {formatStateName(shipment.destinationState)}
+                            {formatLocation(shipment.pickupState, shipment.pickupLga)} → {formatLocation(shipment.destinationState, shipment.destinationLga)}
                           </p>
                           <p className="text-text-secondary text-sm">
                             #{shipment.id} • {shipment.cargoType} • {shipment.weight}t
@@ -670,9 +828,16 @@ const ShipperDashboard = () => {
                     </div>
                     <div className="flex items-center justify-between pt-3 border-t border-border">
                       <p className="text-success font-bold text-xl">₦{parseFloat(shipment.estimatedCost || 0).toLocaleString()}</p>
+                      <div className="flex items-center space-x-2">
                       <button className="bg-primary text-white px-6 py-3 rounded-xl font-medium text-base">
                         View Details
                       </button>
+                        {shipment.status === 'pending' && (
+                          <button onClick={() => handleDeleteShipment(shipment.id)} disabled={deletingShipmentId === shipment.id} className="bg-error/10 text-error px-4 py-3 rounded-xl font-medium text-sm disabled:opacity-50">
+                            {deletingShipmentId === shipment.id ? '...' : 'Delete'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
@@ -696,6 +861,20 @@ const ShipperDashboard = () => {
         {activeView === "wallet" && (
           <div className="space-y-4">
             <h2 className="text-text-primary font-bold text-2xl">Wallet</h2>
+            {!wallet && (
+              <div className="bg-warning/10 border border-warning/30 rounded-2xl p-5">
+                <p className="text-warning font-semibold mb-2">Your wallet isn&apos;t ready yet.</p>
+                <p className="text-warning/90 text-sm mb-3">
+                  Update your BVN details so we can provision your Holage wallet account.
+                </p>
+                <button
+                  onClick={() => navigateTo('kyc')}
+                  className="bg-warning text-white px-4 py-2 rounded-xl font-medium hover:bg-warning/90 transition-colors"
+                >
+                  Update BVN
+                </button>
+              </div>
+            )}
             
             <div className="bg-card border border-border rounded-2xl p-6">
               <p className="text-text-secondary mb-2">Available Balance</p>
@@ -704,23 +883,28 @@ const ShipperDashboard = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <button
-                onClick={() => toast.info('Add money - coming soon!')}
-                className="bg-primary text-white rounded-2xl p-6 flex flex-col items-center space-y-3"
+                onClick={() => setShowFundModal(true)}
+                disabled={!wallet}
+                className={`rounded-2xl p-6 flex flex-col items-center space-y-3 text-white ${
+                  !wallet
+                    ? "bg-primary opacity-60 cursor-not-allowed"
+                    : "bg-primary hover:bg-primary/90 transition-colors"
+                }`}
               >
                 <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
-                  <Plus className="w-7 h-7 text-white" />
+                  <ArrowDown className="w-7 h-7 text-white" />
                 </div>
                 <span className="font-bold">Add Money</span>
               </button>
               
               <button
-                onClick={() => toast.info('Send money - coming soon!')}
+                onClick={() => toast.info('Withdraw - coming soon!')}
                 className="bg-secondary text-white rounded-2xl p-6 flex flex-col items-center space-y-3"
               >
                 <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
-                  <Send className="w-7 h-7 text-white" />
+                  <ArrowUp className="w-7 h-7 text-white" />
                 </div>
-                <span className="font-bold">Send Money</span>
+                <span className="font-bold">Withdraw</span>
               </button>
             </div>
 
@@ -729,24 +913,33 @@ const ShipperDashboard = () => {
               {transactions.length === 0 ? (
                 <div className="bg-muted/30 rounded-2xl p-6 text-center text-text-secondary">No transactions yet</div>
               ) : (
+                <>
               <div className="space-y-2">
-                  {transactions.map((t) => (
-                    <div key={t.id || t.reference} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+                    {paginatedTransactions.map((t) => (
+                      <div key={t.id || t.reference} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                        <div className={`w-10 h-10 ${t.type === 'credit' ? 'bg-success/10' : 'bg-error/10'} rounded-full flex items-center justify-center`}>
-                          {t.type === 'credit' ? <ArrowDown className="w-5 h-5 text-success" /> : <ArrowUp className="w-5 h-5 text-error" />}
+                          <div className={`w-10 h-10 ${t.type === 'credit' ? 'bg-success/10' : 'bg-error/10'} rounded-full flex items-center justify-center`}>
+                            {t.type === 'credit' ? <ArrowDown className="w-5 h-5 text-success" /> : <ArrowUp className="w-5 h-5 text-error" />}
                     </div>
                     <div>
-                          <p className="text-text-primary font-medium">{t.description || (t.type === 'credit' ? 'Wallet Funding' : 'Wallet Debit')}</p>
-                          <p className="text-text-secondary text-xs">Ref: {t.reference}</p>
+                            <p className="text-text-primary font-medium">{t.description || (t.type === 'credit' ? 'Wallet Funding' : 'Wallet Debit')}</p>
+                            <p className="text-text-secondary text-xs">Ref: {t.reference}</p>
                     </div>
                   </div>
-                      <p className={`${t.type === 'credit' ? 'text-success' : 'text-error'} font-bold`}>
-                        {t.type === 'credit' ? '+' : '-'}₦{Number(t.amount || 0).toLocaleString()}
-                      </p>
+                        <p className={`${t.type === 'credit' ? 'text-success' : 'text-error'} font-bold`}>
+                          {t.type === 'credit' ? '+' : '-'}₦{Number(t.amount || 0).toLocaleString()}
+                        </p>
                 </div>
-                  ))}
+                    ))}
                     </div>
+                  {totalTransactionsPages > 1 && (
+                    <div className="flex items-center justify-center space-x-2 mt-4">
+                      <button onClick={() => setTransactionsPage(p => Math.max(1, p - 1))} disabled={transactionsPage === 1} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Prev</button>
+                      <span className="text-text-secondary text-sm">Page {transactionsPage} of {totalTransactionsPages}</span>
+                      <button onClick={() => setTransactionsPage(p => Math.min(totalTransactionsPages, p + 1))} disabled={transactionsPage === totalTransactionsPages} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Next</button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -941,21 +1134,67 @@ const ShipperDashboard = () => {
             <form onSubmit={handleCreateShipment} className="flex-1 overflow-y-auto p-4 space-y-4">
               <StateSelect 
                 label="From (Pickup State)" 
-                placeholder="Select state"
+                placeholder={locationsLoading ? "Loading states..." : "Select state"}
                 name="pickupState"
                 value={shipmentForm.pickupState}
                 onChange={(e) => handleFormChange('pickupState', e.target.value)}
-                excludeValue={shipmentForm.destinationState}
+                options={states.map((state) => ({ label: state.name, value: state.slug }))}
+                disabled={locationsLoading || !!locationsError}
+              />
+
+              <LgaSelect
+                label="Pickup LGA"
+                placeholder={
+                  shipmentForm.pickupState
+                    ? locationsLoading
+                      ? "Loading LGAs..."
+                      : pickupLgaOptions.length > 0
+                        ? "Select LGA"
+                        : "No LGAs available"
+                    : "Select a state first"
+                }
+                name="pickupLga"
+                value={shipmentForm.pickupLga}
+                onChange={(e) => handleFormChange('pickupLga', e.target.value)}
+                options={pickupLgaOptions}
+                disabled={!shipmentForm.pickupState || pickupLgaOptions.length === 0 || locationsLoading}
+                required
               />
 
               <StateSelect 
                 label="To (Destination State)" 
-                placeholder="Select state"
+                placeholder={locationsLoading ? "Loading states..." : "Select state"}
                 name="destinationState"
                 value={shipmentForm.destinationState}
                 onChange={(e) => handleFormChange('destinationState', e.target.value)}
-                excludeValue={shipmentForm.pickupState}
+                options={states.map((state) => ({ label: state.name, value: state.slug }))}
+                disabled={locationsLoading || !!locationsError}
               />
+
+              <LgaSelect
+                label="Destination LGA"
+                placeholder={
+                  shipmentForm.destinationState
+                    ? locationsLoading
+                      ? "Loading LGAs..."
+                      : destinationLgaOptions.length > 0
+                        ? "Select LGA"
+                        : "No LGAs available"
+                    : "Select a state first"
+                }
+                name="destinationLga"
+                value={shipmentForm.destinationLga}
+                onChange={(e) => handleFormChange('destinationLga', e.target.value)}
+                options={destinationLgaOptions}
+                disabled={!shipmentForm.destinationState || destinationLgaOptions.length === 0 || locationsLoading}
+                required
+              />
+
+              {locationsError && (
+                <p className="text-destructive text-sm bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3">
+                  {locationsError}. You can try again later or contact support.
+                </p>
+              )}
 
               <div>
                 <label className="block text-text-primary font-medium mb-2">Weight (tons)</label>
@@ -1034,6 +1273,11 @@ const ShipperDashboard = () => {
 
               {costEstimate && !calculating && (
                 <div className="bg-success/10 border border-success/20 rounded-xl p-4">
+                  {distanceInfo?.route && (
+                    <p className="text-text-secondary text-xs uppercase tracking-[0.25em] mb-1">
+                      {distanceInfo.route}
+                    </p>
+                  )}
                   <p className="text-text-secondary text-sm mb-1">Estimated Cost</p>
                   <p className="text-success font-bold text-3xl">{costEstimate.cost.formattedCost}</p>
                   <p className="text-text-secondary text-sm mt-2">
@@ -1045,9 +1289,17 @@ const ShipperDashboard = () => {
               <div className="pt-4">
                 <button
                   type="submit"
-                  className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-colors shadow-lg"
+                  disabled={creatingShipment}
+                  className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
-                  Create Shipment
+                  {creatingShipment ? (
+                    <>
+                      <Loader className="w-5 h-5 animate-spin mr-2" />
+                      Creating shipment...
+                    </>
+                  ) : (
+                    'Create Shipment'
+                  )}
                 </button>
               </div>
             </form>

@@ -1,11 +1,59 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Package, Shield, Truck, ArrowRight, Globe, Zap } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import Header from "../components/Header"
+import Reveal from "../components/Reveal"
+
+const heroSlides = [
+  {
+    id: "ai-matching",
+    eyebrow: "AI-Powered Freight",
+    titleLineOne: "Africa's most advanced",
+    titleHighlight: "Freight Network",
+    titleLineTwo: "Built for scale",
+    description:
+      "From instant truck sourcing to guaranteed settlements, Holage keeps every shipment connected, transparent, and on schedule.",
+    image: "https://www.logupdateafrica.com/h-upload/2023/01/17/1500x900_35121-shutterstock2172075163-africa-tech-logistics.webp",
+  },
+  {
+    id: "visibility",
+    eyebrow: "Live Supply-Chain Visibility",
+    titleLineOne: "Realtime control of",
+    titleHighlight: "Shipments & Payments",
+    titleLineTwo: "Inside one smart hub",
+    description:
+      "Follow every load, approve payments, and keep partners aligned from a single real-time dashboard.",
+    image: "https://cdn.guardian.ng/wp-content/uploads/2020/08/apapa.jpg",
+  },
+  {
+    id: "network",
+    eyebrow: "Trusted by Enterprises",
+    titleLineOne: "Scale confidently with",
+    titleHighlight: "Verified Drivers",
+    titleLineTwo: "and instant payouts",
+    description:
+      "Access a vetted driver community, settle earnings instantly, and rely on 24/7 ops coverage across Africa.",
+    image: "https://cdn.guardian.ng/wp-content/uploads/2019/10/000_1LL31N.jpg",
+  },
+]
 
 const LandingPage = () => {
   const { navigateTo, setUserRole } = useAppContext()
+  const [currentSlide, setCurrentSlide] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % heroSlides.length)
+    }, 4000)
+
+    return () => clearInterval(timer)
+  }, [])
+
+  const goToSlide = (index) => {
+    setCurrentSlide(index)
+  }
 
   const handleRoleSelect = (role) => {
     setUserRole(role)
@@ -18,76 +66,98 @@ const LandingPage = () => {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-secondary rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse animation-delay-2000"></div>
-          <div className="absolute top-40 left-1/2 w-80 h-80 bg-secondary/70 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse animation-delay-4000"></div>
+          {heroSlides.map((slide, index) => (
+            <div
+              key={slide.id}
+              className={`absolute inset-0 transition-opacity duration-[1200ms] ease-out ${
+                index === currentSlide ? "opacity-100" : "opacity-0"
+              }`}
+              style={{
+                backgroundImage: `url(${slide.image})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-[#070b1d]/92 via-[#0c1230]/85 to-[#131f45]/78" />
+            </div>
+          ))}
         </div>
 
-        <div className="container mx-auto px-4 pt-32 pb-20 relative z-10">
+        <div className="relative z-10 container mx-auto px-4 pt-40 sm:pt-48 lg:pt-56 pb-20">
           <div className="text-center mb-16">
-            <div className="inline-block mb-6 px-4 py-2 bg-gradient-to-r from-secondary/20 to-accent/20 rounded-full border border-secondary/30 backdrop-blur-sm">
-              <span className="text-secondary text-sm font-medium">🚀 Revolutionizing African Logistics</span>
+            <div className="relative mx-auto min-h-[240px] sm:min-h-[300px] max-w-3xl">
+              {heroSlides.map((slide, index) => (
+                <div
+                  key={slide.id}
+                  className={`absolute inset-0 flex flex-col items-center justify-center gap-6 px-4 transition-all duration-700 ease-out ${
+                    index === currentSlide ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 translate-y-8"
+                  }`}
+                >
+                  <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-white/80 backdrop-blur-sm sm:text-xs">
+                    {slide.eyebrow}
+                  </span>
+                  <h1 className="text-balance text-white font-bold leading-tight text-[clamp(2.2rem,4.5vw,3.8rem)] sm:text-[clamp(2.6rem,4vw,4.2rem)] lg:text-[clamp(2.8rem,3.5vw,4.4rem)]">
+                    <span className="block">{slide.titleLineOne}</span>
+                    <span className="block bg-gradient-to-r from-secondary via-accent to-secondary/80 bg-clip-text text-transparent text-[clamp(2.5rem,5vw,4.2rem)] sm:text-[clamp(2.9rem,4.5vw,4.6rem)] lg:text-[clamp(3.2rem,4vw,4.8rem)]">
+                      {slide.titleHighlight}
+                    </span>
+                    {slide.titleLineTwo && (
+                      <span className="block text-[clamp(2.2rem,4.5vw,3.8rem)] sm:text-[clamp(2.6rem,4vw,4.2rem)] lg:text-[clamp(2.8rem,3.5vw,4.4rem)]">
+                        {slide.titleLineTwo}
+                      </span>
+                    )}
+                  </h1>
+                  <p className="max-w-2xl text-sm text-gray-200 leading-relaxed sm:text-base md:text-lg">
+                    {slide.description}
+                  </p>
+                </div>
+              ))}
             </div>
 
-            <h1 className="text-5xl md:text-7xl font-bold text-white mb-8 leading-tight">
-              Africa's Most
-              <span className="block bg-gradient-to-r from-secondary via-accent to-secondary/80 bg-clip-text text-transparent animate-pulse">
-                Advanced Freight
-              </span>
-              <span className="block bg-gradient-to-r from-accent via-secondary to-accent/80 bg-clip-text text-transparent">
-                Ecosystem
-              </span>
-            </h1>
-
-            <p className="text-xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
-              Connect shippers and truckers across Africa with our AI-powered platform. Experience seamless booking,
-              real-time tracking, and secure payments in one unified ecosystem.
-            </p>
-
-            {/* Feature highlights */}
-            <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-16">
-              <div className="group bg-white/5 backdrop-blur-lg rounded-2xl p-8 border border-white/10 hover:border-secondary/50 transition-all duration-300 hover:transform hover:scale-105">
-                <div className="w-16 h-16 bg-gradient-to-r from-secondary to-accent rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:rotate-6 transition-transform duration-300">
-                  <Zap className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-4">Lightning Fast Booking</h3>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  Book trucks in under 60 seconds with our streamlined process and smart matching algorithm.
-                </p>
-              </div>
-
-              <div className="group bg-white/5 backdrop-blur-lg rounded-2xl p-8 border border-white/10 hover:border-accent/50 transition-all duration-300 hover:transform hover:scale-105">
-                <div className="w-16 h-16 bg-gradient-to-r from-accent to-secondary rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:rotate-6 transition-transform duration-300">
-                  <Globe className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-4">Real-time GPS Tracking</h3>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  Monitor your shipments with precision GPS tracking and instant notifications.
-                </p>
-              </div>
-
-              <div className="group bg-white/5 backdrop-blur-lg rounded-2xl p-8 border border-white/10 hover:border-secondary/50 transition-all duration-300 hover:transform hover:scale-105">
-                <div className="w-16 h-16 bg-gradient-to-r from-secondary to-accent rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:rotate-6 transition-transform duration-300">
-                  <Shield className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-4">Bank-level Security</h3>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  Advanced encryption and KYC verification ensure maximum safety for all transactions.
-                </p>
-              </div>
+            <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mt-12 mb-12">
+              {[
+                {
+                  icon: Zap,
+                  title: "Lightning Fast Booking",
+                  copy: "Book trucks in under 60 seconds with our streamlined process and smart matching algorithm.",
+                },
+                {
+                  icon: Globe,
+                  title: "Real-time GPS Tracking",
+                  copy: "Monitor your shipments with precision GPS tracking and instant notifications.",
+                },
+                {
+                  icon: Shield,
+                  title: "Bank-level Security",
+                  copy: "Advanced encryption and KYC verification ensure maximum safety for all transactions.",
+                },
+              ].map((feature, index) => {
+                const Icon = feature.icon
+                return (
+                  <Reveal
+                    key={feature.title}
+                    delay={index * 120}
+                    className="group bg-white/5 backdrop-blur-lg rounded-2xl p-8 border border-white/10 hover:border-secondary/50 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-secondary/20"
+                  >
+                    <div className="w-16 h-16 bg-gradient-to-r from-secondary to-accent rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:rotate-6 transition-transform duration-300">
+                      <Icon className="w-8 h-8 text-white" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-4">{feature.title}</h3>
+                    <p className="text-gray-300 text-sm leading-relaxed">{feature.copy}</p>
+                  </Reveal>
+                )
+              })}
             </div>
 
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-6 justify-center max-w-lg mx-auto">
+            <Reveal delay={250} className="flex flex-col sm:flex-row gap-6 justify-center max-w-lg mx-auto">
               <button
                 onClick={() => handleRoleSelect("shipper")}
                 className="group bg-gradient-to-r from-secondary to-accent text-white px-8 py-4 rounded-2xl font-bold hover:from-secondary/90 hover:to-accent/90 transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-secondary/25 flex items-center justify-center space-x-2"
               >
                 <Package className="w-5 h-5" />
                 <span>Ship Your Goods</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
               <button
                 onClick={() => handleRoleSelect("trucker")}
@@ -95,8 +165,22 @@ const LandingPage = () => {
               >
                 <Truck className="w-5 h-5" />
                 <span>Drive & Earn</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
+            </Reveal>
+
+            <div className="mt-8 flex justify-center gap-2">
+              {heroSlides.map((slide, index) => (
+                <button
+                  key={slide.id}
+                  type="button"
+                  onClick={() => goToSlide(index)}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    index === currentSlide ? "w-10 bg-white" : "w-2 bg-white/40 hover:bg-white/70"
+                  }`}
+                  aria-label={`Show slide ${index + 1}`}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -106,30 +190,23 @@ const LandingPage = () => {
       <section className="py-20 bg-white/5 backdrop-blur-sm border-y border-white/10">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-8 text-center">
-            <div className="group">
-              <div className="text-4xl font-bold bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent mb-2 group-hover:scale-110 transition-transform duration-300">
-                50K+
-              </div>
-              <div className="text-gray-300">Active Users</div>
-            </div>
-            <div className="group">
-              <div className="text-4xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent mb-2 group-hover:scale-110 transition-transform duration-300">
-                25K+
-              </div>
-              <div className="text-gray-300">Successful Deliveries</div>
-            </div>
-            <div className="group">
-              <div className="text-4xl font-bold bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent mb-2 group-hover:scale-110 transition-transform duration-300">
-                15+
-              </div>
-              <div className="text-gray-300">African Countries</div>
-            </div>
-            <div className="group">
-              <div className="text-4xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent mb-2 group-hover:scale-110 transition-transform duration-300">
-                99.9%
-              </div>
-              <div className="text-gray-300">Uptime</div>
-            </div>
+            {[
+              { figure: "50K+", label: "Active Users" },
+              { figure: "25K+", label: "Successful Deliveries" },
+              { figure: "15+", label: "African Countries" },
+              { figure: "99.9%", label: "Uptime" },
+            ].map((stat, index) => (
+              <Reveal
+                key={stat.label}
+                delay={index * 120}
+                className="group"
+              >
+                <div className="text-4xl font-bold bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent mb-2 group-hover:scale-110 transition-transform duration-300">
+                  {stat.figure}
+                </div>
+                <div className="text-gray-300">{stat.label}</div>
+              </Reveal>
+            ))}
           </div>
         </div>
       </section>
@@ -137,53 +214,46 @@ const LandingPage = () => {
       {/* How it Works Section */}
       <section className="py-20">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">How HOLAGE Works</h2>
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-              Simple, fast, and secure - get started in three easy steps
-            </p>
-          </div>
+        <Reveal className="text-center mb-16">
+          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">How HOLAGE Works</h2>
+          <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+            Simple, fast, and secure - get started in three easy steps
+          </p>
+        </Reveal>
 
-          <div className="grid md:grid-cols-3 gap-12 max-w-6xl mx-auto">
-            <div className="text-center group">
+        <div className="grid md:grid-cols-3 gap-12 max-w-6xl mx-auto">
+          {[
+            {
+              title: "Create & Verify",
+              description: "Sign up with your details and complete our secure KYC verification process in minutes.",
+              badge: "1",
+              pingClass: "bg-warning",
+            },
+            {
+              title: "Match & Connect",
+              description: "Our AI instantly matches shippers with available truckers based on location, capacity, and preferences.",
+              badge: "2",
+              pingClass: "bg-success",
+            },
+            {
+              title: "Track & Deliver",
+              description: "Monitor your shipment in real-time and receive instant notifications upon successful delivery.",
+              badge: "3",
+              pingClass: "bg-primary",
+            },
+          ].map((step, index) => (
+            <Reveal key={step.title} delay={index * 160} className="text-center group">
               <div className="relative mb-8">
                 <div className="w-24 h-24 bg-gradient-to-r from-secondary to-accent rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-2xl">
-                  <span className="text-white font-bold text-2xl">1</span>
+                  <span className="text-white font-bold text-2xl">{step.badge}</span>
                 </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-warning rounded-full animate-ping"></div>
+                <div className={`absolute -top-2 -right-2 w-6 h-6 ${step.pingClass} rounded-full animate-ping`}></div>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-4">Create & Verify</h3>
-              <p className="text-gray-300 leading-relaxed">
-                Sign up with your details and complete our secure KYC verification process in minutes.
-              </p>
-            </div>
-
-            <div className="text-center group">
-              <div className="relative mb-8">
-                <div className="w-24 h-24 bg-gradient-to-r from-primary to-secondary rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-2xl">
-                  <span className="text-white font-bold text-2xl">2</span>
-                </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-success rounded-full animate-ping animation-delay-1000"></div>
-              </div>
-              <h3 className="text-2xl font-bold text-white mb-4">Match & Connect</h3>
-              <p className="text-gray-300 leading-relaxed">
-                Our AI instantly matches shippers with available truckers based on location, capacity, and preferences.
-              </p>
-            </div>
-
-            <div className="text-center group">
-              <div className="relative mb-8">
-                <div className="w-24 h-24 bg-gradient-to-r from-accent to-secondary rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300 shadow-2xl">
-                  <span className="text-white font-bold text-2xl">3</span>
-                </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-primary rounded-full animate-ping animation-delay-2000"></div>
-              </div>
-              <h3 className="text-2xl font-bold text-white mb-4">Track & Deliver</h3>
-              <p className="text-gray-300 leading-relaxed">
-                Monitor your shipment in real-time and receive instant notifications upon successful delivery.
-              </p>
-            </div>
-          </div>
+              <h3 className="text-2xl font-bold text-white mb-4">{step.title}</h3>
+              <p className="text-gray-300 leading-relaxed">{step.description}</p>
+            </Reveal>
+          ))}
+        </div>
         </div>
       </section>
 

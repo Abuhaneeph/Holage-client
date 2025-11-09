@@ -79,12 +79,18 @@ const TruckerDashboard = () => {
           if (wr.ok && wd.wallet) {
             setWallet(wd.wallet)
             setWalletBalance(parseFloat(wd.wallet.balance || 0))
-          } else setWalletError(wd.message || 'No wallet found')
+          } else {
+            setWallet(null)
+            setWalletError('Add your BVN in your KYC profile to unlock your Holage wallet.')
+          }
           // Load transactions
           const tr = await fetch(`${API_BASE_URL}/wallet/transactions`, { headers: { 'Authorization': `Bearer ${token}` } })
           const td = await tr.json()
           if (tr.ok && td.transactions) setTransactions(td.transactions)
-        } catch (e) { setWalletError('Failed to load wallet') }
+        } catch (e) {
+          setWallet(null)
+          setWalletError('Add your BVN in your KYC profile to unlock your Holage wallet.')
+        }
       } catch (error) {
         console.error('Error checking KYC status:', error)
         setKycCheckDone(true)
@@ -308,28 +314,47 @@ const TruckerDashboard = () => {
           </div>
         </div>
 
-        <div className="mt-6">
-          <p className="text-white/80 text-sm mb-1">Wallet Balance</p>
-          <p className="text-white text-3xl font-bold">
-            {showBalance ? `₦${walletBalance.toLocaleString()}` : '₦ • • • • • •'}
-          </p>
         {wallet && (
-          <div className="mt-3 text-white/90 text-sm">
-            <div>Account: <span className="font-semibold tracking-wider">{wallet.accountNumber}</span></div>
-            <div>Name: <span className="font-semibold">{wallet.accountName}</span></div>
-            <div>Bank: <span className="font-semibold">{wallet.bankName}</span></div>
+          <div className="mt-6">
+            <p className="text-white/80 text-sm mb-1">Wallet Balance</p>
+            <p className="text-white text-3xl font-bold">
+              {showBalance ? `₦${walletBalance.toLocaleString()}` : '₦ • • • • • •'}
+            </p>
+            <div className="mt-3 text-white/90 text-sm">
+              <div>Account: <span className="font-semibold tracking-wider">{wallet.accountNumber}</span></div>
+              <div>Name: <span className="font-semibold">{wallet.accountName}</span></div>
+              <div>Bank: <span className="font-semibold">{wallet.bankName}</span></div>
+            </div>
           </div>
         )}
         {!wallet && walletError && (
           <div className="mt-3 text-white/80 text-xs">{walletError}</div>
         )}
-        </div>
+        {!wallet && (
+          <div className="mt-6 bg-white/10 border border-white/20 rounded-2xl p-4 text-left">
+            <p className="text-white font-semibold mb-2">Add your BVN to unlock your Holage wallet.</p>
+            <p className="text-white/80 text-sm mb-3">
+              Complete your BVN details in the KYC profile to generate your virtual account instantly.
+            </p>
+            <button
+              onClick={() => navigateTo('kyc')}
+              className="inline-flex items-center justify-center px-4 py-2 bg-white text-primary font-semibold rounded-xl hover:bg-white/90 transition-colors"
+            >
+              Update BVN
+            </button>
+          </div>
+        )}
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-3 mt-6">
           <button 
             onClick={() => setShowFundModal(true)}
-            className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 flex items-center space-x-3 hover:bg-white/30 transition-colors"
+            disabled={!wallet}
+            className={`backdrop-blur-sm rounded-2xl p-4 flex items-center space-x-3 ${
+              !wallet
+                ? "bg-white/10 opacity-60 cursor-not-allowed"
+                : "bg-white/20 hover:bg-white/30 transition-colors"
+            }`}
           >
             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
               <ArrowDown className="w-5 h-5 text-primary" />
@@ -510,6 +535,20 @@ const TruckerDashboard = () => {
         {activeView === "wallet" && (
           <div className="space-y-4">
             <h2 className="text-text-primary font-bold text-2xl">Wallet</h2>
+            {!wallet && (
+              <div className="bg-warning/10 border border-warning/30 rounded-2xl p-5">
+                <p className="text-warning font-semibold mb-2">Your wallet isn&apos;t ready yet.</p>
+                <p className="text-warning/90 text-sm mb-3">
+                  Update your BVN details so we can provision your Holage wallet account.
+                </p>
+                <button
+                  onClick={() => navigateTo('kyc')}
+                  className="bg-warning text-white px-4 py-2 rounded-xl font-medium hover:bg-warning/90 transition-colors"
+                >
+                  Update BVN
+                </button>
+              </div>
+            )}
             
             <div className="bg-card border border-border rounded-2xl p-6">
               <p className="text-text-secondary mb-2">Available Balance</p>
