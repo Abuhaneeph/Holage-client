@@ -25,7 +25,8 @@ import {
   Phone,
   CreditCard,
   ChevronDown,
-  Search
+  Search,
+  X
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
