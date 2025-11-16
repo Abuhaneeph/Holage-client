@@ -78,6 +78,12 @@ const LoginPage = () => {
       } else if (response.user?.role === "shipper") {
         console.log("Navigating to shipper dashboard")
         navigateTo("shipper-dashboard")
+      } else if (response.user?.role === "fleet_manager") {
+        console.log("Navigating to fleet manager dashboard")
+        navigateTo("fleet-manager-dashboard")
+      } else if (response.user?.role === "admin") {
+        console.log("Navigating to admin dashboard")
+        navigateTo("admin-dashboard")
       } else {
         console.log("Role not recognized, using fallback. Role was:", response.user?.role)
         navigateTo("dashboard") // fallback

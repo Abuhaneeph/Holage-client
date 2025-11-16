@@ -8,6 +8,9 @@ import KYCPage from "./pages/KYCPage"
 import SuccessPage from "./pages/SuccessPage"
 import TruckerDashboard from "./pages/TruckerDashboard"
 import ShipperDashboard from "./pages/ShipperDashboard"
+import FleetManagerDashboard from "./pages/FleetManagerDashboard"
+import AdminDashboard from "./pages/AdminDashboard"
+import ComplaintPage from "./pages/ComplaintPage"
 const Router = () => {
   const { currentPage } = useAppContext()
 
@@ -31,6 +34,12 @@ const Router = () => {
         return <TruckerDashboard />
       case "shipper-dashboard":
         return <ShipperDashboard />
+      case "fleet-manager-dashboard":
+        return <FleetManagerDashboard />
+      case "admin-dashboard":
+        return <AdminDashboard />
+      case "complaint":
+        return <ComplaintPage />
       default:
         return <LandingPage />
     }

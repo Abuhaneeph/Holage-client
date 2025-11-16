@@ -90,25 +90,25 @@ const LandingPage = () => {
               {heroSlides.map((slide, index) => (
                 <div
                   key={slide.id}
-                  className={`absolute inset-0 flex flex-col items-center justify-center gap-6 px-4 transition-all duration-700 ease-out ${
+                  className={`absolute inset-0 flex flex-col items-center justify-center gap-3 sm:gap-4 md:gap-6 px-2 sm:px-4 transition-all duration-700 ease-out ${
                     index === currentSlide ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 translate-y-8"
                   }`}
                 >
-                  <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-white/80 backdrop-blur-sm sm:text-xs">
+                  <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[0.5rem] font-semibold uppercase tracking-[0.35em] text-white/80 backdrop-blur-sm sm:text-[0.65rem] md:text-xs">
                     {slide.eyebrow}
                   </span>
-                  <h1 className="text-balance text-white font-bold leading-tight text-[clamp(2.2rem,4.5vw,3.8rem)] sm:text-[clamp(2.6rem,4vw,4.2rem)] lg:text-[clamp(2.8rem,3.5vw,4.4rem)]">
+                  <h1 className="text-balance text-white font-bold leading-tight text-[clamp(1.5rem,4.5vw,3.8rem)] sm:text-[clamp(2.2rem,4.5vw,3.8rem)] md:text-[clamp(2.6rem,4vw,4.2rem)] lg:text-[clamp(2.8rem,3.5vw,4.4rem)]">
                     <span className="block">{slide.titleLineOne}</span>
-                    <span className="block bg-gradient-to-r from-secondary via-accent to-secondary/80 bg-clip-text text-transparent text-[clamp(2.5rem,5vw,4.2rem)] sm:text-[clamp(2.9rem,4.5vw,4.6rem)] lg:text-[clamp(3.2rem,4vw,4.8rem)]">
+                    <span className="block bg-gradient-to-r from-secondary via-accent to-secondary/80 bg-clip-text text-transparent text-[clamp(1.7rem,5vw,4.2rem)] sm:text-[clamp(2.5rem,5vw,4.2rem)] md:text-[clamp(2.9rem,4.5vw,4.6rem)] lg:text-[clamp(3.2rem,4vw,4.8rem)]">
                       {slide.titleHighlight}
                     </span>
                     {slide.titleLineTwo && (
-                      <span className="block text-[clamp(2.2rem,4.5vw,3.8rem)] sm:text-[clamp(2.6rem,4vw,4.2rem)] lg:text-[clamp(2.8rem,3.5vw,4.4rem)]">
+                      <span className="block text-[clamp(1.5rem,4.5vw,3.8rem)] sm:text-[clamp(2.2rem,4.5vw,3.8rem)] md:text-[clamp(2.6rem,4vw,4.2rem)] lg:text-[clamp(2.8rem,3.5vw,4.4rem)]">
                         {slide.titleLineTwo}
                       </span>
                     )}
                   </h1>
-                  <p className="max-w-2xl text-sm text-gray-200 leading-relaxed sm:text-base md:text-lg">
+                  <p className="max-w-2xl text-xs text-gray-200 leading-relaxed sm:text-sm md:text-base lg:text-lg">
                     {slide.description}
                   </p>
                 </div>

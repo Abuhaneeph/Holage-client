@@ -14,6 +14,8 @@ const SuccessPage = () => {
       navigateTo("trucker-dashboard")
     } else if (userRole === "shipper") {
       navigateTo("shipper-dashboard")
+    } else if (userRole === "fleet_manager") {
+      navigateTo("fleet-manager-dashboard")
     } else {
       navigateTo("landing")
     }
@@ -37,6 +39,8 @@ const SuccessPage = () => {
             <p className="text-text-secondary mb-6">
               {userRole === "trucker"
                 ? "Your trucker application has been submitted successfully. You'll receive an email confirmation once your account is approved."
+                : userRole === "fleet_manager"
+                ? "Your KYC information has been submitted successfully. You can now access your dashboard and manage your fleet."
                 : "Your shipper account has been created successfully. You can now start booking trucks for your shipments."}
             </p>
 
@@ -48,6 +52,8 @@ const SuccessPage = () => {
                   <p className="text-sm text-text-secondary mt-1">
                     {userRole === "trucker"
                       ? "Our team will review your application within 24-48 hours. You'll receive notifications via email and SMS."
+                      : userRole === "fleet_manager"
+                      ? "Your KYC is under review. You can access your dashboard and start managing your fleet while your documents are being verified."
                       : "You can now access your dashboard and start creating shipment requests. Check your email for getting started guide."}
                   </p>
                 </div>

@@ -85,6 +85,9 @@ export const AppProvider = ({ children }) => {
       bvn: "",
       utilityBill: null,
       passportPhoto: null,
+      bankAccountNumber: "",
+      bankCode: "",
+      bankName: "",
     })
     setUserRole("")
   }
@@ -216,7 +219,6 @@ export const AppProvider = ({ children }) => {
       const data = await callApi("/auth/login", "POST", { email, password })
       localStorage.setItem("authToken", data.token)
       setUser(data.user)
-      toast.success(data.message)
       return data
     } catch (err) {
       console.error("Login failed:", err)
@@ -228,7 +230,6 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem("authToken")
     setUser(null)
     resetForm()
-    toast.success("Logged out successfully")
     navigateTo("landing")
   }
   
@@ -311,8 +312,11 @@ export const AppProvider = ({ children }) => {
         throw new Error("Phone, address, and NIN are required.")
       }
 
-      if (userRole === "trucker" && (!formData.plateNumber || !formData.vehicleType)) {
-        throw new Error("Vehicle information is required for truckers.")
+      if (userRole === "trucker") {
+        if (!formData.plateNumber || !formData.vehicleType) {
+          throw new Error("Vehicle information is required for truckers.")
+        }
+        // Bank account details are optional - can be added later via profile
       }
 
       // Create FormData object for file uploads
@@ -327,6 +331,15 @@ export const AppProvider = ({ children }) => {
       if (userRole === "trucker") {
         kycFormData.append('plateNumber', formData.plateNumber)
         kycFormData.append('vehicleType', formData.vehicleType)
+      }
+      
+      // Add bank account details for all roles (optional)
+      if (formData.bankAccountNumber && formData.bankCode) {
+        kycFormData.append('bankAccountNumber', formData.bankAccountNumber)
+        kycFormData.append('bankCode', formData.bankCode)
+        if (formData.bankName) {
+          kycFormData.append('bankName', formData.bankName)
+        }
       }
 
       // Add files if they exist
@@ -378,7 +391,7 @@ export const AppProvider = ({ children }) => {
           return true
         }
       case 4:
-        // Vehicle info step for truckers
+        // Vehicle info step for truckers (bank account is optional)
         return formData.vehicleType && formData.plateNumber
       default:
         return true
