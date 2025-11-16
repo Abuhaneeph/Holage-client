@@ -421,31 +421,31 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800 p-6 rounded-b-3xl shadow-lg">
+      <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800 p-4 sm:p-6 rounded-b-3xl shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-              <Shield className="w-6 h-6 text-white" />
+          <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+              <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <div>
-              <p className="text-white/80 text-sm">Admin Dashboard</p>
-              <p className="text-white font-bold text-lg">{user?.fullName || "Admin"}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-white/80 text-xs sm:text-sm truncate">Admin Dashboard</p>
+              <p className="text-white font-bold text-base sm:text-lg truncate">{user?.fullName || "Admin"}</p>
             </div>
           </div>
           <button
             onClick={logoutUser}
-            className="w-10 h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors"
+            className="w-9 h-9 sm:w-10 sm:h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors flex-shrink-0 ml-2"
             title="Logout"
           >
-            <LogOut className="w-5 h-5 text-white" />
+            <LogOut className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </button>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 overflow-x-auto pb-2 -mx-2 px-2 scrollbar-hide">
           <button
             onClick={() => setActiveView("home")}
-            className={`px-4 py-2 rounded-xl font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
               activeView === "home"
                 ? "bg-white text-purple-700"
                 : "bg-white/20 text-white hover:bg-white/30"
@@ -455,7 +455,7 @@ const AdminDashboard = () => {
           </button>
           <button
             onClick={() => setActiveView("complaints")}
-            className={`px-4 py-2 rounded-xl font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
               activeView === "complaints"
                 ? "bg-white text-purple-700"
                 : "bg-white/20 text-white hover:bg-white/30"
@@ -465,7 +465,7 @@ const AdminDashboard = () => {
           </button>
           <button
             onClick={() => setActiveView("kyc")}
-            className={`px-4 py-2 rounded-xl font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
               activeView === "kyc"
                 ? "bg-white text-purple-700"
                 : "bg-white/20 text-white hover:bg-white/30"
@@ -475,7 +475,7 @@ const AdminDashboard = () => {
           </button>
           <button
             onClick={() => setActiveView("settings")}
-            className={`px-4 py-2 rounded-xl font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
               activeView === "settings"
                 ? "bg-white text-purple-700"
                 : "bg-white/20 text-white hover:bg-white/30"
@@ -487,65 +487,65 @@ const AdminDashboard = () => {
       </div>
 
       {/* Content */}
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 max-w-7xl">
         {activeView === "home" && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-text-primary">Dashboard Overview</h2>
+          <div className="space-y-4 sm:space-y-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Dashboard Overview</h2>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-text-secondary text-sm">Total Complaints</p>
-                    <p className="text-2xl font-bold text-text-primary mt-1">{stats.total}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-text-secondary text-xs sm:text-sm truncate">Total Complaints</p>
+                    <p className="text-xl sm:text-2xl font-bold text-text-primary mt-1">{stats.total}</p>
                   </div>
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                    <FileText className="w-6 h-6 text-primary" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
+              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-text-secondary text-sm">Pending</p>
-                    <p className="text-2xl font-bold text-yellow-600 mt-1">{stats.pending}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-text-secondary text-xs sm:text-sm truncate">Pending</p>
+                    <p className="text-xl sm:text-2xl font-bold text-yellow-600 mt-1">{stats.pending}</p>
                   </div>
-                  <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-yellow-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                    <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
+              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-text-secondary text-sm">In Progress</p>
-                    <p className="text-2xl font-bold text-blue-600 mt-1">{stats.in_progress}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-text-secondary text-xs sm:text-sm truncate">In Progress</p>
+                    <p className="text-xl sm:text-2xl font-bold text-blue-600 mt-1">{stats.in_progress}</p>
                   </div>
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <MessageSquare className="w-6 h-6 text-blue-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                    <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
+              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-text-secondary text-sm">Resolved</p>
-                    <p className="text-2xl font-bold text-green-600 mt-1">{stats.resolved}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-text-secondary text-xs sm:text-sm truncate">Resolved</p>
+                    <p className="text-xl sm:text-2xl font-bold text-green-600 mt-1">{stats.resolved}</p>
                   </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                    <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
-              <h3 className="text-lg font-semibold text-text-primary mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+              <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-3 sm:mb-4">Quick Actions</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <button
                   onClick={() => setActiveView("complaints")}
                   className="flex items-center space-x-3 p-4 bg-primary/10 rounded-xl hover:bg-primary/20 transition-colors text-left"
@@ -560,9 +560,9 @@ const AdminDashboard = () => {
             </div>
 
             {/* Diesel Rate Settings */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
-              <h3 className="text-lg font-semibold text-text-primary mb-4">System Settings</h3>
-              <div className="space-y-4">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+              <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-3 sm:mb-4">System Settings</h3>
+              <div className="space-y-3 sm:space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-text-primary mb-2">
                     Diesel Cost Per Liter (₦)
@@ -570,24 +570,24 @@ const AdminDashboard = () => {
                   {loadingDieselRate ? (
                     <div className="flex items-center space-x-2 text-text-secondary">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      <span>Loading...</span>
+                      <span className="text-sm">Loading...</span>
                     </div>
                   ) : (
-                    <form onSubmit={handleUpdateDieselRate} className="flex items-center space-x-3">
+                    <form onSubmit={handleUpdateDieselRate} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                       <input
                         type="number"
                         min="1"
                         step="0.01"
                         value={dieselRateInput}
                         onChange={(e) => setDieselRateInput(e.target.value)}
-                        className="flex-1 px-4 py-2 border border-border rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="flex-1 px-3 sm:px-4 py-2 border border-border rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
                         placeholder="Enter diesel rate"
                         required
                       />
                       <button
                         type="submit"
                         disabled={updatingDieselRate || dieselRateInput === dieselRate.toString()}
-                        className="px-6 py-2 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 sm:px-6 py-2 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base whitespace-nowrap"
                       >
                         {updatingDieselRate ? 'Updating...' : 'Update'}
                       </button>
@@ -606,13 +606,13 @@ const AdminDashboard = () => {
         )}
 
         {activeView === "complaints" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-text-primary">Customer Complaints</h2>
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Customer Complaints</h2>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-4 py-2 bg-white border border-border rounded-xl text-text-primary"
+                className="px-3 sm:px-4 py-2 bg-white border border-border rounded-xl text-text-primary text-sm sm:text-base w-full sm:w-auto"
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
@@ -641,11 +641,11 @@ const AdminDashboard = () => {
                   <span>Back to Complaints</span>
                 </button>
 
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h3 className="text-lg font-semibold text-text-primary">
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+                  <div className="flex items-start justify-between mb-3 sm:mb-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="text-base sm:text-lg font-semibold text-text-primary break-words">
                           {selectedComplaint.subject}
                         </h3>
                         <span
@@ -685,10 +685,10 @@ const AdminDashboard = () => {
                     {selectedComplaint.messages && selectedComplaint.messages.map((msg) => (
                       <div
                         key={msg.id}
-                        className={`rounded-xl p-4 ${
+                        className={`rounded-xl p-3 sm:p-4 ${
                           msg.senderRole === 'admin'
-                            ? 'bg-primary/10 border border-primary/20 ml-8'
-                            : 'bg-muted/30 mr-8'
+                            ? 'bg-primary/10 border border-primary/20 sm:ml-8'
+                            : 'bg-muted/30 sm:mr-8'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -716,31 +716,29 @@ const AdminDashboard = () => {
                   </div>
 
                   {/* Reply Form */}
-                  <div className="border-t border-border pt-4">
+                  <div className="border-t border-border pt-3 sm:pt-4">
                     <textarea
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
                       placeholder="Type your reply..."
-                      className="w-full px-4 py-3 border border-border rounded-xl text-text-primary bg-input focus:outline-none focus:ring-2 focus:ring-primary mb-3"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-border rounded-xl text-text-primary bg-input focus:outline-none focus:ring-2 focus:ring-primary mb-3 text-sm sm:text-base"
                       rows={3}
                     />
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <select
-                          value={selectedComplaint.status}
-                          onChange={(e) => handleStatusUpdate(selectedComplaint.id, e.target.value)}
-                          className="px-4 py-2 border border-border rounded-xl text-text-primary bg-white"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="resolved">Resolved</option>
-                          <option value="closed">Closed</option>
-                        </select>
-                      </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <select
+                        value={selectedComplaint.status}
+                        onChange={(e) => handleStatusUpdate(selectedComplaint.id, e.target.value)}
+                        className="px-3 sm:px-4 py-2 border border-border rounded-xl text-text-primary bg-white text-sm sm:text-base w-full sm:w-auto"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                      </select>
                       <button
                         onClick={() => handleSendReply(selectedComplaint.id)}
                         disabled={sendingReply || !replyMessage.trim()}
-                        className="px-6 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                        className="px-4 sm:px-6 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base w-full sm:w-auto"
                       >
                         {sendingReply ? (
                           <>
@@ -759,11 +757,11 @@ const AdminDashboard = () => {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {complaints.map((complaint) => (
                   <div
                     key={complaint.id}
-                    className="bg-white rounded-2xl p-6 shadow-sm border border-border cursor-pointer hover:shadow-md transition-shadow"
+                    className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => fetchComplaintDetails(complaint.id)}
                   >
                     <div className="flex items-start justify-between mb-4">
@@ -798,16 +796,16 @@ const AdminDashboard = () => {
         )}
 
         {activeView === "kyc" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-text-primary">KYC Submissions</h2>
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary">KYC Submissions</h2>
               <select
                 value={selectedKycStatus}
                 onChange={(e) => {
                   setSelectedKycStatus(e.target.value)
                   fetchKycSubmissions()
                 }}
-                className="px-4 py-2 bg-white border border-border rounded-xl text-text-primary"
+                className="px-3 sm:px-4 py-2 bg-white border border-border rounded-xl text-text-primary text-sm sm:text-base w-full sm:w-auto"
               >
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
@@ -830,10 +828,10 @@ const AdminDashboard = () => {
                   <span>Back to Submissions</span>
                 </button>
 
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-4">
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+                  <div className="flex items-start justify-between mb-4 sm:mb-6">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
                         {selectedKycSubmission.profilePhoto ? (
                           <img
                             src={selectedKycSubmission.profilePhoto}
@@ -857,7 +855,7 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
                     <div>
                       <p className="text-text-secondary text-sm mb-1">Role</p>
                       <p className="text-text-primary font-medium">{getRoleLabel(selectedKycSubmission.role)}</p>
@@ -888,9 +886,9 @@ const AdminDashboard = () => {
                     )}
                   </div>
 
-                  <div className="border-t border-border pt-6">
-                    <h4 className="text-lg font-semibold text-text-primary mb-4">Documents</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="border-t border-border pt-4 sm:pt-6">
+                    <h4 className="text-base sm:text-lg font-semibold text-text-primary mb-3 sm:mb-4">Documents</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       {selectedKycSubmission.profilePhoto && (
                         <div className="border border-border rounded-xl p-4">
                           <p className="text-text-secondary text-sm mb-2">Profile Photo</p>
@@ -943,21 +941,21 @@ const AdminDashboard = () => {
                   </div>
 
                   {selectedKycSubmission.kycStatus === 'pending' && (
-                    <div className="flex items-center space-x-3 mt-6 pt-6 border-t border-border">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-border">
                       <button
                         onClick={() => handleKycStatusUpdate(selectedKycSubmission.id, 'approved')}
                         disabled={updatingKycStatus}
-                        className="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                        className="flex-1 bg-green-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
                       >
-                        <Check className="w-5 h-5" />
+                        <Check className="w-4 h-4 sm:w-5 sm:h-5" />
                         <span>Approve</span>
                       </button>
                       <button
                         onClick={() => handleKycStatusUpdate(selectedKycSubmission.id, 'rejected')}
                         disabled={updatingKycStatus}
-                        className="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                        className="flex-1 bg-red-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
                       >
-                        <XCircle className="w-5 h-5" />
+                        <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                         <span>Reject</span>
                       </button>
                     </div>
@@ -970,11 +968,11 @@ const AdminDashboard = () => {
                 <p className="text-text-secondary">No KYC submissions found</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {kycSubmissions.map((submission) => (
                   <div
                     key={submission.id}
-                    className="bg-white rounded-2xl p-6 shadow-sm border border-border cursor-pointer hover:shadow-md transition-shadow"
+                    className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => fetchKycSubmissionDetails(submission.id)}
                   >
                     <div className="flex items-start justify-between">
@@ -1012,27 +1010,27 @@ const AdminDashboard = () => {
         )}
 
         {activeView === "settings" && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-text-primary">System Settings</h2>
+          <div className="space-y-4 sm:space-y-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-text-primary">System Settings</h2>
 
             {/* Diesel Rate Settings */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+              <div className="flex items-start sm:items-center space-x-3 mb-3 sm:mb-4">
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                   <Settings className="w-5 h-5 text-primary" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-text-primary">Diesel Cost Per Liter</h3>
-                  <p className="text-sm text-text-secondary">Update the diesel rate used for shipping cost calculations</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base sm:text-lg font-semibold text-text-primary">Diesel Cost Per Liter</h3>
+                  <p className="text-xs sm:text-sm text-text-secondary mt-1">Update the diesel rate used for shipping cost calculations</p>
                 </div>
               </div>
               
               {loadingDieselRate ? (
-                <div className="flex items-center justify-center py-8">
+                <div className="flex items-center justify-center py-6 sm:py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               ) : (
-                <form onSubmit={handleUpdateDieselRate} className="space-y-4">
+                <form onSubmit={handleUpdateDieselRate} className="space-y-3 sm:space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-text-primary mb-2">
                       Diesel Rate (₦ per liter)
@@ -1043,7 +1041,7 @@ const AdminDashboard = () => {
                       step="0.01"
                       value={dieselRateInput}
                       onChange={(e) => setDieselRateInput(e.target.value)}
-                      className="w-full px-4 py-3 border border-border rounded-xl text-text-primary text-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-border rounded-xl text-text-primary text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-primary"
                       placeholder="Enter diesel rate"
                       required
                     />
@@ -1055,7 +1053,7 @@ const AdminDashboard = () => {
                   <button
                     type="submit"
                     disabled={updatingDieselRate || dieselRateInput === dieselRate.toString()}
-                    className="w-full px-6 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                    className="w-full px-4 sm:px-6 py-2 sm:py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
                   >
                     {updatingDieselRate ? (
                       <>
@@ -1067,11 +1065,11 @@ const AdminDashboard = () => {
                     )}
                   </button>
                   
-                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
-                    <p className="text-sm text-text-primary">
+                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 sm:p-4">
+                    <p className="text-xs sm:text-sm text-text-primary">
                       <strong>Note:</strong> This rate is used in the shipping cost formula:
                     </p>
-                    <p className="text-xs text-text-secondary mt-1">
+                    <p className="text-xs text-text-secondary mt-1 break-words">
                       Total Cost = (Distance ÷ Fuel Efficiency × Diesel Rate) + (Tonnage × Distance × Rate per Ton-KM) + Base Fee
                     </p>
                   </div>

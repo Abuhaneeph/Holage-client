@@ -23,7 +23,9 @@ import {
   AlertCircle,
   Mail,
   Phone,
-  CreditCard
+  CreditCard,
+  ChevronDown,
+  Search
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
