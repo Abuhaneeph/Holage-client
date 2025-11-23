@@ -74,6 +74,9 @@ const ShipperDashboard = () => {
   const [banks, setBanks] = useState([])
   const [loadingBanks, setLoadingBanks] = useState(false)
   const [updatingBankAccount, setUpdatingBankAccount] = useState(false)
+  const [resolvedAccountName, setResolvedAccountName] = useState(null)
+  const [verifyingAccount, setVerifyingAccount] = useState(false)
+  const [accountVerified, setAccountVerified] = useState(false)
   const [showBankModal, setShowBankModal] = useState(false)
   const [bankSearchQuery, setBankSearchQuery] = useState('')
   
@@ -85,6 +88,16 @@ const ShipperDashboard = () => {
   const [shipments, setShipments] = useState([])
   const [loadingShipments, setLoadingShipments] = useState(false)
   const [creatingShipment, setCreatingShipment] = useState(false)
+  const [expandedShipmentId, setExpandedShipmentId] = useState(null)
+  const [deletingShipmentId, setDeletingShipmentId] = useState(null)
+  
+  // Bids state
+  const [shipmentBids, setShipmentBids] = useState({}) // { shipmentId: [bids] }
+  const [loadingBids, setLoadingBids] = useState({}) // { shipmentId: boolean }
+  const [acceptingBidId, setAcceptingBidId] = useState(null)
+  const [showBidAcceptModal, setShowBidAcceptModal] = useState(false)
+  const [selectedBidForAccept, setSelectedBidForAccept] = useState(null)
+  const [selectedShipmentForBid, setSelectedShipmentForBid] = useState(null)
   
   // Pagination
   const [activeShipmentsPage, setActiveShipmentsPage] = useState(1)
@@ -331,10 +344,6 @@ const ShipperDashboard = () => {
   const [fundLoading, setFundLoading] = useState(false)
   const [fundAccount, setFundAccount] = useState(null) // { account_number, bank_name, expiry_date_in_utc }
   const [fundReference, setFundReference] = useState("")
-  
-  // Delete shipment state
-  const [deletingShipmentId, setDeletingShipmentId] = useState(null)
-  const [expandedShipmentId, setExpandedShipmentId] = useState(null)
   
   // Fetch my shipments
   const fetchMyShipments = async () => {
@@ -626,7 +635,41 @@ const ShipperDashboard = () => {
         throw new Error(data.message || 'Failed to create shipment')
       }
       
-      toast.success('Shipment created successfully!')
+      // Update wallet balance from response
+      if (data.walletBalance !== undefined) {
+        const newBalance = parseFloat(data.walletBalance || 0)
+        setWalletBalance(newBalance)
+        console.log('✅ Wallet balance updated from shipment creation:', newBalance)
+        
+        // Also update wallet object if it exists
+        if (wallet) {
+          setWallet({ ...wallet, balance: newBalance })
+        }
+      }
+      
+      // Refresh wallet and transactions to ensure consistency
+      try {
+        const [wr, tr] = await Promise.all([
+          fetch(`${API_BASE_URL}/wallet`, { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch(`${API_BASE_URL}/wallet/transactions`, { headers: { 'Authorization': `Bearer ${token}` } })
+        ])
+        const wd = await wr.json()
+        const td = await tr.json()
+        
+        if (wr.ok && wd.wallet) {
+          setWallet(wd.wallet)
+          const refreshedBalance = parseFloat(wd.wallet.balance || 0)
+          setWalletBalance(refreshedBalance)
+          console.log('✅ Wallet balance refreshed after shipment creation:', refreshedBalance)
+        }
+        if (tr.ok && td.transactions) {
+          setTransactions(td.transactions)
+        }
+      } catch (walletError) {
+        console.error('Error refreshing wallet after shipment creation:', walletError)
+      }
+      
+      toast.success(`Shipment created successfully!${data.deductedAmount ? ` ₦${data.deductedAmount.toLocaleString('en-NG')} deducted from your wallet.` : ''}`)
       setShowCreateShipment(false)
       setShipmentForm({
         pickupState: '',
@@ -731,6 +774,111 @@ const ShipperDashboard = () => {
       toast.error(e.message)
     } finally {
       setDeletingShipmentId(null)
+    }
+  }
+
+  // Fetch bids for a shipment
+  const fetchShipmentBids = async (shipmentId) => {
+    if (loadingBids[shipmentId]) return
+    
+    setLoadingBids(prev => ({ ...prev, [shipmentId]: true }))
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/bids/shipment/${shipmentId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setShipmentBids(prev => ({ ...prev, [shipmentId]: data.bids || [] }))
+      }
+    } catch (error) {
+      console.error('Error fetching bids:', error)
+    } finally {
+      setLoadingBids(prev => ({ ...prev, [shipmentId]: false }))
+    }
+  }
+
+  // Show bid acceptance confirmation modal
+  const handleAcceptBidClick = (bid, shipment) => {
+    setSelectedBidForAccept(bid)
+    setSelectedShipmentForBid(shipment)
+    setShowBidAcceptModal(true)
+  }
+
+  // Accept a bid (after confirmation)
+  const handleAcceptBid = async () => {
+    if (!selectedBidForAccept || !selectedShipmentForBid) return
+
+    const bidId = selectedBidForAccept.id
+    const bidAmount = parseFloat(selectedBidForAccept.bidAmount || 0)
+    const estimatedCost = parseFloat(selectedShipmentForBid.estimatedCost || 0)
+    const additionalAmount = bidAmount - estimatedCost
+
+    // Check if additional amount is needed and if shipper has sufficient balance
+    if (additionalAmount > 0 && walletBalance < additionalAmount) {
+      toast.error(`Insufficient wallet balance. The bid amount (₦${bidAmount.toLocaleString('en-NG')}) is ₦${additionalAmount.toLocaleString('en-NG')} higher than the estimated cost (₦${estimatedCost.toLocaleString('en-NG')}). Your current balance is ₦${walletBalance.toLocaleString('en-NG')}. Please fund your wallet.`)
+      setShowBidAcceptModal(false)
+      setSelectedBidForAccept(null)
+      setSelectedShipmentForBid(null)
+      return
+    }
+
+    setShowBidAcceptModal(false)
+    setAcceptingBidId(bidId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/bids/${bidId}/accept`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Bid accepted successfully! Payment has been credited to the trucker\'s wallet.')
+        // Refresh shipments and bids
+        fetchMyShipments()
+        if (data.shipment) {
+          fetchShipmentBids(data.shipment.id)
+        }
+        // Refresh wallet balance and transactions
+        try {
+          const token = localStorage.getItem('authToken')
+          const [wr, tr] = await Promise.all([
+            fetch(`${API_BASE_URL}/wallet`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${API_BASE_URL}/wallet/transactions`, { headers: { 'Authorization': `Bearer ${token}` } })
+          ])
+          const wd = await wr.json()
+          const td = await tr.json()
+          
+          if (wr.ok && wd.wallet) {
+            setWallet(wd.wallet)
+            const refreshedBalance = parseFloat(wd.wallet.balance || 0)
+            setWalletBalance(refreshedBalance)
+            console.log('✅ Wallet balance refreshed after bid acceptance:', refreshedBalance)
+          }
+          
+          if (tr.ok && td.transactions) {
+            setTransactions(td.transactions)
+            console.log('✅ Transactions refreshed after bid acceptance:', td.transactions.length)
+          }
+        } catch (e) {
+          console.error('Error refreshing wallet/transactions:', e)
+        }
+      } else {
+        toast.error(data.message || 'Failed to accept bid')
+      }
+    } catch (error) {
+      console.error('Error accepting bid:', error)
+      toast.error('Error accepting bid')
+    } finally {
+      setAcceptingBidId(null)
+      setSelectedBidForAccept(null)
+      setSelectedShipmentForBid(null)
     }
   }
 
@@ -1180,7 +1328,14 @@ const ShipperDashboard = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <button 
-                          onClick={() => setExpandedShipmentId(isExpanded ? null : shipment.id)}
+                          onClick={() => {
+                            const newExpandedId = isExpanded ? null : shipment.id
+                            setExpandedShipmentId(newExpandedId)
+                            // Fetch bids when expanding
+                            if (newExpandedId && shipment.status === 'pending') {
+                              fetchShipmentBids(shipment.id)
+                            }
+                          }}
                           className="bg-primary text-white px-6 py-3 rounded-xl font-medium text-base"
                         >
                           {isExpanded ? 'Hide Details' : 'View Details'}
@@ -1219,10 +1374,100 @@ const ShipperDashboard = () => {
                       </div>
                     </div>
                           <div className="pt-3 border-t border-border">
-                            <p className="text-text-secondary text-sm mb-1">Total Cost</p>
+                            <p className="text-text-secondary text-sm mb-1">Base Cost</p>
                       <p className="text-success font-bold text-xl">₦{parseFloat(shipment.estimatedCost || 0).toLocaleString('en-NG')}</p>
                       </div>
                     </div>
+
+                    {/* Bids Section - Only show for pending shipments */}
+                    {shipment.status === 'pending' && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-text-primary font-bold">Bids</h4>
+                          <button
+                            onClick={() => fetchShipmentBids(shipment.id)}
+                            disabled={loadingBids[shipment.id]}
+                            className="text-primary text-sm font-medium hover:text-primary/80 disabled:opacity-50"
+                          >
+                            {loadingBids[shipment.id] ? 'Loading...' : 'Refresh'}
+                          </button>
+                        </div>
+                        
+                        {loadingBids[shipment.id] ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader className="w-5 h-5 animate-spin text-primary" />
+                          </div>
+                        ) : shipmentBids[shipment.id] && shipmentBids[shipment.id].length > 0 ? (
+                          <div className="space-y-3">
+                            {shipmentBids[shipment.id]
+                              .sort((a, b) => parseFloat(a.bidAmount) - parseFloat(b.bidAmount))
+                              .map((bid) => (
+                                <div
+                                  key={bid.id}
+                                  className={`bg-muted/30 border rounded-xl p-4 ${
+                                    bid.status === 'accepted' ? 'border-success' : 
+                                    bid.status === 'rejected' ? 'border-error/30' : 
+                                    'border-border'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
+                                      <p className="text-text-primary font-bold text-lg">
+                                        ₦{parseFloat(bid.bidAmount || 0).toLocaleString('en-NG')}
+                                      </p>
+                                      <p className="text-text-secondary text-sm">
+                                        {bid.truckerName || 'Trucker'} {bid.truckerPhone ? `• ${bid.truckerPhone}` : ''}
+                                      </p>
+                                      {bid.message && (
+                                        <p className="text-text-secondary text-sm mt-2 italic">
+                                          "{bid.message}"
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="text-right">
+                                      {bid.status === 'accepted' && (
+                                        <span className="inline-block bg-success/10 text-success px-3 py-1 rounded-lg text-xs font-medium">
+                                          Accepted
+                                        </span>
+                                      )}
+                                      {bid.status === 'rejected' && (
+                                        <span className="inline-block bg-error/10 text-error px-3 py-1 rounded-lg text-xs font-medium">
+                                          Rejected
+                                        </span>
+                                      )}
+                                      {bid.status === 'pending' && (
+                                        <button
+                                          onClick={() => handleAcceptBidClick(bid, shipment)}
+                                          disabled={acceptingBidId === bid.id}
+                                          className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          {acceptingBidId === bid.id ? (
+                                            <>
+                                              <Loader className="w-4 h-4 animate-spin inline mr-1" />
+                                              Accepting...
+                                            </>
+                                          ) : (
+                                            'Accept Bid'
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <p className="text-text-secondary text-xs mt-2">
+                                    Submitted: {new Date(bid.createdAt).toLocaleString()}
+                                  </p>
+                                </div>
+                              ))}
+                          </div>
+                        ) : (
+                          <div className="bg-muted/30 rounded-xl p-6 text-center">
+                            <Truck className="w-8 h-8 text-text-secondary mx-auto mb-2" />
+                            <p className="text-text-secondary text-sm">No bids yet</p>
+                            <p className="text-text-secondary text-xs mt-1">Truckers can bid on this shipment</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                       </>
                     )}
                   </div>
@@ -1432,23 +1677,87 @@ const ShipperDashboard = () => {
                     <input
                       type="text"
                       value={bankAccountForm.bankAccountNumber || ''}
-                      onChange={(e) => setBankAccountForm(prev => ({ ...prev, bankAccountNumber: e.target.value.replace(/\D/g, "") }))}
+                      onChange={(e) => {
+                        setBankAccountForm(prev => ({ ...prev, bankAccountNumber: e.target.value.replace(/\D/g, "") }))
+                        setResolvedAccountName(null)
+                        setAccountVerified(false)
+                      }}
                       className="w-full px-4 py-3 bg-muted/30 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-text-primary"
                       placeholder="Enter 10-digit account number"
                       maxLength="10"
                     />
                 </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-text-secondary mb-2">Bank Code</label>
-                    <input
-                      type="text"
-                      value={bankAccountForm.bankCode || ''}
-                      className="w-full px-4 py-3 bg-muted/30 border border-border rounded-xl text-text-primary"
-                      placeholder="Auto-filled when bank is selected"
-                      readOnly
-                    />
-                </div>
+                  {/* Account Verification */}
+                  {bankAccountForm.bankAccountNumber && bankAccountForm.bankCode && (
+                    <div className="space-y-2">
+                      {!accountVerified ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              if (!bankAccountForm.bankAccountNumber || !bankAccountForm.bankCode) {
+                                toast.error("Please fill in account number and select a bank")
+                                return
+                              }
+                              
+                              setVerifyingAccount(true)
+                              const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+                              
+                              const response = await fetch(
+                                `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${bankAccountForm.bankAccountNumber}&bank_code=${bankAccountForm.bankCode}`
+                              )
+                              
+                              const data = await response.json()
+                              
+                              if (response.ok && data.success) {
+                                setResolvedAccountName(data.account_name)
+                                setAccountVerified(true)
+                                toast.success(`Account verified: ${data.account_name}`)
+                              } else {
+                                // Show user-friendly error message
+                                const errorMsg = data.message || "Failed to verify account. Please check your details."
+                                toast.error(errorMsg)
+                                setResolvedAccountName(null)
+                                setAccountVerified(false)
+                              }
+                            } catch (error) {
+                              console.error("Error verifying account:", error)
+                              toast.error("Failed to verify account. Please try again.")
+                              setResolvedAccountName(null)
+                              setAccountVerified(false)
+                            } finally {
+                              setVerifyingAccount(false)
+                            }
+                          }}
+                          disabled={verifyingAccount}
+                          className="w-full px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {verifyingAccount ? (
+                            <>
+                              <Loader className="w-4 h-4 animate-spin" />
+                              Verifying...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4" />
+                              Verify Account
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <div className="bg-success/10 border border-success/20 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-success">
+                            <CheckCircle className="w-4 h-4" />
+                            <span className="text-sm font-medium">Account Verified</span>
+                          </div>
+                          <p className="text-sm text-text-primary mt-1">
+                            Account Name: <span className="font-semibold">{resolvedAccountName}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center space-x-3 pt-2">
                     <button
@@ -1457,6 +1766,14 @@ const ShipperDashboard = () => {
                           if (!bankAccountForm.bankAccountNumber || !bankAccountForm.bankCode) {
                             toast.error("Please fill in all bank account details")
                             return
+                          }
+                          
+                          // Verification is optional - warn but allow saving
+                          if (!accountVerified) {
+                            const proceed = window.confirm("Your account hasn't been verified. Do you want to save anyway? (You can verify it later)")
+                            if (!proceed) {
+                              return
+                            }
                           }
                           
                           setUpdatingBankAccount(true)
@@ -1508,6 +1825,8 @@ const ShipperDashboard = () => {
                           bankCode: '',
                           bankName: ''
                         })
+                        setResolvedAccountName(null)
+                        setAccountVerified(false)
                       }}
                       className="px-4 py-2 bg-muted border border-border rounded-lg hover:bg-muted/80 transition-colors font-medium"
                     >
@@ -2002,6 +2321,159 @@ const ShipperDashboard = () => {
         searchable={false}
       />
 
+      {/* Bid Acceptance Confirmation Modal */}
+      {showBidAcceptModal && selectedBidForAccept && selectedShipmentForBid && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-border">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-text-primary font-bold text-xl">Accept Bid Confirmation</h3>
+                <button
+                  onClick={() => {
+                    setShowBidAcceptModal(false)
+                    setSelectedBidForAccept(null)
+                    setSelectedShipmentForBid(null)
+                  }}
+                  className="text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Bid Details */}
+                <div className="bg-muted/30 rounded-xl p-4 border border-border">
+                  <p className="text-text-secondary text-sm mb-2">Bid Amount</p>
+                  <p className="text-text-primary font-bold text-2xl">
+                    ₦{parseFloat(selectedBidForAccept.bidAmount || 0).toLocaleString('en-NG')}
+                  </p>
+                  <p className="text-text-secondary text-xs mt-1">
+                    From: {selectedBidForAccept.truckerName || 'Trucker'} {selectedBidForAccept.truckerPhone ? `• ${selectedBidForAccept.truckerPhone}` : ''}
+                  </p>
+                </div>
+
+                {/* Payment Breakdown */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between py-2 border-b border-border">
+                    <span className="text-text-secondary text-sm">Original Shipment Cost</span>
+                    <span className="text-text-primary font-medium">
+                      ₦{parseFloat(selectedShipmentForBid.estimatedCost || 0).toLocaleString('en-NG')}
+                    </span>
+                  </div>
+                  
+                  {parseFloat(selectedBidForAccept.bidAmount || 0) > parseFloat(selectedShipmentForBid.estimatedCost || 0) && (
+                    <>
+                      <div className="flex items-center justify-between py-2 border-b border-border">
+                        <span className="text-text-secondary text-sm">Bid Amount</span>
+                        <span className="text-text-primary font-medium">
+                          ₦{parseFloat(selectedBidForAccept.bidAmount || 0).toLocaleString('en-NG')}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-error/30 bg-error/5 rounded-lg px-3">
+                        <span className="text-error text-sm font-medium">Additional Amount Needed</span>
+                        <span className="text-error font-bold">
+                          ₦{(parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0)).toLocaleString('en-NG')}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Wallet Balance Info */}
+                <div className="bg-muted/30 rounded-xl p-4 border border-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-text-secondary text-sm">Current Wallet Balance</span>
+                    <span className="text-text-primary font-semibold">
+                      ₦{walletBalance.toLocaleString('en-NG')}
+                    </span>
+                  </div>
+                  
+                  {parseFloat(selectedBidForAccept.bidAmount || 0) > parseFloat(selectedShipmentForBid.estimatedCost || 0) && (
+                    <div className="flex items-center justify-between pt-2 border-t border-border mt-2">
+                      <span className="text-text-secondary text-sm">Balance After Deduction</span>
+                      <span className={`font-semibold ${
+                        (walletBalance - (parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0))) < 0
+                          ? 'text-error' 
+                          : 'text-text-primary'
+                      }`}>
+                        ₦{Math.max(0, walletBalance - (parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0))).toLocaleString('en-NG')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payment Stages Info */}
+                <div className="bg-primary/5 rounded-xl p-4 border border-primary/20">
+                  <p className="text-text-primary text-sm font-medium mb-2">Payment Schedule:</p>
+                  <ul className="space-y-1 text-xs text-text-secondary">
+                    <li className="flex items-start">
+                      <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
+                      <span><strong className="text-text-primary">5%</strong> will be credited to trucker upon acceptance (pickup cost)</span>
+                    </li>
+                    <li className="flex items-start">
+                      <Clock className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
+                      <span><strong className="text-text-primary">60%</strong> will be credited when shipment is picked up</span>
+                    </li>
+                    <li className="flex items-start">
+                      <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
+                      <span><strong className="text-text-primary">35%</strong> will be credited upon delivery completion</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Warning if insufficient balance */}
+                {parseFloat(selectedBidForAccept.bidAmount || 0) > parseFloat(selectedShipmentForBid.estimatedCost || 0) && 
+                 walletBalance < (parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0)) && (
+                  <div className="bg-error/10 border border-error/30 rounded-xl p-4">
+                    <div className="flex items-start">
+                      <AlertCircle className="w-5 h-5 text-error mr-2 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-error font-medium text-sm mb-1">Insufficient Balance</p>
+                        <p className="text-error/80 text-xs">
+                          You need ₦{(parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0)).toLocaleString('en-NG')} more in your wallet to accept this bid. Please fund your wallet first.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowBidAcceptModal(false)
+                    setSelectedBidForAccept(null)
+                    setSelectedShipmentForBid(null)
+                  }}
+                  className="flex-1 bg-muted text-text-secondary py-3 rounded-xl font-medium hover:bg-muted/80 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAcceptBid}
+                  disabled={
+                    acceptingBidId === selectedBidForAccept.id ||
+                    (parseFloat(selectedBidForAccept.bidAmount || 0) > parseFloat(selectedShipmentForBid.estimatedCost || 0) && 
+                     walletBalance < (parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0)))
+                  }
+                  className="flex-1 bg-primary text-white py-3 rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {acceptingBidId === selectedBidForAccept.id ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin mr-2" />
+                      Accepting...
+                    </>
+                  ) : (
+                    'Accept Bid'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom Navigation - BIG ICONS */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
         <div className="grid grid-cols-5 gap-1 px-2 py-3">
@@ -2131,7 +2603,6 @@ const ShipperDashboard = () => {
                         className="w-full text-left px-4 py-3 rounded-lg hover:bg-primary/10 transition-colors border border-transparent hover:border-primary/20"
                       >
                         <div className="font-medium text-text-primary">{bank.name}</div>
-                        <div className="text-xs text-text-secondary mt-0.5">Code: {bank.code}</div>
                       </button>
                     ))}
                   {banks.filter(bank => 

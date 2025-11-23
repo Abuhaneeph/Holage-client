@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
-import { Truck, Mail, Lock, Eye, EyeOff, ShieldCheck, Sparkles, ArrowRight } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Truck, Mail, Lock, Eye, EyeOff, ShieldCheck, Sparkles, ArrowRight, Phone, User } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import Header from "../components/Header"
 import Reveal from "../components/Reveal"
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
 const LoginPage = () => {
   const { 
@@ -13,26 +15,63 @@ const LoginPage = () => {
     handleInputChange, 
     loginUser, 
     loading,
-    setUserRole 
+    setUserRole,
+    currentPage
   } = useAppContext()
   
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState({})
+  const [loginType, setLoginType] = useState(() => {
+    // Check if we're coming from driver-login route
+    return currentPage === 'driver-login' ? 'driver' : 'regular'
+  })
+  const [driverFormData, setDriverFormData] = useState({
+    phoneNumber: "",
+    password: ""
+  })
+  
+  // Update login type when route changes
+  useEffect(() => {
+    if (currentPage === 'driver-login') {
+      setLoginType('driver')
+    } else if (currentPage === 'login') {
+      setLoginType('regular')
+    }
+  }, [currentPage])
 
   // Form validation
   const validateForm = () => {
     const newErrors = {}
     
-    if (!formData.email) {
-      newErrors.email = "Email is required"
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Please enter a valid email"
-    }
-    
-    if (!formData.password) {
-      newErrors.password = "Password is required"
-    } else if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters"
+    if (loginType === "regular") {
+      if (!formData.email) {
+        newErrors.email = "Email is required"
+      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        newErrors.email = "Please enter a valid email"
+      }
+      
+      if (!formData.password) {
+        newErrors.password = "Password is required"
+      } else if (formData.password.length < 6) {
+        newErrors.password = "Password must be at least 6 characters"
+      }
+    } else {
+      // Driver validation
+      if (!driverFormData.phoneNumber) {
+        newErrors.phoneNumber = "Phone number is required"
+      } else {
+        // Normalize phone number for validation - remove spaces, dashes, plus signs
+        const normalizedPhone = driverFormData.phoneNumber.replace(/\s/g, '').replace(/-/g, '').replace(/\+/g, '')
+        // Accept Nigerian phone format: 11 digits starting with 0 (e.g., 08117458593)
+        // Also accept 10 digits (without leading 0) or international format
+        if (!/^0[0-9]{10}$/.test(normalizedPhone) && !/^[0-9]{10,15}$/.test(normalizedPhone)) {
+          newErrors.phoneNumber = "Please enter a valid phone number (e.g., 08117458593)"
+        }
+      }
+      
+      if (!driverFormData.password) {
+        newErrors.password = "Password is required"
+      }
     }
     
     setErrors(newErrors)
@@ -51,50 +90,85 @@ const LoginPage = () => {
     }
 
     try {
-      // Call the login function from context
-      const response = await loginUser(formData.email, formData.password)
-      
-      console.log("Full response:", response)
-      console.log("User role:", response.user?.role)
-      console.log("KYC Status:", response.user?.kycStatus)
-      
-      // Set user role if available in response
-      if (response.user && response.user.role) {
-        setUserRole(response.user.role)
-        console.log("Role set to:", response.user.role)
-      }
-      
-      // Check if user needs to complete KYC (if kycStatus is null or they haven't filled basic info)
-      if (!response.user?.kycStatus || response.user?.kycStatus === null) {
-        console.log("User needs to complete KYC, redirecting to KYC page")
-        navigateTo("kyc")
-        return
-      }
-      
-      // Navigate directly based on user role
-      if (response.user?.role === "trucker") {
-        console.log("Navigating to trucker dashboard")
-        navigateTo("trucker-dashboard")
-      } else if (response.user?.role === "shipper") {
-        console.log("Navigating to shipper dashboard")
-        navigateTo("shipper-dashboard")
-      } else if (response.user?.role === "fleet_manager") {
-        console.log("Navigating to fleet manager dashboard")
-        navigateTo("fleet-manager-dashboard")
-      } else if (response.user?.role === "admin") {
-        console.log("Navigating to admin dashboard")
-        navigateTo("admin-dashboard")
+      if (loginType === "driver") {
+        // Driver login
+        // Normalize phone number - remove spaces, dashes, plus signs
+        let normalizedPhone = driverFormData.phoneNumber.replace(/\s/g, '').replace(/-/g, '').replace(/\+/g, '')
+        
+        // Keep phone number as-is (e.g., 08117458593) - backend will handle format variations
+        
+        const response = await fetch(`${API_BASE_URL}/drivers/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            phoneNumber: normalizedPhone,
+            password: driverFormData.password
+          })
+        })
+        
+        const data = await response.json()
+        
+        if (response.ok && data.success) {
+          // Store driver token and info
+          localStorage.setItem('authToken', data.token)
+          localStorage.setItem('driverInfo', JSON.stringify(data.driver))
+          localStorage.setItem('userRole', 'driver')
+          
+          // Navigate to driver dashboard
+          navigateTo("driver-dashboard")
+        } else {
+          console.error("Driver login error:", data)
+          setErrors({ 
+            general: data.message || "Invalid phone number or password. Please check your credentials or contact your fleet manager." 
+          })
+        }
       } else {
-        console.log("Role not recognized, using fallback. Role was:", response.user?.role)
-        navigateTo("dashboard") // fallback
+        // Regular user login
+        const response = await loginUser(formData.email, formData.password)
+        
+        console.log("Full response:", response)
+        console.log("User role:", response.user?.role)
+        console.log("KYC Status:", response.user?.kycStatus)
+        
+        // Set user role if available in response
+        if (response.user && response.user.role) {
+          setUserRole(response.user.role)
+          console.log("Role set to:", response.user.role)
+        }
+        
+        // Check if user needs to complete KYC (if kycStatus is null or they haven't filled basic info)
+        if (!response.user?.kycStatus || response.user?.kycStatus === null) {
+          console.log("User needs to complete KYC, redirecting to KYC page")
+          navigateTo("kyc")
+          return
+        }
+        
+        // Navigate directly based on user role
+        if (response.user?.role === "trucker") {
+          console.log("Navigating to trucker dashboard")
+          navigateTo("trucker-dashboard")
+        } else if (response.user?.role === "shipper") {
+          console.log("Navigating to shipper dashboard")
+          navigateTo("shipper-dashboard")
+        } else if (response.user?.role === "fleet_manager") {
+          console.log("Navigating to fleet manager dashboard")
+          navigateTo("fleet-manager-dashboard")
+        } else if (response.user?.role === "admin") {
+          console.log("Navigating to admin dashboard")
+          navigateTo("admin-dashboard")
+        } else {
+          console.log("Role not recognized, using fallback. Role was:", response.user?.role)
+          navigateTo("dashboard") // fallback
+        }
       }
       
     } catch (error) {
       console.error("Login error:", error)
       
-      // Check if the error is due to unverified email
-      // The error object from the API includes requiresVerification flag
-      if (error.requiresVerification) {
+      // Check if the error is due to unverified email (only for regular users)
+      if (loginType === "regular" && error.requiresVerification) {
         // Redirect to email verification page
         navigateTo("email-verification")
         return
@@ -197,6 +271,44 @@ const LoginPage = () => {
                   </div>
                 </div>
 
+                {/* Login Type Toggle */}
+                <div className="mb-6 flex gap-2 rounded-2xl border border-border bg-white/50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginType("regular")
+                      setErrors({})
+                    }}
+                    className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+                      loginType === "regular"
+                        ? "bg-gradient-to-r from-primary to-secondary text-white shadow-md"
+                        : "text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>Regular User</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginType("driver")
+                      setErrors({})
+                    }}
+                    className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+                      loginType === "driver"
+                        ? "bg-gradient-to-r from-primary to-secondary text-white shadow-md"
+                        : "text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Truck className="h-4 w-4" />
+                      <span>Driver</span>
+                    </div>
+                  </button>
+                </div>
+
             {errors.general && (
                   <div className="mb-6 rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
                     {errors.general}
@@ -204,72 +316,110 @@ const LoginPage = () => {
             )}
 
             <form onSubmit={handleLogin} className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-text-secondary">Email address</label>
-                <div className="relative">
-                      <Mail className="absolute left-4 top-3.5 h-5 w-5 text-text-secondary/70" />
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => {
-                      handleInputChange("email", e.target.value)
-                      if (errors.email) {
-                            setErrors((prev) => ({ ...prev, email: "" }))
-                      }
-                    }}
-                        className={`w-full rounded-2xl border bg-white/80 py-3.5 pl-12 pr-4 text-text-primary shadow-sm transition-all duration-200 placeholder:text-text-secondary/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${
-                          errors.email ? "border-destructive/60" : "border-border"
-                    }`}
-                    placeholder="Enter your email"
-                    required
-                  />
-                </div>
-                    {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-              </div>
+                  {loginType === "regular" ? (
+                    <>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-text-secondary">Email address</label>
+                        <div className="relative">
+                          <Mail className="absolute left-4 top-3.5 h-5 w-5 text-text-secondary/70" />
+                          <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => {
+                              handleInputChange("email", e.target.value)
+                              if (errors.email) {
+                                setErrors((prev) => ({ ...prev, email: "" }))
+                              }
+                            }}
+                            className={`w-full rounded-2xl border bg-white/80 py-3.5 pl-12 pr-4 text-text-primary shadow-sm transition-all duration-200 placeholder:text-text-secondary/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${
+                              errors.email ? "border-destructive/60" : "border-border"
+                            }`}
+                            placeholder="Enter your email"
+                            required
+                          />
+                        </div>
+                        {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-text-secondary">Phone Number</label>
+                        <div className="relative">
+                          <Phone className="absolute left-4 top-3.5 h-5 w-5 text-text-secondary/70" />
+                          <input
+                            type="tel"
+                            value={driverFormData.phoneNumber}
+                            onChange={(e) => {
+                              setDriverFormData({ ...driverFormData, phoneNumber: e.target.value })
+                              if (errors.phoneNumber) {
+                                setErrors((prev) => ({ ...prev, phoneNumber: "" }))
+                              }
+                            }}
+                            className={`w-full rounded-2xl border bg-white/80 py-3.5 pl-12 pr-4 text-text-primary shadow-sm transition-all duration-200 placeholder:text-text-secondary/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${
+                              errors.phoneNumber ? "border-destructive/60" : "border-border"
+                            }`}
+                            placeholder="08117458593"
+                            required
+                          />
+                        </div>
+                        {errors.phoneNumber && <p className="text-sm text-destructive">{errors.phoneNumber}</p>}
+                      </div>
+                    </>
+                  )}
 
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-text-secondary">Password</label>
-                <div className="relative">
+                    <div className="relative">
                       <Lock className="absolute left-4 top-3.5 h-5 w-5 text-text-secondary/70" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={(e) => {
-                      handleInputChange("password", e.target.value)
-                      if (errors.password) {
-                            setErrors((prev) => ({ ...prev, password: "" }))
-                      }
-                    }}
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={loginType === "regular" ? formData.password : driverFormData.password}
+                        onChange={(e) => {
+                          if (loginType === "regular") {
+                            handleInputChange("password", e.target.value)
+                            if (errors.password) {
+                              setErrors((prev) => ({ ...prev, password: "" }))
+                            }
+                          } else {
+                            setDriverFormData({ ...driverFormData, password: e.target.value })
+                            if (errors.password) {
+                              setErrors((prev) => ({ ...prev, password: "" }))
+                            }
+                          }
+                        }}
                         className={`w-full rounded-2xl border bg-white/80 py-3.5 pl-12 pr-12 text-text-primary shadow-sm transition-all duration-200 placeholder:text-text-secondary/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${
                           errors.password ? "border-destructive/60" : "border-border"
-                    }`}
-                    placeholder="Enter your password"
-                    required
-                  />
-                  <button
-                    type="button"
+                        }`}
+                        placeholder="Enter your password"
+                        required
+                      />
+                      <button
+                        type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
                         className="absolute right-4 top-3.5 text-text-secondary/70 transition-colors hover:text-text-primary"
-                  >
+                      >
                         {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
+                      </button>
+                    </div>
                     {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-              </div>
+                  </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-text-secondary">
-                    <label className="inline-flex items-center gap-2">
-                      <input type="checkbox" className="rounded border-border text-secondary focus:ring-ring" />
-                      Remember me
-                </label>
-                <button
-                  type="button"
-                  onClick={() => navigateTo("forgot-password")}
-                      className="font-medium text-secondary transition-colors hover:text-accent"
-                >
-                  Forgot password?
-                </button>
-              </div>
+                  {loginType === "regular" && (
+                    <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-text-secondary">
+                      <label className="inline-flex items-center gap-2">
+                        <input type="checkbox" className="rounded border-border text-secondary focus:ring-ring" />
+                        Remember me
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => navigateTo("forgot-password")}
+                        className="font-medium text-secondary transition-colors hover:text-accent"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  )}
 
               <button
                 type="submit"
@@ -308,16 +458,25 @@ const LoginPage = () => {
                 )}
               </button>
 
-                  <div className="text-center text-sm text-text-secondary">
-                    New to Holage?{" "}
-                  <button
-                    type="button"
-                    onClick={() => navigateTo("signup")}
-                      className="font-medium text-secondary transition-colors hover:text-accent"
-                  >
-                      Create an account
-                  </button>
-                  </div>
+                  {loginType === "regular" && (
+                    <div className="text-center text-sm text-text-secondary">
+                      New to Holage?{" "}
+                      <button
+                        type="button"
+                        onClick={() => navigateTo("signup")}
+                        className="font-medium text-secondary transition-colors hover:text-accent"
+                      >
+                        Create an account
+                      </button>
+                    </div>
+                  )}
+                  {loginType === "driver" && (
+                    <div className="text-center text-sm text-text-secondary">
+                      <p className="text-text-secondary/70">
+                        Drivers are registered by fleet managers. Contact your fleet manager for login credentials.
+                      </p>
+                    </div>
+                  )}
                 </form>
               </div>
 

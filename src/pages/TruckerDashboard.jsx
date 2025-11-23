@@ -62,6 +62,9 @@ const TruckerDashboard = () => {
   const [banks, setBanks] = useState([])
   const [loadingBanks, setLoadingBanks] = useState(false)
   const [updatingBankAccount, setUpdatingBankAccount] = useState(false)
+  const [resolvedAccountName, setResolvedAccountName] = useState(null)
+  const [verifyingAccount, setVerifyingAccount] = useState(false)
+  const [accountVerified, setAccountVerified] = useState(false)
   const [showBankModal, setShowBankModal] = useState(false)
   const [bankSearchQuery, setBankSearchQuery] = useState('')
   
@@ -72,15 +75,31 @@ const TruckerDashboard = () => {
   const [fundReference, setFundReference] = useState("")
   const [fundLoading, setFundLoading] = useState(false)
   
+  // Withdraw state
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [withdrawAmount, setWithdrawAmount] = useState("")
+  const [withdrawLoading, setWithdrawLoading] = useState(false)
+  
   // Available shipments state
   const [availableShipments, setAvailableShipments] = useState([])
   const [loadingShipments, setLoadingShipments] = useState(false)
   const [selectedShipment, setSelectedShipment] = useState(null)
   const [acceptingShipment, setAcceptingShipment] = useState(false)
   
+  // Bidding state
+  const [showBidModal, setShowBidModal] = useState(false)
+  const [bidForm, setBidForm] = useState({
+    bidAmount: '',
+    message: ''
+  })
+  const [submittingBid, setSubmittingBid] = useState(false)
+  const [myBids, setMyBids] = useState([])
+  const [loadingMyBids, setLoadingMyBids] = useState(false)
+  
   // Active loads (assigned shipments) state
   const [activeLoads, setActiveLoads] = useState([])
   const [loadingActiveLoads, setLoadingActiveLoads] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState(null)
   
   // Filter state
   const [filters, setFilters] = useState({
@@ -306,6 +325,73 @@ const TruckerDashboard = () => {
     input.click()
   }
 
+  // Handle withdraw
+  const handleWithdraw = async () => {
+    try {
+      const amountNum = parseFloat(withdrawAmount)
+      if (!amountNum || amountNum < 100) {
+        toast.error('Enter a valid amount (minimum ₦100)')
+        return
+      }
+      
+      if (amountNum > walletBalance) {
+        toast.error(`Insufficient balance. Your wallet balance is ₦${walletBalance.toLocaleString('en-NG')}`)
+        return
+      }
+      
+      setWithdrawLoading(true)
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+      const token = localStorage.getItem('authToken')
+      
+      const response = await fetch(`${API_BASE_URL}/wallet/withdraw`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ amount: amountNum })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Withdrawal successful!')
+        setShowWithdrawModal(false)
+        setWithdrawAmount("")
+        
+        // Refresh wallet balance
+        const wr = await fetch(`${API_BASE_URL}/wallet`, { 
+          headers: { 'Authorization': `Bearer ${token}` } 
+        })
+        const wd = await wr.json()
+        if (wr.ok && wd.wallet) {
+          setWalletBalance(parseFloat(wd.wallet.balance || 0))
+        }
+        
+        // Refresh transactions
+        const tr = await fetch(`${API_BASE_URL}/wallet/transactions`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const td = await tr.json()
+        if (tr.ok && td.transactions) {
+          setTransactions(td.transactions)
+        }
+      } else {
+        // Check if it's a Paystack account tier error
+        if (data.requiresUpgrade || data.message?.includes("upgrade") || data.message?.includes("Registered Business")) {
+          toast.error(data.message || 'Paystack account upgrade required', { duration: 6000 })
+        } else {
+          toast.error(data.message || 'Withdrawal failed')
+        }
+      }
+    } catch (error) {
+      console.error('Error withdrawing:', error)
+      toast.error('Error processing withdrawal')
+    } finally {
+      setWithdrawLoading(false)
+    }
+  }
+
   // Paystack Payment: initiate
   const initiatePaystackPayment = async () => {
     try {
@@ -444,12 +530,12 @@ const TruckerDashboard = () => {
                   
                   // Refresh wallet and transactions
                   console.log('🔄 Refreshing wallet and transactions...')
-                  const [wr, tr] = await Promise.all([
+            const [wr, tr] = await Promise.all([
                     fetch(`${creditApiUrl}/wallet`, { headers: { 'Authorization': `Bearer ${creditToken}` } }),
                     fetch(`${creditApiUrl}/wallet/transactions`, { headers: { 'Authorization': `Bearer ${creditToken}` } })
-                  ])
-                  const wd = await wr.json()
-                  const td = await tr.json()
+            ])
+            const wd = await wr.json()
+            const td = await tr.json()
                   
                   console.log('📥 Wallet refresh response:', {
                     ok: wr.ok,
@@ -457,8 +543,8 @@ const TruckerDashboard = () => {
                     balance: wd.wallet?.balance
                   })
                   
-                  if (wr.ok && wd.wallet) {
-                    setWallet(wd.wallet)
+            if (wr.ok && wd.wallet) {
+              setWallet(wd.wallet)
                     const refreshedBalance = parseFloat(wd.wallet.balance || 0)
                     setWalletBalance(refreshedBalance)
                     console.log('✅ Balance refreshed from wallet endpoint:', refreshedBalance)
@@ -563,22 +649,189 @@ const TruckerDashboard = () => {
   useEffect(() => {
     if (activeView === "jobs" && kycCheckDone) {
       fetchAvailableShipments()
+      fetchMyBids()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, filters.pickupState, filters.destinationState, filters.truckType, kycCheckDone])
 
-  // Accept shipment
-  const handleAcceptShipment = async (shipmentId) => {
-    if (!window.confirm('Are you sure you want to accept this shipment?')) {
+  // Auto-refresh active loads and bids every 30 seconds to catch new assignments
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (activeView === "home") {
+        fetchActiveLoads()
+        // Also refresh wallet balance to catch payment updates
+        const refreshWallet = async () => {
+          try {
+            const token = localStorage.getItem('authToken')
+            const wr = await fetch(`${API_BASE_URL}/wallet`, { 
+              headers: { 'Authorization': `Bearer ${token}` } 
+            })
+            const wd = await wr.json()
+            if (wr.ok && wd.wallet) {
+              setWallet(wd.wallet)
+              const refreshedBalance = parseFloat(wd.wallet.balance || 0)
+              setWalletBalance(refreshedBalance)
+            }
+          } catch (e) {
+            console.error('Error refreshing wallet:', e)
+          }
+        }
+        refreshWallet()
+      }
+      if (activeView === "jobs") {
+        fetchMyBids()
+      }
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [activeView])
+
+  // Start trip (update status to in_transit)
+  const handleStartTrip = async (shipmentId) => {
+    if (!window.confirm('Start trip to pick up the shipment? This will update the status to "In Transit" and credit 60% payment.')) {
       return
     }
 
-    setAcceptingShipment(true)
+    setUpdatingStatus(shipmentId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'in_transit' })
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Trip started successfully! 60% payment has been credited.')
+        // Refresh active loads
+        fetchActiveLoads()
+        // Refresh wallet balance to show the 60% payment credit
+        try {
+          const token = localStorage.getItem('authToken')
+          const wr = await fetch(`${API_BASE_URL}/wallet`, { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+          })
+          const wd = await wr.json()
+          if (wr.ok && wd.wallet) {
+            setWallet(wd.wallet)
+            const refreshedBalance = parseFloat(wd.wallet.balance || 0)
+            setWalletBalance(refreshedBalance)
+            console.log('✅ Wallet balance refreshed after trip start:', refreshedBalance)
+          }
+        } catch (e) {
+          console.error('Error refreshing wallet after trip start:', e)
+        }
+      } else {
+        toast.error(data.message || 'Failed to start trip')
+      }
+    } catch (error) {
+      console.error('Error starting trip:', error)
+      toast.error('Error starting trip')
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  // Helper function to format number with commas
+  const formatNumberWithCommas = (value) => {
+    if (!value) return ""
+    // Remove all non-digit characters except decimal point
+    const numericValue = value.toString().replace(/[^\d.]/g, "")
+    // Split by decimal point
+    const parts = numericValue.split(".")
+    // Format the integer part with commas
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+    // Join back with decimal if it exists
+    return parts.join(".")
+  }
+
+  // Helper function to remove commas and get numeric value
+  const removeCommas = (value) => {
+    if (!value) return ""
+    return value.toString().replace(/,/g, "")
+  }
+
+  // Accept shipment
+  const handleOpenBidModal = (shipment) => {
+    setSelectedShipment(shipment)
+    const estimatedCost = shipment.estimatedCost || 0
+    setBidForm({
+      bidAmount: estimatedCost ? formatNumberWithCommas(estimatedCost.toString()) : '',
+      message: ''
+    })
+    setShowBidModal(true)
+  }
+
+  const handleSubmitBid = async (e) => {
+    e.preventDefault()
+    
+    if (!selectedShipment) return
+    
+    // Remove commas before parsing
+    const bidAmount = parseFloat(removeCommas(bidForm.bidAmount))
+    const estimatedCost = parseFloat(selectedShipment.estimatedCost || 0)
+    const maxBidAmount = estimatedCost + 200000
+    
+    if (isNaN(bidAmount) || bidAmount <= 0) {
+      toast.error('Please enter a valid bid amount')
+      return
+    }
+    
+    if (bidAmount < estimatedCost) {
+      toast.error(`Bid amount cannot be less than the estimated cost of ₦${estimatedCost.toLocaleString('en-NG')}`)
+      return
+    }
+    
+    if (bidAmount > maxBidAmount) {
+      toast.error(`Bid amount cannot exceed ₦${maxBidAmount.toLocaleString('en-NG')} (Base: ₦${estimatedCost.toLocaleString('en-NG')} + Max addition: ₦200,000)`)
+      return
+    }
+
+    setSubmittingBid(true)
     try {
       const token = localStorage.getItem('authToken')
       
-      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}/accept`, {
+      const response = await fetch(`${API_BASE_URL}/bids`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          shipmentId: selectedShipment.id,
+          bidAmount: bidAmount,
+          message: bidForm.message || null
+        })
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success('Bid submitted successfully!')
+        setShowBidModal(false)
+        setBidForm({ bidAmount: '', message: '' })
+        setSelectedShipment(null)
+        fetchAvailableShipments()
+        fetchMyBids()
+      } else {
+        toast.error(data.message || 'Failed to submit bid')
+      }
+    } catch (error) {
+      console.error('Error submitting bid:', error)
+      toast.error('Error submitting bid')
+    } finally {
+      setSubmittingBid(false)
+    }
+  }
+
+  const fetchMyBids = async () => {
+    setLoadingMyBids(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/bids/my-bids`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -586,18 +839,19 @@ const TruckerDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success('Shipment accepted successfully!')
-        fetchAvailableShipments()
-        fetchActiveLoads() // Refresh active loads
-        setSelectedShipment(null)
-      } else {
-        toast.error(data.message || 'Failed to accept shipment')
+        setMyBids(data.bids || [])
+        
+        // Check if any bid was accepted - if so, refresh active loads and wallet
+        const hasAcceptedBid = (data.bids || []).some(bid => bid.status === 'accepted')
+        if (hasAcceptedBid) {
+          // Refresh active loads to show newly accepted shipments, and refresh wallet
+          fetchActiveLoads(true)
+        }
       }
     } catch (error) {
-      console.error('Error accepting shipment:', error)
-      toast.error('Error accepting shipment')
+      console.error('Error fetching my bids:', error)
     } finally {
-      setAcceptingShipment(false)
+      setLoadingMyBids(false)
     }
   }
 
@@ -625,7 +879,7 @@ const TruckerDashboard = () => {
   }
 
   // Fetch active loads (assigned shipments)
-  const fetchActiveLoads = async () => {
+  const fetchActiveLoads = async (refreshWallet = false) => {
     setLoadingActiveLoads(true)
     try {
       const token = localStorage.getItem('authToken')
@@ -643,6 +897,24 @@ const TruckerDashboard = () => {
           shipment => shipment.status !== 'completed' && shipment.status !== 'cancelled'
         )
         setActiveLoads(active)
+        
+        // Refresh wallet balance if requested (e.g., when new shipments are assigned)
+        if (refreshWallet) {
+          try {
+            const wr = await fetch(`${API_BASE_URL}/wallet`, { 
+              headers: { 'Authorization': `Bearer ${token}` } 
+            })
+            const wd = await wr.json()
+            if (wr.ok && wd.wallet) {
+              setWallet(wd.wallet)
+              const refreshedBalance = parseFloat(wd.wallet.balance || 0)
+              setWalletBalance(refreshedBalance)
+              console.log('✅ Wallet balance refreshed after fetching active loads:', refreshedBalance)
+            }
+          } catch (e) {
+            console.error('Error refreshing wallet after fetching active loads:', e)
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching active loads:', error)
@@ -706,28 +978,6 @@ const TruckerDashboard = () => {
             </p>
           </div>
         )}
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3 mt-6">
-          <button 
-            onClick={() => setShowFundModal(true)}
-            className="backdrop-blur-sm rounded-2xl p-4 flex items-center space-x-3 bg-white/20 hover:bg-white/30 transition-colors"
-          >
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-              <ArrowDown className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-white font-medium">Top Up</span>
-          </button>
-          <button 
-            onClick={() => toast.info('Withdraw - coming soon!')}
-            className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 flex items-center space-x-3 hover:bg-white/30 transition-colors"
-          >
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-              <ArrowUp className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-white font-medium">Withdraw</span>
-          </button>
-        </div>
       </div>
 
       {/* Fund Wallet Modal - Kora Checkout Standard */}
@@ -764,6 +1014,74 @@ const TruckerDashboard = () => {
                 {fundLoading ? 'Initializing...' : 'Pay with Paystack'}
                 </button>
                   </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw Modal */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[85vh] flex flex-col">
+            <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">
+              <h3 className="text-text-primary font-bold text-xl">Withdraw to Bank</h3>
+              <button 
+                onClick={() => { 
+                  if (!withdrawLoading) { 
+                    setShowWithdrawModal(false)
+                    setWithdrawAmount("") 
+                  } 
+                }} 
+                className="w-10 h-10 bg-muted rounded-full flex items-center justify-center"
+                disabled={withdrawLoading}
+              >
+                <X className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4 overflow-y-auto">
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-text-secondary text-sm mb-1">Available Balance</p>
+                <p className="text-text-primary font-bold text-2xl">₦{Number(walletBalance || 0).toLocaleString('en-NG')}</p>
+              </div>
+
+              {((user?.bankAccountNumber && user?.bankName) || (documents?.bankAccountNumber && documents?.bankName)) && (
+                <div className="bg-muted/30 rounded-xl p-4">
+                  <p className="text-text-secondary text-sm mb-1">Bank Account</p>
+                  <p className="text-text-primary font-medium">{user?.bankAccountNumber || documents?.bankAccountNumber}</p>
+                  <p className="text-text-secondary text-xs mt-1">{user?.bankName || documents?.bankName}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-text-primary font-medium mb-2">Withdrawal Amount (NGN)</label>
+                <input 
+                  type="number" 
+                  min="100" 
+                  step="0.01" 
+                  max={walletBalance}
+                  value={withdrawAmount} 
+                  onChange={(e) => setWithdrawAmount(e.target.value)} 
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary" 
+                  placeholder="e.g., 5000" 
+                  disabled={withdrawLoading} 
+                />
+                <p className="text-text-secondary text-xs mt-1">Minimum: ₦100 | Maximum: ₦{Number(walletBalance || 0).toLocaleString('en-NG')}</p>
+              </div>
+
+              <button 
+                onClick={handleWithdraw} 
+                disabled={withdrawLoading || !withdrawAmount || parseFloat(withdrawAmount) < 100 || parseFloat(withdrawAmount) > walletBalance} 
+                className="w-full bg-secondary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              >
+                {withdrawLoading ? (
+                  <>
+                    <Loader className="w-5 h-5 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>Withdraw to Bank Account</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -833,8 +1151,14 @@ const TruckerDashboard = () => {
                         <p className="text-success font-bold text-lg">
                           ₦{parseFloat(load.estimatedCost || 0).toLocaleString('en-NG')}
                         </p>
-                        <button className="bg-primary text-white px-5 py-2 rounded-xl font-medium text-sm">
-                          {load.status === 'assigned' ? 'Start' : load.status === 'in_transit' ? 'Track' : 'View'}
+                        <button 
+                          onClick={() => load.status === 'assigned' ? handleStartTrip(load.id) : null}
+                          disabled={updatingStatus === load.id}
+                          className="bg-primary text-white px-5 py-2 rounded-xl font-medium text-sm disabled:opacity-50"
+                        >
+                          {updatingStatus === load.id ? (
+                            <Loader className="w-4 h-4 animate-spin mx-auto" />
+                          ) : load.status === 'assigned' ? 'Start Trip' : load.status === 'in_transit' ? 'Track' : 'View'}
                         </button>
                       </div>
                     </div>
@@ -989,23 +1313,29 @@ const TruckerDashboard = () => {
                     </div>
                   )}
 
-                  <button
-                    onClick={() => handleAcceptShipment(selectedShipment.id)}
-                    disabled={acceptingShipment}
-                    className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                  >
-                    {acceptingShipment ? (
-                      <>
-                        <Loader className="w-5 h-5 animate-spin" />
-                        <span>Accepting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-5 h-5" />
-                        <span>Accept Shipment</span>
-                      </>
-                    )}
-                  </button>
+                  {/* Check if user has already bid */}
+                  {myBids.find(b => b.shipmentId === selectedShipment.id) ? (
+                    <div className="w-full bg-muted text-text-primary py-3 rounded-xl font-bold text-center">
+                      {(() => {
+                        const existingBid = myBids.find(b => b.shipmentId === selectedShipment.id)
+                        if (existingBid.status === 'accepted') {
+                          return <span className="text-success">✓ Bid Accepted</span>
+                        } else if (existingBid.status === 'rejected') {
+                          return <span className="text-error">✗ Bid Rejected</span>
+                        } else {
+                          return <span>Bid Submitted: ₦{parseFloat(existingBid.bidAmount || 0).toLocaleString('en-NG')}</span>
+                        }
+                      })()}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleOpenBidModal(selectedShipment)}
+                      className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors flex items-center justify-center space-x-2"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                      <span>Place Bid</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ) : availableShipments.length === 0 ? (
@@ -1072,13 +1402,27 @@ const TruckerDashboard = () => {
                       >
                         View Details
                   </button>
+                  {myBids.find(b => b.shipmentId === shipment.id) ? (
+                    <div className="bg-muted text-text-primary py-3 rounded-xl font-medium text-center flex items-center justify-center">
+                      {(() => {
+                        const existingBid = myBids.find(b => b.shipmentId === shipment.id)
+                        if (existingBid.status === 'accepted') {
+                          return <span className="text-success text-sm">✓ Accepted</span>
+                        } else if (existingBid.status === 'rejected') {
+                          return <span className="text-error text-sm">✗ Rejected</span>
+                        } else {
+                          return <span className="text-sm">Bid: ₦{parseFloat(existingBid.bidAmount || 0).toLocaleString('en-NG')}</span>
+                        }
+                      })()}
+                    </div>
+                  ) : (
                   <button 
-                        onClick={() => handleAcceptShipment(shipment.id)}
-                        disabled={acceptingShipment}
-                        className="bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => handleOpenBidModal(shipment)}
+                    className="bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors"
                   >
-                        {acceptingShipment ? 'Accepting...' : 'Accept Load'}
+                        Place Bid
                   </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -1108,7 +1452,18 @@ const TruckerDashboard = () => {
               </button>
               
               <button
-                onClick={() => toast.info('Withdraw - coming soon!')}
+                onClick={() => {
+                  // Check both user context and documents for bank account details
+                  const hasBankDetails = (user?.bankAccountNumber && user?.bankCode) || 
+                                        (documents?.bankAccountNumber && documents?.bankCode)
+                  
+                  if (!hasBankDetails) {
+                    toast.error('Please add your bank account details in your profile first')
+                    setActiveView('profile')
+                  } else {
+                    setShowWithdrawModal(true)
+                  }
+                }}
                 className="bg-secondary text-white rounded-2xl p-6 flex flex-col items-center space-y-3"
               >
                 <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
@@ -1298,23 +1653,87 @@ const TruckerDashboard = () => {
                     <input
                       type="text"
                       value={bankAccountForm.bankAccountNumber || ''}
-                      onChange={(e) => setBankAccountForm(prev => ({ ...prev, bankAccountNumber: e.target.value.replace(/\D/g, "") }))}
+                      onChange={(e) => {
+                        setBankAccountForm(prev => ({ ...prev, bankAccountNumber: e.target.value.replace(/\D/g, "") }))
+                        setResolvedAccountName(null)
+                        setAccountVerified(false)
+                      }}
                       className="w-full px-4 py-3 bg-muted/30 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-text-primary"
                       placeholder="Enter 10-digit account number"
                       maxLength="10"
                     />
                 </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-text-secondary mb-2">Bank Code</label>
-                    <input
-                      type="text"
-                      value={bankAccountForm.bankCode || ''}
-                      className="w-full px-4 py-3 bg-muted/30 border border-border rounded-xl text-text-primary"
-                      placeholder="Auto-filled when bank is selected"
-                      readOnly
-                    />
+                  {/* Account Verification */}
+                  {bankAccountForm.bankAccountNumber && bankAccountForm.bankCode && (
+                    <div className="space-y-2">
+                      {!accountVerified ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              if (!bankAccountForm.bankAccountNumber || !bankAccountForm.bankCode) {
+                                toast.error("Please fill in account number and select a bank")
+                                return
+                              }
+                              
+                              setVerifyingAccount(true)
+                              const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+                              
+                              const response = await fetch(
+                                `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${bankAccountForm.bankAccountNumber}&bank_code=${bankAccountForm.bankCode}`
+                              )
+                              
+                              const data = await response.json()
+                              
+                              if (response.ok && data.success) {
+                                setResolvedAccountName(data.account_name)
+                                setAccountVerified(true)
+                                toast.success(`Account verified: ${data.account_name}`)
+                              } else {
+                                // Show user-friendly error message
+                                const errorMsg = data.message || "Failed to verify account. Please check your details."
+                                toast.error(errorMsg)
+                                setResolvedAccountName(null)
+                                setAccountVerified(false)
+                              }
+                            } catch (error) {
+                              console.error("Error verifying account:", error)
+                              toast.error("Failed to verify account. Please try again.")
+                              setResolvedAccountName(null)
+                              setAccountVerified(false)
+                            } finally {
+                              setVerifyingAccount(false)
+                            }
+                          }}
+                          disabled={verifyingAccount}
+                          className="w-full px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {verifyingAccount ? (
+                            <>
+                              <Loader className="w-4 h-4 animate-spin" />
+                              Verifying...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4" />
+                              Verify Account
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <div className="bg-success/10 border border-success/20 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-success">
+                            <CheckCircle className="w-4 h-4" />
+                            <span className="text-sm font-medium">Account Verified</span>
                 </div>
+                          <p className="text-sm text-text-primary mt-1">
+                            Account Name: <span className="font-semibold">{resolvedAccountName}</span>
+                          </p>
+                </div>
+                      )}
+                </div>
+                  )}
 
                   <div className="flex items-center space-x-3 pt-2">
                     <button
@@ -1325,9 +1744,17 @@ const TruckerDashboard = () => {
                             return
                           }
                           
+                          // Verification is optional - warn but allow saving
+                          if (!accountVerified) {
+                            const proceed = window.confirm("Your account hasn't been verified. Do you want to save anyway? (You can verify it later)")
+                            if (!proceed) {
+                              return
+                            }
+                          }
+                          
                           setUpdatingBankAccount(true)
                           const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
-                          const token = localStorage.getItem('token')
+                          const token = localStorage.getItem('authToken')
                           
                           const response = await fetch(`${API_BASE_URL}/kyc/bank-account`, {
                             method: 'PUT',
@@ -1350,6 +1777,12 @@ const TruckerDashboard = () => {
                             const docsData = await docsResponse.json()
                             if (docsData.success) {
                               setDocuments(docsData.documents)
+                              // Update user context with bank details if available
+                              if (docsData.documents?.bankAccountNumber && docsData.documents?.bankCode) {
+                                // Update local user state by merging with documents
+                                // Note: This is a workaround since we don't have a user refresh endpoint
+                                // The withdraw function will check both user and documents
+                              }
                             }
                           } else {
                             toast.error(data.message || "Failed to update bank account")
@@ -1374,13 +1807,15 @@ const TruckerDashboard = () => {
                           bankCode: '',
                           bankName: ''
                         })
+                        setResolvedAccountName(null)
+                        setAccountVerified(false)
                       }}
                       className="px-4 py-2 bg-muted border border-border rounded-lg hover:bg-muted/80 transition-colors font-medium"
                     >
                       Cancel
                     </button>
                 </div>
-                </div>
+              </div>
               ) : (
                 <div className="space-y-4">
                   {documents?.bankAccountNumber ? (
@@ -1666,6 +2101,107 @@ const TruckerDashboard = () => {
         </div>
       </div>
 
+      {/* Bid Modal */}
+      {showBidModal && selectedShipment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h3 className="text-text-primary font-bold text-lg">Place Bid</h3>
+              <button
+                onClick={() => {
+                  setShowBidModal(false)
+                  setBidForm({ bidAmount: '', message: '' })
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
+              >
+                <X className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <form onSubmit={handleSubmitBid} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="bg-muted/30 rounded-xl p-4 mb-4">
+                <p className="text-text-secondary text-sm mb-2">Shipment Details</p>
+                <p className="text-text-primary font-bold">
+                  {selectedShipment.pickupState} → {selectedShipment.destinationState}
+                </p>
+                <p className="text-text-secondary text-sm">#{selectedShipment.id}</p>
+                <p className="text-text-secondary text-sm mt-2">
+                  Base Cost: <span className="font-bold text-primary">₦{parseFloat(selectedShipment.estimatedCost || 0).toLocaleString('en-NG')}</span>
+                </p>
+                <p className="text-text-secondary text-xs mt-1">
+                  Maximum Bid: ₦{(parseFloat(selectedShipment.estimatedCost || 0) + 200000).toLocaleString('en-NG')}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-text-primary font-medium mb-2">
+                  Bid Amount (NGN) <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bidForm.bidAmount}
+                  onChange={(e) => {
+                    const formatted = formatNumberWithCommas(e.target.value)
+                    setBidForm({ ...bidForm, bidAmount: formatted })
+                  }}
+                  placeholder={`Minimum: ₦${parseFloat(selectedShipment.estimatedCost || 0).toLocaleString('en-NG')}`}
+                  required
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-text-primary"
+                />
+                <p className="text-text-secondary text-xs mt-1">
+                  You can add up to ₦200,000 to the base cost
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-text-primary font-medium mb-2">
+                  Message (Optional)
+                </label>
+                <textarea
+                  value={bidForm.message}
+                  onChange={(e) => setBidForm({ ...bidForm, message: e.target.value })}
+                  placeholder="Add a message to the shipper..."
+                  rows={4}
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-text-primary resize-none"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBidModal(false)
+                    setBidForm({ bidAmount: '', message: '' })
+                  }}
+                  className="flex-1 bg-muted text-text-secondary py-3 rounded-xl font-medium hover:bg-muted/80 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingBid}
+                  className="flex-1 bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                >
+                  {submittingBid ? (
+                    <>
+                      <Loader className="w-5 h-5 animate-spin" />
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      <span>Submit Bid</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Bank Selection Modal */}
       {showBankModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1732,7 +2268,6 @@ const TruckerDashboard = () => {
                         className="w-full text-left px-4 py-3 rounded-lg hover:bg-primary/10 transition-colors border border-transparent hover:border-primary/20"
                       >
                         <div className="font-medium text-text-primary">{bank.name}</div>
-                        <div className="text-xs text-text-secondary mt-0.5">Code: {bank.code}</div>
                       </button>
                     ))}
                   {banks.filter(bank => 

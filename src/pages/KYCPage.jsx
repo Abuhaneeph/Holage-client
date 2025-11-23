@@ -27,6 +27,9 @@ const KYCPage = () => {
   const [loadingBanks, setLoadingBanks] = useState(false)
   const [showBankModal, setShowBankModal] = useState(false)
   const [bankSearchQuery, setBankSearchQuery] = useState('')
+  const [resolvedAccountName, setResolvedAccountName] = useState(null)
+  const [verifyingAccount, setVerifyingAccount] = useState(false)
+  const [accountVerified, setAccountVerified] = useState(false)
   const totalSteps = userRole === "trucker" ? 4 : 3
 
   // Fetch banks from Paystack API (for all roles - bank details are optional)
@@ -324,26 +327,87 @@ const KYCPage = () => {
                     <input
                       type="text"
                       value={formData.bankAccountNumber || ''}
-                      onChange={(e) => handleInputChange("bankAccountNumber", e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) => {
+                        handleInputChange("bankAccountNumber", e.target.value.replace(/\D/g, ""))
+                        setResolvedAccountName(null)
+                        setAccountVerified(false)
+                      }}
                       className="w-full px-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
                       placeholder="Enter your 10-digit account number (optional)"
                       maxLength="10"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-text-secondary mb-2">Bank Code</label>
-                    <input
-                      type="text"
-                      value={formData.bankCode || ''}
-                      onChange={(e) => handleInputChange("bankCode", e.target.value.replace(/\D/g, ""))}
-                      className="w-full px-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
-                      placeholder="Auto-filled when bank is selected"
-                      maxLength="3"
-                      readOnly
-                    />
-                    <p className="text-xs text-text-secondary mt-1">This is automatically filled when you select your bank</p>
-                  </div>
+                  {/* Account Verification */}
+                  {formData.bankAccountNumber && formData.bankCode && (
+                    <div className="space-y-2">
+                      {!accountVerified ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              if (!formData.bankAccountNumber || !formData.bankCode) {
+                                alert("Please fill in account number and select a bank")
+                                return
+                              }
+                              
+                              setVerifyingAccount(true)
+                              const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+                              
+                              const response = await fetch(
+                                `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${formData.bankAccountNumber}&bank_code=${formData.bankCode}`
+                              )
+                              
+                              const data = await response.json()
+                              
+                              if (response.ok && data.success) {
+                                setResolvedAccountName(data.account_name)
+                                setAccountVerified(true)
+                                alert(`Account verified: ${data.account_name}`)
+                              } else {
+                                // Show user-friendly error message
+                                const errorMsg = data.message || "Failed to verify account. Please check your details."
+                                alert(errorMsg)
+                                setResolvedAccountName(null)
+                                setAccountVerified(false)
+                              }
+                            } catch (error) {
+                              console.error("Error verifying account:", error)
+                              alert("Failed to verify account. Please try again.")
+                              setResolvedAccountName(null)
+                              setAccountVerified(false)
+                            } finally {
+                              setVerifyingAccount(false)
+                            }
+                          }}
+                          disabled={verifyingAccount}
+                          className="w-full px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {verifyingAccount ? (
+                            <>
+                              <Loader className="w-4 h-4 animate-spin" />
+                              Verifying...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4" />
+                              Verify Account
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <div className="bg-success/10 border border-success/20 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-success">
+                            <CheckCircle className="w-4 h-4" />
+                            <span className="text-sm font-medium">Account Verified</span>
+                          </div>
+                          <p className="text-sm text-text-primary mt-1">
+                            Account Name: <span className="font-semibold">{resolvedAccountName}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -505,19 +569,6 @@ const KYCPage = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">Bank Code</label>
-                  <input
-                    type="text"
-                    value={formData.bankCode || ''}
-                    onChange={(e) => handleInputChange("bankCode", e.target.value.replace(/\D/g, ""))}
-                    className="w-full px-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
-                    placeholder="Auto-filled when bank is selected"
-                    maxLength="3"
-                    readOnly
-                  />
-                  <p className="text-xs text-text-secondary mt-1">This is automatically filled when you select your bank</p>
-                </div>
               </div>
             </div>
 
@@ -771,7 +822,6 @@ const KYCPage = () => {
                         className="w-full text-left px-4 py-3 rounded-lg hover:bg-primary/10 transition-colors border border-transparent hover:border-primary/20"
                       >
                         <div className="font-medium text-text-primary">{bank.name}</div>
-                        <div className="text-xs text-text-secondary mt-0.5">Code: {bank.code}</div>
                       </button>
                     ))}
                   {banks.filter(bank => 

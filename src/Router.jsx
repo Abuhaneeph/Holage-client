@@ -11,6 +11,8 @@ import ShipperDashboard from "./pages/ShipperDashboard"
 import FleetManagerDashboard from "./pages/FleetManagerDashboard"
 import AdminDashboard from "./pages/AdminDashboard"
 import ComplaintPage from "./pages/ComplaintPage"
+import DriverLoginPage from "./pages/DriverLoginPage"
+import DriverDashboard from "./pages/DriverDashboard"
 const Router = () => {
   const { currentPage } = useAppContext()
 
@@ -40,6 +42,11 @@ const Router = () => {
         return <AdminDashboard />
       case "complaint":
         return <ComplaintPage />
+      case "driver-login":
+        // Redirect to unified login page with driver type selected
+        return <LoginPage />
+      case "driver-dashboard":
+        return <DriverDashboard />
       default:
         return <LandingPage />
     }
