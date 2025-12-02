@@ -36,6 +36,7 @@ import SelectModal from "../components/SelectModal"
 import { calculateDistance, estimateShippingCost } from "../utils/distanceCalculator"
 import LgaSelect from "../components/LgaSelect"
 import nigeriaStatesLgasData from "../utils/nigeria-states-lgas.json"
+import NotificationCenter from "../components/NotificationCenter"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -150,17 +151,40 @@ const ShipperDashboard = () => {
 
   const formatLocation = (stateSlug, lgaSlug) => {
     const stateName = toTitleCase(stateSlug)
-    if (lgaSlug) {
+    // Don't show LGA if it's "00" or empty/invalid
+    if (lgaSlug && lgaSlug !== '00' && lgaSlug.trim() !== '') {
       return `${toTitleCase(lgaSlug)}, ${stateName}`
     }
     return stateName
+  }
+
+  // Helper to filter out "00" and "0" from displayed values
+  const filterZeroZero = (value) => {
+    if (value === null || value === undefined || value === '') return ''
+    const str = String(value).trim()
+    // If the value is just "0" or "00", return empty string
+    if (str === '0' || str === '00') {
+      return ''
+    }
+    // Remove ".00" from decimal numbers (e.g., "6.00" -> "6")
+    let filtered = str.replace(/\.00$/, '').replace(/\.0$/, '')
+    // Remove standalone "00" or "00" at the start/end
+    filtered = filtered.replace(/\b00\b/g, '').replace(/^00\s*|\s*00$/g, '').trim()
+    // If after filtering it becomes "0" or "00", return empty
+    if (filtered === '0' || filtered === '00' || filtered === '') {
+      return ''
+    }
+    // Return the filtered value, or empty string if filtered is falsy
+    return filtered || ''
   }
 
   const getLgaOptionsForState = (stateSlug) => {
     if (!stateSlug || !states || states.length === 0) return []
     const match = states.find((state) => state.slug === stateSlug)
     if (!match || !Array.isArray(match.lgas)) return []
-    return match.lgas.map((lga) => ({
+    return match.lgas
+      .filter((lga) => lga.slug !== '00' && lga.slug !== '0' && lga.slug && lga.slug.trim() !== '')
+      .map((lga) => ({
       label: lga.name,
       value: lga.slug,
       coordinates: lga.coordinates ? { lat: lga.coordinates.lat, lng: lga.coordinates.lng } : null
@@ -608,8 +632,17 @@ const ShipperDashboard = () => {
       return
     }
     
-    const pickupSlug = `${slugifyValue(shipmentForm.pickupState)}-${slugifyValue(shipmentForm.pickupLga)}`
-    const destinationSlug = `${slugifyValue(shipmentForm.destinationState)}-${slugifyValue(shipmentForm.destinationLga)}`
+    // Filter out "00" and "0" from LGA values
+    const cleanPickupLga = (shipmentForm.pickupLga === '00' || shipmentForm.pickupLga === '0' || !shipmentForm.pickupLga.trim()) ? null : shipmentForm.pickupLga
+    const cleanDestinationLga = (shipmentForm.destinationLga === '00' || shipmentForm.destinationLga === '0' || !shipmentForm.destinationLga.trim()) ? null : shipmentForm.destinationLga
+    
+    if (!cleanPickupLga || !cleanDestinationLga) {
+      toast.error("Invalid LGA selection. Please select a valid LGA for both pickup and destination.")
+      return
+    }
+    
+    const pickupSlug = `${slugifyValue(shipmentForm.pickupState)}-${slugifyValue(cleanPickupLga)}`
+    const destinationSlug = `${slugifyValue(shipmentForm.destinationState)}-${slugifyValue(cleanDestinationLga)}`
 
     if (pickupSlug === destinationSlug) {
       toast.error("Pickup and destination locations cannot be the same.")
@@ -626,7 +659,11 @@ const ShipperDashboard = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(shipmentForm)
+        body: JSON.stringify({
+          ...shipmentForm,
+          pickupLga: cleanPickupLga,
+          destinationLga: cleanDestinationLga
+        })
       })
       
       const data = await response.json()
@@ -1110,11 +1147,75 @@ const ShipperDashboard = () => {
     const statusMap = {
       'pending': { icon: Clock, color: 'warning', label: 'Pending' },
       'assigned': { icon: CheckCircle, color: 'info', label: 'Assigned' },
-      'in_transit': { icon: Truck, color: 'primary', label: 'In Transit' },
-      'delivered': { icon: CheckCircle, color: 'success', label: 'Delivered' },
+      'picking_up': { icon: Truck, color: 'primary', label: 'Going to Pick Up' },
+      'picked_up': { icon: Package, color: 'warning', label: 'Picked Up (Awaiting Your Confirmation)' },
+      'in_transit': { icon: Truck, color: 'primary', label: 'In Transit to Destination' },
+      'delivered': { icon: CheckCircle, color: 'warning', label: 'Delivered (Awaiting Your Confirmation)' },
       'cancelled': { icon: X, color: 'error', label: 'Cancelled' }
     }
     return statusMap[status] || statusMap['pending']
+  }
+
+  // Confirm pickup
+  const handleConfirmPickup = async (shipmentId) => {
+    if (!window.confirm('Confirm that the shipment has been picked up? This will release 60% payment to the trucker/driver.')) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}/confirm-pickup`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Pickup confirmed! 60% payment has been released.')
+        // Refresh shipments and wallet
+        fetchMyShipments()
+        fetchWallet()
+        fetchTransactions()
+      } else {
+        toast.error(data.message || 'Failed to confirm pickup')
+      }
+    } catch (error) {
+      console.error('Error confirming pickup:', error)
+      toast.error('Error confirming pickup')
+    }
+  }
+
+  // Confirm delivery
+  const handleConfirmDelivery = async (shipmentId) => {
+    if (!window.confirm('Confirm that the shipment has been delivered? This will release the remaining 35% payment to the trucker/driver.')) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}/confirm-delivery`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Delivery confirmed! Remaining 35% payment has been released.')
+        // Refresh shipments and wallet
+        fetchMyShipments()
+        fetchWallet()
+        fetchTransactions()
+      } else {
+        toast.error(data.message || 'Failed to confirm delivery')
+      }
+    } catch (error) {
+      console.error('Error confirming delivery:', error)
+      toast.error('Error confirming delivery')
+    }
   }
 
   const activeShipments = shipments.filter(s => s.status === 'pending' || s.status === 'in_transit' || s.status === 'assigned')
@@ -1160,10 +1261,17 @@ const ShipperDashboard = () => {
             )}
             <div>
               <p className="text-white/80 text-sm">Welcome</p>
-              <p className="text-white font-bold text-lg">{user?.fullName?.split(' ')[0] || "User"}</p>
+              <p className="text-white font-bold text-lg">
+                {(() => {
+                  const firstName = user?.fullName?.split(' ')[0] || "User"
+                  // Remove "00" from the beginning of the name
+                  return firstName.replace(/^00\s*/, '').trim() || "User"
+                })()}
+              </p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            <NotificationCenter userId={user?.id} />
             <button 
               onClick={() => setShowBalance(!showBalance)}
               className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
@@ -1237,7 +1345,7 @@ const ShipperDashboard = () => {
                                 {formatLocation(shipment.pickupState, shipment.pickupLga)} → {formatLocation(shipment.destinationState, shipment.destinationLga)}
                               </p>
                           <p className="text-text-secondary text-sm">
-                            #{shipment.id} • {shipment.weight}t • {shipment.distance}km
+                            #{filterZeroZero(shipment.id)} • {filterZeroZero(shipment.weight)}t • {filterZeroZero(shipment.distance)}km
                           </p>
                           <div className="flex items-center justify-between pt-2">
                             <p className="text-success font-bold text-lg">₦{parseFloat(shipment.estimatedCost || 0).toLocaleString('en-NG')}</p>
@@ -1298,7 +1406,14 @@ const ShipperDashboard = () => {
 
         {activeView === "shipments" && (
           <div className="space-y-4">
-            <h2 className="text-text-primary font-bold text-2xl">My Shipments</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-text-primary font-bold text-2xl">My Shipments</h2>
+              {!loadingShipments && (
+                <span className="text-text-secondary text-sm">
+                  {shipments.length} {shipments.length === 1 ? 'shipment' : 'shipments'}
+                </span>
+              )}
+            </div>
             
             {loadingShipments ? (
               <div className="bg-card border border-border rounded-xl p-8 text-center">
@@ -1322,7 +1437,7 @@ const ShipperDashboard = () => {
                             {formatLocation(shipment.pickupState, shipment.pickupLga)} → {formatLocation(shipment.destinationState, shipment.destinationLga)}
                           </p>
                           <p className="text-text-secondary text-sm">
-                            #{shipment.id} • {shipment.cargoType} • {shipment.weight}t
+                            #{filterZeroZero(shipment.id)} • {shipment.cargoType} • {filterZeroZero(shipment.weight)}t
                           </p>
                         </div>
                       </div>
@@ -1358,11 +1473,11 @@ const ShipperDashboard = () => {
                     <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
                       <div>
                         <p className="text-text-secondary">Distance</p>
-                        <p className="text-text-primary font-medium">{shipment.distance}km</p>
+                        <p className="text-text-primary font-medium">{filterZeroZero(shipment.distance) ? `${filterZeroZero(shipment.distance)}km` : 'N/A'}</p>
                       </div>
                       <div>
                         <p className="text-text-secondary">Duration</p>
-                        <p className="text-text-primary font-medium">{shipment.estimatedDuration}</p>
+                        <p className="text-text-primary font-medium">{filterZeroZero(shipment.estimatedDuration) || 'N/A'}</p>
                       </div>
                       <div>
                         <p className="text-text-secondary">Pickup Date</p>
@@ -1378,6 +1493,56 @@ const ShipperDashboard = () => {
                       <p className="text-success font-bold text-xl">₦{parseFloat(shipment.estimatedCost || 0).toLocaleString('en-NG')}</p>
                       </div>
                     </div>
+
+                    {/* Confirmation Buttons */}
+                    {shipment.status === 'picked_up' && !Boolean(shipment.pickupConfirmed) && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
+                          <p className="text-warning font-medium mb-2">Driver has marked shipment as picked up</p>
+                          <p className="text-text-secondary text-sm">Please confirm pickup to release 60% payment and allow driver to start trip to destination.</p>
+                        </div>
+                        <button
+                          onClick={() => handleConfirmPickup(shipment.id)}
+                          className="w-full bg-warning text-white py-3 rounded-xl font-bold hover:bg-warning/90 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                          <span>Confirm Pickup (Release 60% Payment)</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {shipment.status === 'delivered' && !Boolean(shipment.deliveryConfirmed) && Boolean(shipment.pickupConfirmed) && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
+                          <p className="text-warning font-medium mb-2">Driver has marked shipment as delivered</p>
+                          <p className="text-text-secondary text-sm">Please confirm delivery to release the remaining 35% payment.</p>
+                        </div>
+                        <button
+                          onClick={() => handleConfirmDelivery(shipment.id)}
+                          className="w-full bg-success text-white py-3 rounded-xl font-bold hover:bg-success/90 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                          <span>Confirm Delivery (Release 35% Payment)</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {Boolean(shipment.pickupConfirmed) && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <div className="bg-success/10 text-success p-3 rounded-lg text-sm">
+                          ✓ Pickup confirmed on {shipment.pickupConfirmedAt ? new Date(shipment.pickupConfirmedAt).toLocaleString() : 'N/A'}
+                        </div>
+                      </div>
+                    )}
+
+                    {Boolean(shipment.deliveryConfirmed) && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <div className="bg-success/10 text-success p-3 rounded-lg text-sm">
+                          ✓ Delivery confirmed on {shipment.deliveryConfirmedAt ? new Date(shipment.deliveryConfirmedAt).toLocaleString() : 'N/A'}
+                        </div>
+                      </div>
+                    )}
+
 
                     {/* Bids Section - Only show for pending shipments */}
                     {shipment.status === 'pending' && (

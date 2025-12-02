@@ -19,6 +19,8 @@ import {
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
+import NotificationCenter from "../components/NotificationCenter"
+import PODCapture from "../components/PODCapture"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -33,6 +35,9 @@ const DriverDashboard = () => {
   const [assignedTrucks, setAssignedTrucks] = useState([])
   const [loadingTrucks, setLoadingTrucks] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(null)
+  const [showPODCapture, setShowPODCapture] = useState(false)
+  const [selectedShipmentForPOD, setSelectedShipmentForPOD] = useState(null)
+  const [selectedPODType, setSelectedPODType] = useState(null)
 
   useEffect(() => {
     const token = localStorage.getItem('authToken')
@@ -110,6 +115,8 @@ const DriverDashboard = () => {
           pickupDate: bid.pickupDate,
           distance: bid.distance || null,
           status: bid.shipmentStatus || bid.status || 'assigned', // Fallback to 'assigned' if status missing
+          pickupConfirmed: bid.pickupConfirmed || false,
+          deliveryConfirmed: bid.deliveryConfirmed || false,
           shipperName: bid.shipperName,
           shipperPhone: bid.shipperPhone,
           bidAmount: bid.bidAmount,
@@ -162,9 +169,97 @@ const DriverDashboard = () => {
     navigateTo('driver-login')
   }
 
-  // Start trip (update status to in_transit)
-  const handleStartTrip = async (shipmentId) => {
-    if (!window.confirm('Start trip to pick up the shipment? This will update the status to "In Transit".')) {
+
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'pending':
+        return { icon: Clock, color: 'warning', bgColor: 'bg-warning/10', textColor: 'text-warning', label: 'Pending' }
+      case 'assigned':
+        return { icon: CheckCircle, color: 'primary', bgColor: 'bg-primary/10', textColor: 'text-primary', label: 'Assigned' }
+      case 'picking_up':
+        return { icon: Truck, color: 'primary', bgColor: 'bg-primary/10', textColor: 'text-primary', label: 'Going to Pick Up' }
+      case 'picked_up':
+        return { icon: Package, color: 'warning', bgColor: 'bg-warning/10', textColor: 'text-warning', label: 'Picked Up (Awaiting Confirmation)' }
+      case 'in_transit':
+        return { icon: Navigation, color: 'success', bgColor: 'bg-success/10', textColor: 'text-success', label: 'In Transit to Destination' }
+      case 'delivered':
+        return { icon: CheckCircle, color: 'warning', bgColor: 'bg-warning/10', textColor: 'text-warning', label: 'Delivered (Awaiting Confirmation)' }
+      case 'cancelled':
+        return { icon: AlertCircle, color: 'error', bgColor: 'bg-error/10', textColor: 'text-error', label: 'Cancelled' }
+      default:
+        return { icon: Clock, color: 'text-secondary', bgColor: 'bg-text-secondary/10', textColor: 'text-text-secondary', label: status }
+    }
+  }
+
+  // Start trip to pick up
+  const handleStartPickupTrip = async (shipmentId) => {
+    if (!window.confirm('Start trip to pick up the shipment?')) {
+      return
+    }
+
+    setUpdatingStatus(shipmentId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'picking_up' })
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Trip to pick up started successfully!')
+        fetchAssignedShipments()
+      } else {
+        toast.error(data.message || 'Failed to start trip')
+      }
+    } catch (error) {
+      console.error('Error starting pickup trip:', error)
+      toast.error('Error starting trip')
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  // Mark as picked up
+  const handleMarkPickedUp = async (shipmentId) => {
+    if (!window.confirm('Mark shipment as picked up? Shipper will need to confirm before you can start trip to destination.')) {
+      return
+    }
+
+    setUpdatingStatus(shipmentId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'picked_up' })
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Shipment marked as picked up. Waiting for shipper confirmation.')
+        fetchAssignedShipments()
+      } else {
+        toast.error(data.message || 'Failed to update status')
+      }
+    } catch (error) {
+      console.error('Error marking as picked up:', error)
+      toast.error('Error updating status')
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  // Start trip to destination (after pickup confirmed)
+  const handleStartDeliveryTrip = async (shipmentId) => {
+    if (!window.confirm('Start trip to destination?')) {
       return
     }
 
@@ -182,34 +277,49 @@ const DriverDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Trip started successfully! 60% payment has been credited.')
-        // Refresh shipments
+        toast.success(data.message || 'Trip to destination started successfully!')
         fetchAssignedShipments()
       } else {
         toast.error(data.message || 'Failed to start trip')
       }
     } catch (error) {
-      console.error('Error starting trip:', error)
+      console.error('Error starting delivery trip:', error)
       toast.error('Error starting trip')
     } finally {
       setUpdatingStatus(null)
     }
   }
 
-  const getStatusInfo = (status) => {
-    switch (status) {
-      case 'pending':
-        return { icon: Clock, color: 'warning', bgColor: 'bg-warning/10', textColor: 'text-warning', label: 'Pending' }
-      case 'assigned':
-        return { icon: CheckCircle, color: 'primary', bgColor: 'bg-primary/10', textColor: 'text-primary', label: 'Assigned' }
-      case 'in_transit':
-        return { icon: Navigation, color: 'success', bgColor: 'bg-success/10', textColor: 'text-success', label: 'In Transit' }
-      case 'delivered':
-        return { icon: CheckCircle, color: 'success', bgColor: 'bg-success/10', textColor: 'text-success', label: 'Delivered' }
-      case 'cancelled':
-        return { icon: AlertCircle, color: 'error', bgColor: 'bg-error/10', textColor: 'text-error', label: 'Cancelled' }
-      default:
-        return { icon: Clock, color: 'text-secondary', bgColor: 'bg-text-secondary/10', textColor: 'text-text-secondary', label: status }
+  // Mark as delivered
+  const handleMarkDelivered = async (shipmentId) => {
+    if (!window.confirm('Mark shipment as delivered? Shipper will need to confirm before final payment is released.')) {
+      return
+    }
+
+    setUpdatingStatus(shipmentId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'delivered' })
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Shipment marked as delivered. Waiting for shipper confirmation.')
+        fetchAssignedShipments()
+      } else {
+        toast.error(data.message || 'Failed to update status')
+      }
+    } catch (error) {
+      console.error('Error marking as delivered:', error)
+      toast.error('Error updating status')
+    } finally {
+      setUpdatingStatus(null)
     }
   }
 
@@ -235,13 +345,16 @@ const DriverDashboard = () => {
               <p className="text-white font-bold text-base sm:text-lg truncate">{driverInfo.driverName || "Driver"}</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-9 h-9 sm:w-10 sm:h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors flex-shrink-0 ml-2"
-            title="Logout"
-          >
-            <LogOut className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <NotificationCenter userId={driverInfo.id} />
+            <button
+              onClick={handleLogout}
+              className="w-9 h-9 sm:w-10 sm:h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors flex-shrink-0"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            </button>
+          </div>
         </div>
 
         {fleetManagerInfo && (
@@ -249,18 +362,18 @@ const DriverDashboard = () => {
             <p className="text-white/80 text-xs sm:text-sm mb-1">Fleet Manager</p>
             <p className="text-white font-medium text-sm sm:text-base truncate">{fleetManagerInfo.fullName}</p>
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 mt-2">
-              {fleetManagerInfo.phone && (
+            {fleetManagerInfo.phone && (
                 <div className="flex items-center space-x-2">
                   <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/80 flex-shrink-0" />
                   <p className="text-white/90 text-xs sm:text-sm truncate">{fleetManagerInfo.phone}</p>
-                </div>
-              )}
-              {fleetManagerInfo.email && (
+              </div>
+            )}
+            {fleetManagerInfo.email && (
                 <div className="flex items-center space-x-2">
                   <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/80 flex-shrink-0" />
                   <p className="text-white/90 text-xs sm:text-sm truncate">{fleetManagerInfo.email}</p>
-                </div>
-              )}
+              </div>
+            )}
             </div>
           </div>
         )}
@@ -458,11 +571,11 @@ const DriverDashboard = () => {
                           </div>
                         )}
 
-                        {/* Start Trip Button */}
-                        {shipment.status === 'assigned' && (
-                          <div className="pt-3 sm:pt-4 border-t border-border">
+                        {/* Action Buttons based on status */}
+                        <div className="pt-3 sm:pt-4 border-t border-border space-y-2">
+                          {shipment.status === 'assigned' && (
                             <button
-                              onClick={() => handleStartTrip(shipment.id)}
+                              onClick={() => handleStartPickupTrip(shipment.id)}
                               disabled={updatingStatus === shipment.id}
                               className="w-full bg-primary text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
                             >
@@ -478,8 +591,77 @@ const DriverDashboard = () => {
                                 </>
                               )}
                             </button>
-                          </div>
-                        )}
+                          )}
+
+                          {shipment.status === 'picking_up' && (
+                            <button
+                              onClick={() => {
+                                setSelectedShipmentForPOD(shipment.id)
+                                setSelectedPODType('pickup')
+                                setShowPODCapture(true)
+                              }}
+                              disabled={updatingStatus === shipment.id}
+                              className="w-full bg-warning text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-warning/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
+                            >
+                              <Package className="w-4 h-4 sm:w-5 sm:h-5" />
+                              <span>Capture Pickup POD</span>
+                            </button>
+                          )}
+
+                          {shipment.status === 'picked_up' && Boolean(shipment.pickupConfirmed) && (
+                            <button
+                              onClick={() => handleStartDeliveryTrip(shipment.id)}
+                              disabled={updatingStatus === shipment.id}
+                              className="w-full bg-success text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
+                            >
+                              {updatingStatus === shipment.id ? (
+                                <>
+                                  <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                                  <span>Starting...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Navigation className="w-4 h-4 sm:w-5 sm:h-5" />
+                                  <span>Start Trip to Destination</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+
+                          {shipment.status === 'picked_up' && !Boolean(shipment.pickupConfirmed) && (
+                            <div className="bg-warning/10 text-warning p-3 rounded-lg text-xs sm:text-sm text-center">
+                              Waiting for shipper to confirm pickup...
+                            </div>
+                          )}
+
+                          {shipment.status === 'in_transit' && (
+                            <button
+                              onClick={() => {
+                                setSelectedShipmentForPOD(shipment.id)
+                                setSelectedPODType('delivery')
+                                setShowPODCapture(true)
+                              }}
+                              disabled={updatingStatus === shipment.id}
+                              className="w-full bg-success text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
+                            >
+                              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                              <span>Capture Delivery POD</span>
+                            </button>
+                          )}
+
+                          {shipment.status === 'delivered' && !Boolean(shipment.deliveryConfirmed) && (
+                            <div className="bg-warning/10 text-warning p-3 rounded-lg text-xs sm:text-sm text-center">
+                              Waiting for shipper to confirm delivery...
+                            </div>
+                          )}
+
+                          {shipment.status === 'delivered' && Boolean(shipment.deliveryConfirmed) && (
+                            <div className="bg-success/10 text-success p-3 rounded-lg text-xs sm:text-sm text-center font-medium">
+                              ✓ Delivery confirmed! Trip completed.
+                            </div>
+                          )}
+
+                        </div>
                       </div>
                     )}
                   </div>
@@ -498,6 +680,30 @@ const DriverDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* POD Capture Modal */}
+      {showPODCapture && selectedShipmentForPOD && selectedPODType && (
+        <PODCapture
+          shipmentId={selectedShipmentForPOD}
+          podType={selectedPODType}
+          onSuccess={() => {
+            // After POD is captured, update status
+            if (selectedPODType === 'pickup') {
+              handleMarkPickedUp(selectedShipmentForPOD)
+            } else if (selectedPODType === 'delivery') {
+              handleMarkDelivered(selectedShipmentForPOD)
+            }
+            setShowPODCapture(false)
+            setSelectedShipmentForPOD(null)
+            setSelectedPODType(null)
+          }}
+          onClose={() => {
+            setShowPODCapture(false)
+            setSelectedShipmentForPOD(null)
+            setSelectedPODType(null)
+          }}
+        />
+      )}
     </div>
   )
 }

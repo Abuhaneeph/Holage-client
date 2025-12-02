@@ -31,6 +31,7 @@ import {
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import StateSelect from "../components/StateSelect"
+import NotificationCenter from "../components/NotificationCenter"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -50,6 +51,7 @@ const FleetManagerDashboard = () => {
   const [loadingTrucks, setLoadingTrucks] = useState(false)
   const [showAddTruckModal, setShowAddTruckModal] = useState(false)
   const [showEditTruckModal, setShowEditTruckModal] = useState(false)
+  const [showRegisterDriverTruckModal, setShowRegisterDriverTruckModal] = useState(false)
   const [selectedTruck, setSelectedTruck] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   
@@ -63,6 +65,28 @@ const FleetManagerDashboard = () => {
     quantity: 1,
     driverId: ""
   })
+  
+  // Combined driver/truck registration form state
+  const [driverTruckForm, setDriverTruckForm] = useState({
+    // Driver fields
+    driverId: "", // If empty, create new driver
+    driverName: "",
+    phoneNumber: "",
+    driverLicense: "",
+    password: "",
+    confirmPassword: "",
+    // Truck fields
+    plateNumber: "",
+    vehicleType: "",
+    product: "",
+    description: "",
+    type: "",
+    color: "",
+    notes: "",
+    truckImage: null
+  })
+  const [submittingDriverTruck, setSubmittingDriverTruck] = useState(false)
+  const [currentStep, setCurrentStep] = useState(1) // 1: Driver, 2: Truck Details, 3: Image, 4: Review
   
   // Drivers state
   const [drivers, setDrivers] = useState([])
@@ -101,7 +125,9 @@ const FleetManagerDashboard = () => {
   const [filters, setFilters] = useState({
     pickupState: "",
     destinationState: "",
-    truckType: ""
+    truckType: "",
+    cargoType: "",
+    weight: ""
   })
   const [states, setStates] = useState([])
   const [loadingStates, setLoadingStates] = useState(false)
@@ -116,6 +142,15 @@ const FleetManagerDashboard = () => {
     { label: "Refrigerated trucks", value: "Refrigerated trucks" },
     { label: "Tanker trucks", value: "Tanker trucks" },
     { label: "Container trucks", value: "Container trucks" }
+  ]
+
+  const cargoOptions = [
+    { label: "Electronics", value: "electronics" },
+    { label: "Food/perishables", value: "food" },
+    { label: "Textiles", value: "textiles" },
+    { label: "Agricultural Products", value: "agricultural" },
+    { label: "Building Materials", value: "building_materials" },
+    { label: "Other", value: "other" }
   ]
 
   // Wallet state
@@ -342,14 +377,14 @@ const FleetManagerDashboard = () => {
     if (activeView === "shipments") {
       setCurrentPage(1)
     }
-  }, [activeView, filters.pickupState, filters.destinationState, filters.truckType])
+  }, [activeView, filters.pickupState, filters.destinationState, filters.truckType, filters.cargoType, filters.weight])
 
   // Fetch shipments when page changes or filters change
   useEffect(() => {
     if (activeView === "shipments") {
       fetchAvailableShipments(currentPage)
     }
-  }, [activeView, currentPage, filters.pickupState, filters.destinationState, filters.truckType])
+  }, [activeView, currentPage, filters.pickupState, filters.destinationState, filters.truckType, filters.cargoType, filters.weight])
 
   // Reset truck form
   const resetTruckForm = () => {
@@ -373,6 +408,130 @@ const FleetManagerDashboard = () => {
       password: "",
       confirmPassword: ""
     })
+  }
+  
+  // Reset combined driver/truck form
+  const resetDriverTruckForm = () => {
+    setDriverTruckForm({
+      driverId: "",
+      driverName: "",
+      phoneNumber: "",
+      driverLicense: "",
+      password: "",
+      confirmPassword: "",
+      plateNumber: "",
+      vehicleType: "",
+      product: "",
+      description: "",
+      type: "",
+      color: "",
+      notes: "",
+      truckImage: null
+    })
+    setCurrentStep(1)
+  }
+  
+  // Handle combined driver/truck registration
+  const handleRegisterDriverTruck = async (e) => {
+    e.preventDefault()
+    
+    // Validate based on step
+    if (currentStep === 1) {
+      // Step 1: Driver selection/creation
+      if (!driverTruckForm.driverId) {
+        // Creating new driver - validate all fields
+        if (!driverTruckForm.driverName || !driverTruckForm.phoneNumber || 
+            !driverTruckForm.driverLicense || !driverTruckForm.password) {
+          toast.error("All driver fields are required")
+          return
+        }
+        if (driverTruckForm.password !== driverTruckForm.confirmPassword) {
+          toast.error("Passwords do not match")
+          return
+        }
+        if (driverTruckForm.password.length < 6) {
+          toast.error("Password must be at least 6 characters")
+          return
+        }
+      }
+      // If using existing driver, just move to next step
+      setCurrentStep(2)
+      return
+    }
+    
+    if (currentStep === 2) {
+      // Step 2: Truck details
+      if (!driverTruckForm.plateNumber || !driverTruckForm.vehicleType) {
+        toast.error("Plate number and vehicle type are required")
+        return
+      }
+      setCurrentStep(3)
+      return
+    }
+    
+    if (currentStep === 3) {
+      // Step 3: Image (optional, can skip)
+      setCurrentStep(4)
+      return
+    }
+    
+    if (currentStep === 4) {
+      // Step 4: Submit
+      setSubmittingDriverTruck(true)
+      try {
+        const token = localStorage.getItem('authToken')
+        const formData = new FormData()
+        
+        // Add driver fields (only if creating new driver)
+        if (!driverTruckForm.driverId) {
+          formData.append('driverName', driverTruckForm.driverName)
+          formData.append('phoneNumber', driverTruckForm.phoneNumber)
+          formData.append('driverLicense', driverTruckForm.driverLicense)
+          formData.append('password', driverTruckForm.password)
+        } else {
+          formData.append('driverId', driverTruckForm.driverId)
+        }
+        
+        // Add truck fields
+        formData.append('plateNumber', driverTruckForm.plateNumber)
+        formData.append('vehicleType', driverTruckForm.vehicleType)
+        if (driverTruckForm.product) formData.append('product', driverTruckForm.product)
+        if (driverTruckForm.description) formData.append('description', driverTruckForm.description)
+        if (driverTruckForm.type) formData.append('type', driverTruckForm.type)
+        if (driverTruckForm.color) formData.append('color', driverTruckForm.color)
+        if (driverTruckForm.notes) formData.append('notes', driverTruckForm.notes)
+        
+        // Add truck image if provided
+        if (driverTruckForm.truckImage) {
+          formData.append('truckImage', driverTruckForm.truckImage)
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/drivers/register-with-truck`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        })
+        
+        const data = await response.json()
+        
+        if (response.ok && data.success) {
+          toast.success('Driver and truck registered successfully!')
+          setShowRegisterDriverTruckModal(false)
+          resetDriverTruckForm()
+          fetchDrivers()
+          fetchTrucks()
+        } else {
+          toast.error(data.message || 'Failed to register driver and truck')
+        }
+      } catch (error) {
+        console.error('Error registering driver and truck:', error)
+        toast.error('Error registering driver and truck')
+      } finally {
+        setSubmittingDriverTruck(false)
+      }
+    }
   }
   
   // Fetch drivers
@@ -407,13 +566,17 @@ const FleetManagerDashboard = () => {
         const data = await response.json()
         if (data.success && data.data) {
           const stateOptions = data.data.map(state => ({
-            label: state.state,
-            value: state.state
+            label: state.name || state.state,
+            value: state.name || state.state
           }))
           setStates(stateOptions)
+        } else {
+          // Fallback: use local states data if API fails
+          console.warn('States API returned unsuccessful response, using fallback')
         }
       } catch (error) {
         console.error('Error fetching states:', error)
+        // Error is logged but not critical - component will work without states filter
       } finally {
         setLoadingStates(false)
       }
@@ -431,6 +594,8 @@ const FleetManagerDashboard = () => {
       if (filters.pickupState) queryParams.append('pickupState', filters.pickupState)
       if (filters.destinationState) queryParams.append('destinationState', filters.destinationState)
       if (filters.truckType) queryParams.append('truckType', filters.truckType)
+      if (filters.cargoType) queryParams.append('cargoType', filters.cargoType)
+      if (filters.weight) queryParams.append('weight', filters.weight)
       queryParams.append('limit', itemsPerPage.toString())
       queryParams.append('offset', ((page - 1) * itemsPerPage).toString())
       
@@ -445,6 +610,8 @@ const FleetManagerDashboard = () => {
         // For now, if we get less than itemsPerPage, we're on the last page
         if (data.shipments && data.shipments.length < itemsPerPage) {
           setTotalPages(page)
+        } else if (data.shipments && data.shipments.length === 0) {
+          setTotalPages(1) // At least show page 1 even if no results
         } else {
           // Estimate: if we got a full page, there might be more
           setTotalPages(page + 1)
@@ -486,6 +653,47 @@ const FleetManagerDashboard = () => {
   // Helper function to get bid for a shipment
   const getBidForShipment = (shipmentId) => {
     return myBids.find(bid => bid.shipmentId === shipmentId)
+  }
+
+  // Helper to format location (hide "00" and "0" LGA values)
+  const toTitleCase = (value) => {
+    if (!value) return ""
+    return value
+      .toString()
+      .split(/[-_]/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  }
+
+  const formatLocation = (stateSlug, lgaSlug) => {
+    if (!stateSlug) return ''
+    const stateName = toTitleCase(stateSlug)
+    // Don't show LGA if it's "00" or "0" or empty/invalid
+    if (lgaSlug && typeof lgaSlug === 'string' && lgaSlug !== '00' && lgaSlug !== '0' && lgaSlug.trim() !== '') {
+      return `${toTitleCase(lgaSlug)}, ${stateName}`
+    }
+    return stateName
+  }
+
+  // Helper to filter out "00" and "0" from displayed values
+  const filterZeroZero = (value) => {
+    if (value === null || value === undefined || value === '') return ''
+    const str = String(value).trim()
+    // If the value is just "0" or "00", return empty string
+    if (str === '0' || str === '00') {
+      return ''
+    }
+    // Remove ".00" from decimal numbers (e.g., "6.00" -> "6")
+    let filtered = str.replace(/\.00$/, '').replace(/\.0$/, '')
+    // Remove standalone "00" or "00" at the start/end
+    filtered = filtered.replace(/\b00\b/g, '').replace(/^00\s*|\s*00$/g, '').trim()
+    // If after filtering it becomes "0" or "00", return empty
+    if (filtered === '0' || filtered === '00' || filtered === '') {
+      return ''
+    }
+    // Return the filtered value, or empty string if filtered is falsy
+    return filtered || ''
   }
 
   // Helper function to get status info
@@ -1130,6 +1338,7 @@ const FleetManagerDashboard = () => {
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            <NotificationCenter userId={user?.id} />
             <button
               onClick={() => navigateTo("complaint")}
               className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
@@ -1190,16 +1399,16 @@ const FleetManagerDashboard = () => {
               </div>
             </div>
 
-            {/* Add Truck Button */}
+            {/* Register Driver & Truck Button */}
             <button
               onClick={() => {
-                resetTruckForm()
-                setShowAddTruckModal(true)
+                resetDriverTruckForm()
+                setShowRegisterDriverTruckModal(true)
               }}
               className="w-full bg-gradient-to-r from-primary to-primary/80 rounded-3xl p-6 shadow-lg flex items-center justify-center space-x-3 hover:shadow-xl transition-all"
             >
               <Plus className="w-6 h-6 text-white" />
-              <span className="text-white font-bold text-lg">Add New Truck</span>
+              <span className="text-white font-bold text-lg">Register Driver & Truck</span>
             </button>
 
             {/* Trucks List */}
@@ -1316,10 +1525,10 @@ const FleetManagerDashboard = () => {
                             </div>
                             <div className="flex-1">
                               <p className="text-text-primary font-bold">
-                                {shipment.pickupState} → {shipment.destinationState}
+                                {formatLocation(shipment.pickupState, shipment.pickupLga)} → {formatLocation(shipment.destinationState, shipment.destinationLga)}
                               </p>
                               <p className="text-text-secondary text-sm">
-                                #{shipment.id} • {shipment.cargoType} • {shipment.weight}t
+                                #{filterZeroZero(shipment.id)} • {shipment.cargoType} • {filterZeroZero(shipment.weight)}t
                               </p>
                             </div>
                           </div>
@@ -1340,11 +1549,11 @@ const FleetManagerDashboard = () => {
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             <div>
                               <p className="text-text-secondary">Pickup</p>
-                              <p className="text-text-primary font-medium">{shipment.pickupLga}, {shipment.pickupState}</p>
+                              <p className="text-text-primary font-medium">{formatLocation(shipment.pickupState, shipment.pickupLga)}</p>
                             </div>
                             <div>
                               <p className="text-text-secondary">Destination</p>
-                              <p className="text-text-primary font-medium">{shipment.destinationLga}, {shipment.destinationState}</p>
+                              <p className="text-text-primary font-medium">{formatLocation(shipment.destinationState, shipment.destinationLga)}</p>
                             </div>
                           </div>
                         </div>
@@ -1457,13 +1666,13 @@ const FleetManagerDashboard = () => {
               <h2 className="text-text-primary font-bold text-2xl">Drivers</h2>
               <button
                 onClick={() => {
-                  resetDriverForm()
-                  setShowAddDriverModal(true)
+                  resetDriverTruckForm()
+                  setShowRegisterDriverTruckModal(true)
                 }}
                 className="bg-primary text-white px-4 py-2 rounded-xl font-medium flex items-center space-x-2"
               >
                 <Plus className="w-5 h-5" />
-                <span>Add Driver</span>
+                <span>Register Driver & Truck</span>
               </button>
             </div>
 
@@ -1587,10 +1796,35 @@ const FleetManagerDashboard = () => {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-text-primary font-medium mb-2">Cargo Type</label>
+                  <select
+                    value={filters.cargoType}
+                    onChange={(e) => setFilters({ ...filters, cargoType: e.target.value })}
+                    className="w-full px-4 py-4 bg-input border border-border rounded-xl text-text-primary"
+                  >
+                    <option value="">All cargo types</option>
+                    {cargoOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-text-primary font-medium mb-2">Tonnage (Weight in tons)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={filters.weight}
+                    onChange={(e) => setFilters({ ...filters, weight: e.target.value })}
+                    className="w-full px-4 py-4 bg-input border border-border rounded-xl text-text-primary"
+                    placeholder="e.g., 2.5"
+                  />
+                </div>
               </div>
-              {(filters.pickupState || filters.destinationState || filters.truckType) && (
+              {(filters.pickupState || filters.destinationState || filters.truckType || filters.cargoType || filters.weight) && (
                 <button
-                  onClick={() => setFilters({ pickupState: "", destinationState: "", truckType: "" })}
+                  onClick={() => setFilters({ pickupState: "", destinationState: "", truckType: "", cargoType: "", weight: "" })}
                   className="text-primary hover:text-primary/80 text-sm font-medium"
                 >
                   Clear Filters
@@ -1613,9 +1847,9 @@ const FleetManagerDashboard = () => {
                         </div>
                         <div>
                           <p className="text-text-primary font-bold text-lg">
-                            {shipment.pickupState} → {shipment.destinationState}
+                            {formatLocation(shipment.pickupState, shipment.pickupLga)} → {formatLocation(shipment.destinationState, shipment.destinationLga)}
                           </p>
-                          <p className="text-text-secondary text-sm">#{shipment.id}</p>
+                          <p className="text-text-secondary text-sm">#{filterZeroZero(shipment.id)}</p>
                         </div>
                       </div>
                       <div className="text-right">
@@ -1623,7 +1857,7 @@ const FleetManagerDashboard = () => {
                           ₦{parseFloat(shipment.estimatedCost || 0).toLocaleString('en-NG')}
                         </p>
                         <p className="text-text-secondary text-xs">
-                          {shipment.distance ? `${shipment.distance}km` : 'N/A'}
+                          {shipment.distance && filterZeroZero(shipment.distance) ? `${filterZeroZero(shipment.distance)}km` : 'N/A'}
                         </p>
                       </div>
                     </div>
@@ -1632,7 +1866,7 @@ const FleetManagerDashboard = () => {
                       <p className="text-text-secondary text-sm">
                         <span className="font-medium">Cargo:</span> {shipment.cargoType} | 
                         <span className="font-medium"> Vehicle:</span> {shipment.truckType} |
-                        <span className="font-medium"> Weight:</span> {shipment.weight} tons
+                        <span className="font-medium"> Weight:</span> {filterZeroZero(shipment.weight)} tons
                       </p>
                     </div>
 
@@ -1675,7 +1909,7 @@ const FleetManagerDashboard = () => {
                     Previous
                   </button>
                   <span className="text-text-primary font-medium px-4">
-                    Page {currentPage} of {totalPages}
+                    Page {currentPage || 1} of {totalPages || 1}
                   </span>
                   <button
                     onClick={() => setCurrentPage(prev => prev + 1)}
@@ -1998,8 +2232,8 @@ const FleetManagerDashboard = () => {
         )}
       </div>
 
-      {/* Add Truck Modal */}
-      {showAddTruckModal && (
+      {/* Add Truck Modal - DEPRECATED: Use "Register Driver & Truck" flow instead */}
+      {false && showAddTruckModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[85vh] flex flex-col">
             <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">
@@ -2274,8 +2508,8 @@ const FleetManagerDashboard = () => {
         </div>
       </div>
 
-      {/* Add Driver Modal */}
-      {showAddDriverModal && (
+      {/* Add Driver Modal - DEPRECATED: Use "Register Driver & Truck" flow instead */}
+      {false && showAddDriverModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[85vh] flex flex-col">
             <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">
@@ -2705,6 +2939,388 @@ const FleetManagerDashboard = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Register Driver & Truck Modal */}
+      {showRegisterDriverTruckModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">
+              <h3 className="text-text-primary font-bold text-xl">Register Driver & Truck</h3>
+              <button
+                onClick={() => {
+                  setShowRegisterDriverTruckModal(false)
+                  resetDriverTruckForm()
+                }}
+                className="w-10 h-10 bg-muted rounded-full flex items-center justify-center"
+                disabled={submittingDriverTruck}
+              >
+                <X className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterDriverTruck} className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Progress Steps */}
+              <div className="flex items-center justify-between mb-6">
+                {[1, 2, 3, 4].map((step) => (
+                  <div key={step} className="flex items-center flex-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                      currentStep >= step ? 'bg-primary text-white' : 'bg-muted text-text-secondary'
+                    }`}>
+                      {step}
+                    </div>
+                    {step < 4 && (
+                      <div className={`flex-1 h-1 mx-2 ${
+                        currentStep > step ? 'bg-primary' : 'bg-muted'
+                      }`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Step 1: Driver Selection/Creation */}
+              {currentStep === 1 && (
+                <div className="space-y-4">
+                  <h4 className="text-text-primary font-bold text-lg mb-4">Step 1: Driver Information</h4>
+                  
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Use Existing Driver</label>
+                    <select
+                      value={driverTruckForm.driverId}
+                      onChange={(e) => {
+                        const selectedId = e.target.value
+                        setDriverTruckForm({ ...driverTruckForm, driverId: selectedId })
+                        if (selectedId) {
+                          // Clear new driver fields when selecting existing
+                          setDriverTruckForm(prev => ({
+                            ...prev,
+                            driverId: selectedId,
+                            driverName: "",
+                            phoneNumber: "",
+                            driverLicense: "",
+                            password: "",
+                            confirmPassword: ""
+                          }))
+                        }
+                      }}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      disabled={submittingDriverTruck}
+                    >
+                      <option value="">Create New Driver</option>
+                      {drivers.map((driver) => (
+                        <option key={driver.id} value={driver.id}>
+                          {driver.driverName} - {driver.phoneNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {!driverTruckForm.driverId && (
+                    <>
+                      <div>
+                        <label className="block text-text-primary font-medium mb-2">Driver Name *</label>
+                        <input
+                          type="text"
+                          value={driverTruckForm.driverName}
+                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, driverName: e.target.value })}
+                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                          placeholder="Enter driver name"
+                          required
+                          disabled={submittingDriverTruck}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-text-primary font-medium mb-2">Phone Number *</label>
+                        <input
+                          type="tel"
+                          value={driverTruckForm.phoneNumber}
+                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, phoneNumber: e.target.value })}
+                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                          placeholder="e.g., 08123456789"
+                          required
+                          disabled={submittingDriverTruck}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-text-primary font-medium mb-2">Driver License *</label>
+                        <input
+                          type="text"
+                          value={driverTruckForm.driverLicense}
+                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, driverLicense: e.target.value })}
+                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                          placeholder="Enter license number"
+                          required
+                          disabled={submittingDriverTruck}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-text-primary font-medium mb-2">Password *</label>
+                        <input
+                          type="password"
+                          value={driverTruckForm.password}
+                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, password: e.target.value })}
+                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                          placeholder="Minimum 6 characters"
+                          required
+                          disabled={submittingDriverTruck}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-text-primary font-medium mb-2">Confirm Password *</label>
+                        <input
+                          type="password"
+                          value={driverTruckForm.confirmPassword}
+                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, confirmPassword: e.target.value })}
+                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                          placeholder="Confirm password"
+                          required
+                          disabled={submittingDriverTruck}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={submittingDriverTruck}
+                  >
+                    Next: Truck Details
+                  </button>
+                </div>
+              )}
+
+              {/* Step 2: Truck Details */}
+              {currentStep === 2 && (
+                <div className="space-y-4">
+                  <h4 className="text-text-primary font-bold text-lg mb-4">Step 2: Truck Details</h4>
+                  
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Plate Number *</label>
+                    <input
+                      type="text"
+                      value={driverTruckForm.plateNumber}
+                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, plateNumber: e.target.value.toUpperCase() })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="e.g., ABC 123 XY"
+                      required
+                      disabled={submittingDriverTruck}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Vehicle Type *</label>
+                    <select
+                      value={driverTruckForm.vehicleType}
+                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, vehicleType: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      required
+                      disabled={submittingDriverTruck}
+                    >
+                      <option value="">Select vehicle type</option>
+                      {vehicleTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Product (What it usually carries)</label>
+                    <input
+                      type="text"
+                      value={driverTruckForm.product}
+                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, product: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="e.g., Cement, Containers, Fuel, General Cargo"
+                      disabled={submittingDriverTruck}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Description</label>
+                    <textarea
+                      value={driverTruckForm.description}
+                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, description: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="Describe the truck..."
+                      rows="3"
+                      disabled={submittingDriverTruck}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Type of Truck</label>
+                    <input
+                      type="text"
+                      value={driverTruckForm.type}
+                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, type: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="e.g., Flatbed, Tanker, Trailer, Tipper"
+                      disabled={submittingDriverTruck}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Color</label>
+                    <input
+                      type="text"
+                      value={driverTruckForm.color}
+                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, color: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="e.g., Red, Blue, White"
+                      disabled={submittingDriverTruck}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Notes</label>
+                    <textarea
+                      value={driverTruckForm.notes}
+                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, notes: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="Additional notes about the truck..."
+                      rows="3"
+                      disabled={submittingDriverTruck}
+                    />
+                  </div>
+
+                  <div className="flex space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(1)}
+                      className="flex-1 bg-muted text-text-primary py-3 rounded-xl font-semibold"
+                      disabled={submittingDriverTruck}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={submittingDriverTruck}
+                    >
+                      Next: Upload Image
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Truck Image */}
+              {currentStep === 3 && (
+                <div className="space-y-4">
+                  <h4 className="text-text-primary font-bold text-lg mb-4">Step 3: Truck Picture</h4>
+                  
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Truck Picture (Optional)</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast.error("Image size must be less than 5MB")
+                            return
+                          }
+                          setDriverTruckForm({ ...driverTruckForm, truckImage: file })
+                        }
+                      }}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      disabled={submittingDriverTruck}
+                    />
+                    {driverTruckForm.truckImage && (
+                      <div className="mt-2">
+                        <p className="text-text-secondary text-sm">Selected: {driverTruckForm.truckImage.name}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(2)}
+                      className="flex-1 bg-muted text-text-primary py-3 rounded-xl font-semibold"
+                      disabled={submittingDriverTruck}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={submittingDriverTruck}
+                    >
+                      Next: Review
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Review */}
+              {currentStep === 4 && (
+                <div className="space-y-4">
+                  <h4 className="text-text-primary font-bold text-lg mb-4">Step 4: Review & Submit</h4>
+                  
+                  <div className="bg-muted/30 rounded-xl p-4 space-y-3">
+                    <h5 className="font-bold text-text-primary">Driver Information</h5>
+                    {driverTruckForm.driverId ? (
+                      <p className="text-text-secondary">
+                        Using existing driver: {drivers.find(d => d.id === parseInt(driverTruckForm.driverId))?.driverName || 'N/A'}
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-text-secondary">Name: {driverTruckForm.driverName}</p>
+                        <p className="text-text-secondary">Phone: {driverTruckForm.phoneNumber}</p>
+                        <p className="text-text-secondary">License: {driverTruckForm.driverLicense}</p>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="bg-muted/30 rounded-xl p-4 space-y-3">
+                    <h5 className="font-bold text-text-primary">Truck Information</h5>
+                    <p className="text-text-secondary">Plate Number: {driverTruckForm.plateNumber}</p>
+                    <p className="text-text-secondary">Vehicle Type: {driverTruckForm.vehicleType}</p>
+                    {driverTruckForm.product && <p className="text-text-secondary">Product: {driverTruckForm.product}</p>}
+                    {driverTruckForm.type && <p className="text-text-secondary">Type: {driverTruckForm.type}</p>}
+                    {driverTruckForm.color && <p className="text-text-secondary">Color: {driverTruckForm.color}</p>}
+                    {driverTruckForm.description && <p className="text-text-secondary">Description: {driverTruckForm.description}</p>}
+                    {driverTruckForm.notes && <p className="text-text-secondary">Notes: {driverTruckForm.notes}</p>}
+                    {driverTruckForm.truckImage && <p className="text-text-secondary">Image: {driverTruckForm.truckImage.name}</p>}
+                  </div>
+
+                  <div className="flex space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(3)}
+                      className="flex-1 bg-muted text-text-primary py-3 rounded-xl font-semibold"
+                      disabled={submittingDriverTruck}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                      disabled={submittingDriverTruck}
+                    >
+                      {submittingDriverTruck ? (
+                        <>
+                          <Loader className="w-5 h-5 animate-spin" />
+                          <span>Registering...</span>
+                        </>
+                      ) : (
+                        <span>Register Driver & Truck</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </form>
           </div>
         </div>
       )}

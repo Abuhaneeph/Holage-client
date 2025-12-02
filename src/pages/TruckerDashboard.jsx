@@ -31,6 +31,8 @@ import {
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import StateSelect from "../components/StateSelect"
+import NotificationCenter from "../components/NotificationCenter"
+import PODCapture from "../components/PODCapture"
 import SelectModal from "../components/SelectModal"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
@@ -100,6 +102,9 @@ const TruckerDashboard = () => {
   const [activeLoads, setActiveLoads] = useState([])
   const [loadingActiveLoads, setLoadingActiveLoads] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(null)
+  const [showPODCapture, setShowPODCapture] = useState(false)
+  const [selectedShipmentForPOD, setSelectedShipmentForPOD] = useState(null)
+  const [selectedPODType, setSelectedPODType] = useState(null)
   
   // Filter state
   const [filters, setFilters] = useState({
@@ -122,6 +127,46 @@ const TruckerDashboard = () => {
     { label: "50 tons trailer", value: "50 tons trailer" },
     { label: "60 tons trailer", value: "60 tons trailer" }
   ]
+
+  // Helper to format location (hide "00" and "0" LGA values)
+  const toTitleCase = (value) => {
+    if (!value) return ""
+    return value
+      .toString()
+      .split(/[-_]/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  }
+
+  const formatLocation = (stateSlug, lgaSlug) => {
+    const stateName = toTitleCase(stateSlug)
+    // Don't show LGA if it's "00" or "0" or empty/invalid
+    if (lgaSlug && lgaSlug !== '00' && lgaSlug !== '0' && lgaSlug.trim() !== '') {
+      return `${toTitleCase(lgaSlug)}, ${stateName}`
+    }
+    return stateName
+  }
+
+  // Helper to filter out "00" and "0" from displayed values
+  const filterZeroZero = (value) => {
+    if (value === null || value === undefined || value === '') return ''
+    const str = String(value).trim()
+    // If the value is just "0" or "00", return empty string
+    if (str === '0' || str === '00') {
+      return ''
+    }
+    // Remove ".00" from decimal numbers (e.g., "6.00" -> "6")
+    let filtered = str.replace(/\.00$/, '').replace(/\.0$/, '')
+    // Remove standalone "00" or "00" at the start/end
+    filtered = filtered.replace(/\b00\b/g, '').replace(/^00\s*|\s*00$/g, '').trim()
+    // If after filtering it becomes "0" or "00", return empty
+    if (filtered === '0' || filtered === '00' || filtered === '') {
+      return ''
+    }
+    // Return the filtered value, or empty string if filtered is falsy
+    return filtered || ''
+  }
   
   // Check if user has completed KYC and fetch documents
   useEffect(() => {
@@ -686,9 +731,75 @@ const TruckerDashboard = () => {
     return () => clearInterval(interval)
   }, [activeView])
 
-  // Start trip (update status to in_transit)
-  const handleStartTrip = async (shipmentId) => {
-    if (!window.confirm('Start trip to pick up the shipment? This will update the status to "In Transit" and credit 60% payment.')) {
+  // Start trip to pick up
+  const handleStartPickupTrip = async (shipmentId) => {
+    if (!window.confirm('Start trip to pick up the shipment?')) {
+      return
+    }
+
+    setUpdatingStatus(shipmentId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'picking_up' })
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Trip to pick up started successfully!')
+        fetchActiveLoads()
+      } else {
+        toast.error(data.message || 'Failed to start trip')
+      }
+    } catch (error) {
+      console.error('Error starting pickup trip:', error)
+      toast.error('Error starting trip')
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  // Mark as picked up
+  const handleMarkPickedUp = async (shipmentId) => {
+    if (!window.confirm('Mark shipment as picked up? Shipper will need to confirm before you can start trip to destination.')) {
+      return
+    }
+
+    setUpdatingStatus(shipmentId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'picked_up' })
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Shipment marked as picked up. Waiting for shipper confirmation.')
+        fetchActiveLoads()
+      } else {
+        toast.error(data.message || 'Failed to update status')
+      }
+    } catch (error) {
+      console.error('Error marking as picked up:', error)
+      toast.error('Error updating status')
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  // Start trip to destination (after pickup confirmed)
+  const handleStartDeliveryTrip = async (shipmentId) => {
+    if (!window.confirm('Start trip to destination?')) {
       return
     }
 
@@ -706,31 +817,47 @@ const TruckerDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Trip started successfully! 60% payment has been credited.')
-        // Refresh active loads
+        toast.success(data.message || 'Trip to destination started successfully!')
         fetchActiveLoads()
-        // Refresh wallet balance to show the 60% payment credit
-        try {
-          const token = localStorage.getItem('authToken')
-          const wr = await fetch(`${API_BASE_URL}/wallet`, { 
-            headers: { 'Authorization': `Bearer ${token}` } 
-          })
-          const wd = await wr.json()
-          if (wr.ok && wd.wallet) {
-            setWallet(wd.wallet)
-            const refreshedBalance = parseFloat(wd.wallet.balance || 0)
-            setWalletBalance(refreshedBalance)
-            console.log('✅ Wallet balance refreshed after trip start:', refreshedBalance)
-          }
-        } catch (e) {
-          console.error('Error refreshing wallet after trip start:', e)
-        }
       } else {
         toast.error(data.message || 'Failed to start trip')
       }
     } catch (error) {
-      console.error('Error starting trip:', error)
+      console.error('Error starting delivery trip:', error)
       toast.error('Error starting trip')
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  // Mark as delivered
+  const handleMarkDelivered = async (shipmentId) => {
+    if (!window.confirm('Mark shipment as delivered? Shipper will need to confirm before final payment is released.')) {
+      return
+    }
+
+    setUpdatingStatus(shipmentId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'delivered' })
+      })
+      
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Shipment marked as delivered. Waiting for shipper confirmation.')
+        fetchActiveLoads()
+      } else {
+        toast.error(data.message || 'Failed to update status')
+      }
+    } catch (error) {
+      console.error('Error marking as delivered:', error)
+      toast.error('Error updating status')
     } finally {
       setUpdatingStatus(null)
     }
@@ -954,6 +1081,7 @@ const TruckerDashboard = () => {
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            <NotificationCenter userId={user?.id} />
             <button 
               onClick={() => setShowBalance(!showBalance)}
               className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
@@ -1139,27 +1267,94 @@ const TruckerDashboard = () => {
                           </div>
                           <div>
                             <p className="text-text-primary font-bold">
-                              {load.pickupState} → {load.destinationState}
+                              {formatLocation(load.pickupState, load.pickupLga)} → {formatLocation(load.destinationState, load.destinationLga)}
                             </p>
                             <p className="text-text-secondary text-sm">
-                              #{load.id} • {load.weight} tons
+                              #{filterZeroZero(load.id)} • {filterZeroZero(load.weight)} tons
                             </p>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between pt-3 border-t border-border">
+                      <div className="pt-3 border-t border-border space-y-2">
                         <p className="text-success font-bold text-lg">
                           ₦{parseFloat(load.estimatedCost || 0).toLocaleString('en-NG')}
                         </p>
-                        <button 
-                          onClick={() => load.status === 'assigned' ? handleStartTrip(load.id) : null}
-                          disabled={updatingStatus === load.id}
-                          className="bg-primary text-white px-5 py-2 rounded-xl font-medium text-sm disabled:opacity-50"
-                        >
-                          {updatingStatus === load.id ? (
-                            <Loader className="w-4 h-4 animate-spin mx-auto" />
-                          ) : load.status === 'assigned' ? 'Start Trip' : load.status === 'in_transit' ? 'Track' : 'View'}
-                        </button>
+                        {load.status === 'assigned' && (
+                          <button 
+                            onClick={() => handleStartPickupTrip(load.id)}
+                            disabled={updatingStatus === load.id}
+                            className="w-full bg-primary text-white py-2 rounded-xl font-medium text-sm disabled:opacity-50 flex items-center justify-center space-x-2"
+                          >
+                            {updatingStatus === load.id ? (
+                              <Loader className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Truck className="w-4 h-4" />
+                                <span>Start Trip to Pick Up</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {load.status === 'picking_up' && (
+                          <button 
+                            onClick={() => {
+                              setSelectedShipmentForPOD(load.id)
+                              setSelectedPODType('pickup')
+                              setShowPODCapture(true)
+                            }}
+                            disabled={updatingStatus === load.id}
+                            className="w-full bg-warning text-white py-2 rounded-xl font-medium text-sm disabled:opacity-50 flex items-center justify-center space-x-2"
+                          >
+                            <Package className="w-4 h-4" />
+                            <span>Capture Pickup POD</span>
+                          </button>
+                        )}
+                        {load.status === 'picked_up' && Boolean(load.pickupConfirmed) && (
+                          <button 
+                            onClick={() => handleStartDeliveryTrip(load.id)}
+                            disabled={updatingStatus === load.id}
+                            className="w-full bg-success text-white py-2 rounded-xl font-medium text-sm disabled:opacity-50 flex items-center justify-center space-x-2"
+                          >
+                            {updatingStatus === load.id ? (
+                              <Loader className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Navigation className="w-4 h-4" />
+                                <span>Start Trip to Destination</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {load.status === 'picked_up' && !Boolean(load.pickupConfirmed) && (
+                          <div className="bg-warning/10 text-warning p-2 rounded-lg text-xs text-center">
+                            Waiting for shipper to confirm pickup...
+                          </div>
+                        )}
+                        {load.status === 'in_transit' && (
+                          <button 
+                            onClick={() => {
+                              setSelectedShipmentForPOD(load.id)
+                              setSelectedPODType('delivery')
+                              setShowPODCapture(true)
+                            }}
+                            disabled={updatingStatus === load.id}
+                            className="w-full bg-success text-white py-2 rounded-xl font-medium text-sm disabled:opacity-50 flex items-center justify-center space-x-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Capture Delivery POD</span>
+                          </button>
+                        )}
+                        {load.status === 'delivered' && !Boolean(load.deliveryConfirmed) && (
+                          <div className="bg-warning/10 text-warning p-2 rounded-lg text-xs text-center">
+                            Waiting for shipper to confirm delivery...
+                          </div>
+                        )}
+                        {load.status === 'delivered' && Boolean(load.deliveryConfirmed) && (
+                          <div className="bg-success/10 text-success p-2 rounded-lg text-xs text-center font-medium">
+                            ✓ Delivery confirmed! Trip completed.
+                          </div>
+                        )}
+
                       </div>
                     </div>
                   ))}
@@ -1172,6 +1367,30 @@ const TruckerDashboard = () => {
               )}
             </div>
           </div>
+        )}
+
+        {/* POD Capture Modal */}
+        {showPODCapture && selectedShipmentForPOD && selectedPODType && (
+          <PODCapture
+            shipmentId={selectedShipmentForPOD}
+            podType={selectedPODType}
+            onSuccess={() => {
+              // After POD is captured, update status
+              if (selectedPODType === 'pickup') {
+                handleMarkPickedUp(selectedShipmentForPOD)
+              } else if (selectedPODType === 'delivery') {
+                handleMarkDelivered(selectedShipmentForPOD)
+              }
+              setShowPODCapture(false)
+              setSelectedShipmentForPOD(null)
+              setSelectedPODType(null)
+            }}
+            onClose={() => {
+              setShowPODCapture(false)
+              setSelectedShipmentForPOD(null)
+              setSelectedPODType(null)
+            }}
+          />
         )}
 
         {activeView === "jobs" && (
@@ -1264,11 +1483,11 @@ const TruckerDashboard = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div>
                       <p className="text-text-secondary text-sm mb-1">Pickup Location</p>
-                      <p className="text-text-primary font-medium">{selectedShipment.pickupLga}, {selectedShipment.pickupState}</p>
+                      <p className="text-text-primary font-medium">{formatLocation(selectedShipment.pickupState, selectedShipment.pickupLga)}</p>
                     </div>
                     <div>
                       <p className="text-text-secondary text-sm mb-1">Destination</p>
-                      <p className="text-text-primary font-medium">{selectedShipment.destinationLga}, {selectedShipment.destinationState}</p>
+                      <p className="text-text-primary font-medium">{formatLocation(selectedShipment.destinationState, selectedShipment.destinationLga)}</p>
                     </div>
                     <div>
                       <p className="text-text-secondary text-sm mb-1">Cargo Type</p>
@@ -1368,7 +1587,7 @@ const TruckerDashboard = () => {
                           ₦{parseFloat(shipment.estimatedCost || 0).toLocaleString('en-NG')}
                         </p>
                         <p className="text-text-secondary text-xs">
-                          {shipment.distance ? `${shipment.distance}km` : 'N/A'}
+                          {shipment.distance && filterZeroZero(shipment.distance) ? `${filterZeroZero(shipment.distance)}km` : 'N/A'}
                         </p>
                   </div>
                 </div>
@@ -1376,11 +1595,11 @@ const TruckerDashboard = () => {
                 <div className="flex items-center space-x-4 mb-4 text-sm text-text-secondary">
                   <div className="flex items-center space-x-1">
                     <MapPin className="w-4 h-4" />
-                        <span>{shipment.pickupLga}, {shipment.pickupState}</span>
+                        <span>{formatLocation(shipment.pickupState, shipment.pickupLga)}</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <Navigation className="w-4 h-4" />
-                        <span>{shipment.destinationLga}, {shipment.destinationState}</span>
+                        <span>{formatLocation(shipment.destinationState, shipment.destinationLga)}</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Package className="w-4 h-4" />
