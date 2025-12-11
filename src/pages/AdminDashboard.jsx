@@ -18,6 +18,11 @@ import {
   XCircle,
   Download,
   ArrowLeft,
+  Package,
+  Truck,
+  MapPin,
+  CreditCard,
+  Calendar,
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -49,6 +54,9 @@ const AdminDashboard = () => {
   const [selectedKycStatus, setSelectedKycStatus] = useState("pending")
   const [selectedKycSubmission, setSelectedKycSubmission] = useState(null)
   const [updatingKycStatus, setUpdatingKycStatus] = useState(false)
+  const [shipmentTranscript, setShipmentTranscript] = useState(null)
+  const [loadingTranscript, setLoadingTranscript] = useState(false)
+  const [showTranscript, setShowTranscript] = useState(false)
 
   // Fetch all complaints for stats on component mount
   useEffect(() => {
@@ -128,20 +136,48 @@ const AdminDashboard = () => {
     }
   }, [activeView, selectedStatus])
 
-  // Fetch all complaints for stats calculation
+  // Fetch complaint statistics
   const fetchAllComplaintsForStats = async () => {
     try {
       const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/complaints`, {
+      if (!token) {
+        console.error('No auth token found')
+        return
+      }
+      
+      // Use dedicated stats endpoint for better performance
+      const response = await fetch(`${API_BASE_URL}/complaints/stats`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await response.json()
 
       if (response.ok && data.success) {
-        calculateStats(data.complaints || [])
+        console.log('Fetched complaint stats:', data.stats)
+        setStats({
+          total: data.stats.total || 0,
+          pending: data.stats.pending || 0,
+          in_progress: data.stats.in_progress || 0,
+          resolved: data.stats.resolved || 0,
+        })
+      } else {
+        console.error('Failed to fetch complaint stats:', data.message || 'Unknown error')
+        // Set stats to zero if fetch fails
+        setStats({
+          total: 0,
+          pending: 0,
+          in_progress: 0,
+          resolved: 0,
+        })
       }
     } catch (error) {
-      console.error('Error fetching complaints for stats:', error)
+      console.error('Error fetching complaint stats:', error)
+      // Set stats to zero on error
+      setStats({
+        total: 0,
+        pending: 0,
+        in_progress: 0,
+        resolved: 0,
+      })
     }
   }
 
@@ -172,6 +208,17 @@ const AdminDashboard = () => {
   }
 
   const calculateStats = (complaintsList) => {
+    if (!Array.isArray(complaintsList)) {
+      console.error('calculateStats: complaintsList is not an array:', complaintsList)
+      setStats({
+        total: 0,
+        pending: 0,
+        in_progress: 0,
+        resolved: 0,
+      })
+      return
+    }
+
     const stats = {
       total: complaintsList.length,
       pending: 0,
@@ -180,11 +227,17 @@ const AdminDashboard = () => {
     }
 
     complaintsList.forEach(complaint => {
-      if (complaint.status === 'pending') stats.pending++
-      else if (complaint.status === 'in_progress') stats.in_progress++
-      else if (complaint.status === 'resolved' || complaint.status === 'closed') stats.resolved++
+      const status = complaint.status?.toLowerCase() || ''
+      if (status === 'pending') {
+        stats.pending++
+      } else if (status === 'in_progress') {
+        stats.in_progress++
+      } else if (status === 'resolved' || status === 'closed') {
+        stats.resolved++
+      }
     })
 
+    console.log('Calculated stats:', stats)
     setStats(stats)
   }
 
@@ -415,6 +468,29 @@ const AdminDashboard = () => {
         return <X className="w-4 h-4" />
       default:
         return <Clock className="w-4 h-4" />
+    }
+  }
+
+  const fetchShipmentTranscript = async (shipmentId) => {
+    setLoadingTranscript(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}/transcript`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        setShipmentTranscript(data)
+        setShowTranscript(true)
+      } else {
+        toast.error(data.message || 'Failed to load shipment transcript')
+      }
+    } catch (error) {
+      console.error('Error fetching shipment transcript:', error)
+      toast.error('Error loading shipment transcript')
+    } finally {
+      setLoadingTranscript(false)
     }
   }
 
@@ -660,6 +736,25 @@ const AdminDashboard = () => {
                       <p className="text-text-secondary text-sm mb-4">
                         From: <span className="font-medium">{selectedComplaint.userName}</span> ({selectedComplaint.userEmail}) - {selectedComplaint.userRole}
                       </p>
+                      {selectedComplaint.shipmentId && (
+                        <button
+                          onClick={() => fetchShipmentTranscript(selectedComplaint.shipmentId)}
+                          disabled={loadingTranscript}
+                          className="mt-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 text-sm"
+                        >
+                          {loadingTranscript ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              <span>Loading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Package className="w-4 h-4" />
+                              <span>View Shipment Journey Transcript</span>
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1079,6 +1174,190 @@ const AdminDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Shipment Transcript Modal */}
+      {showTranscript && shipmentTranscript && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="sticky top-0 bg-white border-b border-border p-4 sm:p-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Shipment Journey Transcript</h2>
+                <p className="text-sm text-text-secondary mt-1">Shipment #{shipmentTranscript.shipment.id}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTranscript(false)
+                  setShipmentTranscript(null)
+                }}
+                className="w-8 h-8 sm:w-10 sm:h-10 bg-muted rounded-full flex items-center justify-center hover:bg-muted/80 transition-colors"
+              >
+                <X className="w-5 h-5 text-text-primary" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-6">
+              {/* Shipment Summary */}
+              <div className="bg-muted/30 rounded-xl p-4 sm:p-6">
+                <h3 className="text-lg font-semibold text-text-primary mb-4">Shipment Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-text-secondary mb-1">Shipper</p>
+                    <p className="text-sm font-medium text-text-primary">{shipmentTranscript.shipment.shipper.name}</p>
+                  </div>
+                  {shipmentTranscript.shipment.trucker && (
+                    <div>
+                      <p className="text-xs text-text-secondary mb-1">Trucker</p>
+                      <p className="text-sm font-medium text-text-primary">{shipmentTranscript.shipment.trucker.name}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-text-secondary mb-1">Pickup Location</p>
+                    <p className="text-sm font-medium text-text-primary">
+                      {shipmentTranscript.shipment.pickupLocation.lga}, {shipmentTranscript.shipment.pickupLocation.state}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-secondary mb-1">Destination</p>
+                    <p className="text-sm font-medium text-text-primary">
+                      {shipmentTranscript.shipment.destinationLocation.lga}, {shipmentTranscript.shipment.destinationLocation.state}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-secondary mb-1">Status</p>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(shipmentTranscript.shipment.status)}`}>
+                      {shipmentTranscript.shipment.status}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-secondary mb-1">Total Cost</p>
+                    <p className="text-sm font-medium text-text-primary">₦{parseFloat(shipmentTranscript.shipment.costDetails.estimatedCost || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-primary/10 rounded-xl p-3 sm:p-4">
+                  <p className="text-xs text-text-secondary mb-1">Total Bids</p>
+                  <p className="text-lg font-bold text-primary">{shipmentTranscript.summary.totalBids}</p>
+                </div>
+                <div className="bg-green-100 rounded-xl p-3 sm:p-4">
+                  <p className="text-xs text-text-secondary mb-1">Total Credited</p>
+                  <p className="text-lg font-bold text-green-700">₦{parseFloat(shipmentTranscript.summary.totalCredited || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-red-100 rounded-xl p-3 sm:p-4">
+                  <p className="text-xs text-text-secondary mb-1">Total Debited</p>
+                  <p className="text-lg font-bold text-red-700">₦{parseFloat(shipmentTranscript.summary.totalDebited || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-blue-100 rounded-xl p-3 sm:p-4">
+                  <p className="text-xs text-text-secondary mb-1">POD Documents</p>
+                  <p className="text-lg font-bold text-blue-700">{shipmentTranscript.summary.podDocumentsCount}</p>
+                </div>
+              </div>
+
+              {/* POD Documents */}
+              {shipmentTranscript.podDocuments && shipmentTranscript.podDocuments.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-text-primary mb-4">POD Documents</h3>
+                  <div className="space-y-4">
+                    {shipmentTranscript.podDocuments.map((pod) => (
+                      <div key={pod.id} className="bg-muted/30 rounded-xl p-4 border border-border">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <Package className="w-5 h-5 text-primary" />
+                            <h4 className="text-base font-semibold text-text-primary capitalize">
+                              {pod.type} POD
+                            </h4>
+                          </div>
+                          <span className="text-xs text-text-secondary">
+                            {new Date(pod.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          {pod.hasPhotos && (
+                            <div>
+                              <p className="text-text-secondary mb-1">Photos ({pod.photoCount})</p>
+                              <div className="flex flex-wrap gap-2">
+                                {pod.photos && pod.photos.map((photo, idx) => (
+                                  <a
+                                    key={idx}
+                                    href={photo.startsWith('http') ? photo : `${API_BASE_URL.replace('/api', '')}${photo}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary hover:underline text-xs"
+                                  >
+                                    Photo {idx + 1}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {pod.hasSignature && (
+                            <div>
+                              <p className="text-text-secondary mb-1">Signature</p>
+                              <p className="text-text-primary font-medium">
+                                {pod.signatureName || 'N/A'}
+                                {pod.signaturePhone && ` (${pod.signaturePhone})`}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {pod.location && (
+                            <div>
+                              <p className="text-text-secondary mb-1">Location</p>
+                              <p className="text-text-primary">{pod.location}</p>
+                            </div>
+                          )}
+                          
+                          {pod.notes && (
+                            <div>
+                              <p className="text-text-secondary mb-1">Notes</p>
+                              <p className="text-text-primary">{pod.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Timeline */}
+              <div>
+                <h3 className="text-lg font-semibold text-text-primary mb-4">Timeline</h3>
+                <div className="space-y-3">
+                  {shipmentTranscript.timeline.map((event, index) => (
+                    <div key={index} className="flex items-start space-x-3 bg-muted/30 rounded-xl p-4">
+                      <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-medium text-text-primary">{event.description}</p>
+                          <p className="text-xs text-text-secondary flex-shrink-0 ml-2">
+                            {new Date(event.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                        {event.details && Object.keys(event.details).length > 0 && (
+                          <div className="mt-2 text-xs text-text-secondary space-y-1">
+                            {Object.entries(event.details).map(([key, value]) => (
+                              value && (
+                                <p key={key}>
+                                  <span className="font-medium">{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</span> {String(value)}
+                                </p>
+                              )
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { 
   Truck, 
   Wallet,
@@ -34,6 +34,7 @@ import StateSelect from "../components/StateSelect"
 import NotificationCenter from "../components/NotificationCenter"
 import PODCapture from "../components/PODCapture"
 import SelectModal from "../components/SelectModal"
+import SingleShipmentMap from "../components/SingleShipmentMap"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -1050,6 +1051,33 @@ const TruckerDashboard = () => {
     }
   }
 
+  // Calculate monthly earnings from transactions
+  const monthlyEarnings = useMemo(() => {
+    const currentMonth = new Date().getMonth()
+    const currentYear = new Date().getFullYear()
+    const earnings = transactions
+      .filter(t => {
+        if (!t.createdAt && !t.date) return false
+        const tDate = new Date(t.createdAt || t.date)
+        return t.type === 'credit' && 
+               tDate.getMonth() === currentMonth && 
+               tDate.getFullYear() === currentYear
+      })
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0)
+    return earnings
+  }, [transactions])
+
+  // Format monthly earnings for display
+  const formattedMonthlyEarnings = useMemo(() => {
+    if (monthlyEarnings >= 1000000) {
+      return `${(monthlyEarnings / 1000000).toFixed(1)}M`
+    } else if (monthlyEarnings >= 1000) {
+      return `${(monthlyEarnings / 1000).toFixed(1)}k`
+    } else {
+      return monthlyEarnings.toLocaleString('en-NG')
+    }
+  }, [monthlyEarnings])
+
   if (!kycCheckDone) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -1237,7 +1265,7 @@ const TruckerDashboard = () => {
                   </div>
                 </div>
                 <p className="text-white/80 text-sm">This Month</p>
-                <p className="text-white font-bold text-2xl">₦125k</p>
+                <p className="text-white font-bold text-2xl">₦{formattedMonthlyEarnings}</p>
               </div>
             </div>
 
@@ -1275,6 +1303,17 @@ const TruckerDashboard = () => {
                           </div>
                         </div>
                       </div>
+                      
+                      {/* Route Map for this load */}
+                      <div className="pt-3 border-t border-border mb-3">
+                        <h4 className="text-text-primary font-bold text-sm mb-2">Route Map</h4>
+                        <SingleShipmentMap
+                          shipment={load}
+                          height="300px"
+                          statesData={states}
+                        />
+                      </div>
+                      
                       <div className="pt-3 border-t border-border space-y-2">
                         <p className="text-success font-bold text-lg">
                           ₦{parseFloat(load.estimatedCost || 0).toLocaleString('en-NG')}
@@ -1497,6 +1536,19 @@ const TruckerDashboard = () => {
                       <p className="text-text-secondary text-sm mb-1">Weight</p>
                       <p className="text-text-primary font-medium">{selectedShipment.weight} tons</p>
                     </div>
+                  </div>
+
+                  {/* Route Map for this shipment */}
+                  <div className="mb-6 pt-6 border-t border-border">
+                    <h4 className="text-text-primary font-bold mb-3">Route Map</h4>
+                    <SingleShipmentMap
+                      shipment={selectedShipment}
+                      height="400px"
+                      statesData={states}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div>
                       <p className="text-text-secondary text-sm mb-1">Vehicle Type Required</p>
                       <p className="text-text-primary font-medium">{selectedShipment.truckType}</p>
@@ -1516,6 +1568,16 @@ const TruckerDashboard = () => {
                         )}
                       </div>
                     )}
+                  </div>
+
+                  {/* Route Map for this shipment */}
+                  <div className="mb-6 pt-6 border-t border-border">
+                    <h4 className="text-text-primary font-bold mb-3">Route Map</h4>
+                    <SingleShipmentMap
+                      shipment={selectedShipment}
+                      height="400px"
+                      statesData={states}
+                    />
                   </div>
 
                   {(Boolean(selectedShipment.fragileItems) || Boolean(selectedShipment.insurance)) && (

@@ -37,6 +37,7 @@ import { calculateDistance, estimateShippingCost } from "../utils/distanceCalcul
 import LgaSelect from "../components/LgaSelect"
 import nigeriaStatesLgasData from "../utils/nigeria-states-lgas.json"
 import NotificationCenter from "../components/NotificationCenter"
+import SingleShipmentMap from "../components/SingleShipmentMap"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -381,6 +382,15 @@ const ShipperDashboard = () => {
       })
       const data = await response.json()
       
+      // Check for token expiration
+      if (response.status === 401 || data.expired === true) {
+        localStorage.removeItem("authToken")
+        localStorage.removeItem("userInfo")
+        localStorage.removeItem("userRole")
+        navigateTo('login')
+        return
+      }
+      
       if (response.ok) {
         setShipments(data.shipments || [])
       } else {
@@ -409,6 +419,16 @@ const ShipperDashboard = () => {
         })
         const data = await response.json()
         
+        // Check for token expiration
+        if (response.status === 401 || data.expired === true) {
+          // Clear session and redirect
+          localStorage.removeItem("authToken")
+          localStorage.removeItem("userInfo")
+          localStorage.removeItem("userRole")
+          navigateTo('login')
+          return
+        }
+        
         if (data.success) {
           setDocuments(data.documents)
           
@@ -426,6 +446,16 @@ const ShipperDashboard = () => {
           const token = localStorage.getItem('authToken')
           const wr = await fetch(`${API_BASE_URL}/wallet`, { headers: { 'Authorization': `Bearer ${token}` } })
           const wd = await wr.json()
+          
+          // Check for token expiration
+          if (wr.status === 401 || wd.expired === true) {
+            localStorage.removeItem("authToken")
+            localStorage.removeItem("userInfo")
+            localStorage.removeItem("userRole")
+            navigateTo('login')
+            return
+          }
+          
           if (wr.ok && wd.wallet) {
             setWallet(wd.wallet)
             setWalletBalance(parseFloat(wd.wallet.balance || 0))
@@ -1415,6 +1445,8 @@ const ShipperDashboard = () => {
               )}
             </div>
             
+            <>
+            
             {loadingShipments ? (
               <div className="bg-card border border-border rounded-xl p-8 text-center">
                 <Loader className="w-8 h-8 animate-spin text-primary mx-auto mb-2" />
@@ -1492,6 +1524,16 @@ const ShipperDashboard = () => {
                             <p className="text-text-secondary text-sm mb-1">Base Cost</p>
                       <p className="text-success font-bold text-xl">₦{parseFloat(shipment.estimatedCost || 0).toLocaleString('en-NG')}</p>
                       </div>
+                    </div>
+
+                    {/* Route Map for this shipment */}
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <h4 className="text-text-primary font-bold mb-3">Route Map</h4>
+                      <SingleShipmentMap
+                        shipment={shipment}
+                        height="400px"
+                        statesData={states}
+                      />
                     </div>
 
                     {/* Confirmation Buttons */}
@@ -1651,6 +1693,7 @@ const ShipperDashboard = () => {
                 </button>
               </div>
             )}
+            </>
           </div>
         )}
 

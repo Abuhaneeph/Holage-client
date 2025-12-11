@@ -13,6 +13,7 @@ const ComplaintPage = () => {
   const [formData, setFormData] = useState({
     subject: "",
     message: "",
+    shipmentId: "",
   })
   const [submitting, setSubmitting] = useState(false)
   const [myComplaints, setMyComplaints] = useState([])
@@ -21,11 +22,17 @@ const ComplaintPage = () => {
   const [selectedComplaint, setSelectedComplaint] = useState(null)
   const [replyMessage, setReplyMessage] = useState("")
   const [sendingReply, setSendingReply] = useState(false)
+  const [shipments, setShipments] = useState([])
+  const [loadingShipments, setLoadingShipments] = useState(false)
 
   useEffect(() => {
     fetchMyComplaints()
     fetchUserDocuments()
-  }, [])
+    // Fetch shipments for shippers, truckers, and fleet managers
+    if (['shipper', 'trucker', 'fleet_manager'].includes(userRole)) {
+      fetchShipments()
+    }
+  }, [userRole])
 
   const fetchUserDocuments = async () => {
     try {
@@ -39,6 +46,38 @@ const ComplaintPage = () => {
       }
     } catch (error) {
       console.error('Error fetching documents:', error)
+    }
+  }
+
+  const fetchShipments = async () => {
+    // All roles can link complaints to shipments they're involved in
+    if (!['shipper', 'trucker', 'fleet_manager'].includes(userRole)) return
+    
+    setLoadingShipments(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      let endpoint = ''
+      
+      // Use appropriate endpoint based on role
+      if (userRole === 'shipper') {
+        endpoint = `${API_BASE_URL}/shipping/shipments/my-shipments?limit=100`
+      } else if (userRole === 'trucker' || userRole === 'fleet_manager') {
+        endpoint = `${API_BASE_URL}/shipping/shipments/my-jobs?limit=100`
+      }
+      
+      if (!endpoint) return
+      
+      const response = await fetch(endpoint, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setShipments(data.shipments || [])
+      }
+    } catch (error) {
+      console.error('Error fetching shipments:', error)
+    } finally {
+      setLoadingShipments(false)
     }
   }
 
@@ -133,14 +172,17 @@ const ComplaintPage = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          shipmentId: formData.shipmentId || undefined
+        })
       })
 
       const data = await response.json()
 
       if (response.ok && data.success) {
         toast.success(data.message || 'Complaint submitted successfully')
-        setFormData({ subject: "", message: "" })
+        setFormData({ subject: "", message: "", shipmentId: "" })
         fetchMyComplaints()
         setActiveView("history")
       } else {
@@ -282,6 +324,30 @@ const ComplaintPage = () => {
                   />
                 </div>
 
+                {['shipper', 'trucker', 'fleet_manager'].includes(userRole) && shipments.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
+                      Related Shipment (Optional)
+                    </label>
+                    <select
+                      value={formData.shipmentId}
+                      onChange={(e) => setFormData({ ...formData, shipmentId: e.target.value })}
+                      className="w-full px-4 py-3.5 bg-input border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary"
+                      disabled={submitting || loadingShipments}
+                    >
+                      <option value="">Select a shipment (optional)</option>
+                      {shipments.map((shipment) => (
+                        <option key={shipment.id} value={shipment.id}>
+                          Shipment #{shipment.id} - {shipment.pickupState} to {shipment.destinationState} ({shipment.status})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-text-secondary mt-1">
+                      Link this complaint to a specific shipment for faster resolution
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-2">
                     Message *
@@ -370,6 +436,19 @@ const ComplaintPage = () => {
                         </div>
                       </div>
                       <p className="text-text-primary">{selectedComplaint.message}</p>
+                      {selectedComplaint.shipmentId && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <p className="text-xs text-text-secondary mb-1">Related Shipment:</p>
+                          <p className="text-sm font-medium text-text-primary">
+                            Shipment #{selectedComplaint.shipmentId}
+                            {selectedComplaint.pickupState && (
+                              <span className="text-text-secondary ml-2">
+                                - {selectedComplaint.pickupState} to {selectedComplaint.destinationState}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Replies */}

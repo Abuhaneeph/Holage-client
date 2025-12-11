@@ -21,6 +21,7 @@ import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import NotificationCenter from "../components/NotificationCenter"
 import PODCapture from "../components/PODCapture"
+import SingleShipmentMap from "../components/SingleShipmentMap"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -570,6 +571,16 @@ const DriverDashboard = () => {
                             )}
                           </div>
                         )}
+
+                        {/* Route Map for this shipment */}
+                        <div className="pt-3 sm:pt-4 border-t border-border">
+                          <h4 className="text-text-primary font-bold text-sm sm:text-base mb-3">Route Map</h4>
+                          <SingleShipmentMap
+                            shipment={shipment}
+                            height="350px"
+                            statesData={null}
+                          />
+                        </div>
 
                         {/* Action Buttons based on status */}
                         <div className="pt-3 sm:pt-4 border-t border-border space-y-2">

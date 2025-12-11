@@ -29,6 +29,14 @@ const LoginPage = () => {
     phoneNumber: "",
     password: ""
   })
+  const [rememberMe, setRememberMe] = useState(false)
+  
+  // Log initial state on mount
+  useEffect(() => {
+    console.log('🚀 [Remember Me] LoginPage mounted')
+    console.log('🚀 [Remember Me] Initial rememberMe state:', false)
+    console.log('🚀 [Remember Me] Login type:', loginType)
+  }, [])
   
   // Update login type when route changes
   useEffect(() => {
@@ -38,6 +46,40 @@ const LoginPage = () => {
       setLoginType('regular')
     }
   }, [currentPage])
+
+  // Load remembered credentials when login type is determined
+  useEffect(() => {
+    console.log('🔍 [Remember Me] Checking for remembered credentials. Login type:', loginType)
+    
+    // Small delay to ensure loginType is set
+    const timer = setTimeout(() => {
+      if (loginType === 'regular') {
+        const rememberedEmail = localStorage.getItem('rememberedEmail')
+        console.log('📧 [Remember Me] Checking localStorage for rememberedEmail:', rememberedEmail)
+        if (rememberedEmail) {
+          console.log('✅ [Remember Me] Found remembered email, pre-filling:', rememberedEmail)
+          handleInputChange("email", rememberedEmail)
+          setRememberMe(true)
+          console.log('✅ [Remember Me] Remember me checkbox set to: true')
+        } else {
+          console.log('ℹ️ [Remember Me] No remembered email found in localStorage')
+        }
+      } else if (loginType === 'driver') {
+        const rememberedPhone = localStorage.getItem('rememberedPhone')
+        console.log('📱 [Remember Me] Checking localStorage for rememberedPhone:', rememberedPhone)
+        if (rememberedPhone) {
+          console.log('✅ [Remember Me] Found remembered phone, pre-filling:', rememberedPhone)
+          setDriverFormData(prev => ({ ...prev, phoneNumber: rememberedPhone }))
+          setRememberMe(true)
+          console.log('✅ [Remember Me] Remember me checkbox set to: true')
+        } else {
+          console.log('ℹ️ [Remember Me] No remembered phone found in localStorage')
+        }
+      }
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [loginType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Form validation
   const validateForm = () => {
@@ -116,6 +158,20 @@ const LoginPage = () => {
           localStorage.setItem('driverInfo', JSON.stringify(data.driver))
           localStorage.setItem('userRole', 'driver')
           
+          // Handle "Remember Me" for driver
+          console.log('🔐 [Remember Me] Driver login successful. Remember me checkbox state:', rememberMe)
+          if (rememberMe) {
+            console.log('💾 [Remember Me] Saving phone to localStorage:', normalizedPhone)
+            localStorage.setItem('rememberedPhone', normalizedPhone)
+            const saved = localStorage.getItem('rememberedPhone')
+            console.log('✅ [Remember Me] Phone saved successfully. Verified:', saved === normalizedPhone ? 'YES' : 'NO')
+          } else {
+            console.log('🗑️ [Remember Me] Removing remembered phone from localStorage')
+            localStorage.removeItem('rememberedPhone')
+            const removed = localStorage.getItem('rememberedPhone')
+            console.log('✅ [Remember Me] Phone removed. Verified:', removed === null ? 'YES' : 'NO')
+          }
+          
           // Navigate to driver dashboard
           navigateTo("driver-dashboard")
         } else {
@@ -132,9 +188,24 @@ const LoginPage = () => {
         console.log("User role:", response.user?.role)
         console.log("KYC Status:", response.user?.kycStatus)
         
+        // Handle "Remember Me" for regular users
+        console.log('🔐 [Remember Me] Login successful. Remember me checkbox state:', rememberMe)
+        if (rememberMe) {
+          console.log('💾 [Remember Me] Saving email to localStorage:', formData.email)
+          localStorage.setItem('rememberedEmail', formData.email)
+          const saved = localStorage.getItem('rememberedEmail')
+          console.log('✅ [Remember Me] Email saved successfully. Verified:', saved === formData.email ? 'YES' : 'NO')
+        } else {
+          console.log('🗑️ [Remember Me] Removing remembered email from localStorage')
+          localStorage.removeItem('rememberedEmail')
+          const removed = localStorage.getItem('rememberedEmail')
+          console.log('✅ [Remember Me] Email removed. Verified:', removed === null ? 'YES' : 'NO')
+        }
+        
         // Set user role if available in response
         if (response.user && response.user.role) {
           setUserRole(response.user.role)
+          localStorage.setItem("userRole", response.user.role)
           console.log("Role set to:", response.user.role)
         }
         
@@ -407,9 +478,55 @@ const LoginPage = () => {
 
                   {loginType === "regular" && (
                     <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-text-secondary">
-                      <label className="inline-flex items-center gap-2">
-                        <input type="checkbox" className="rounded border-border text-secondary focus:ring-ring" />
-                        Remember me
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={rememberMe}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            console.log('☑️ [Remember Me] Checkbox changed. New value:', checked)
+                            console.log('📧 [Remember Me] Current email:', formData.email)
+                            setRememberMe(checked)
+                            if (!checked) {
+                              console.log('🗑️ [Remember Me] Checkbox unchecked, will remove remembered email on login')
+                            } else {
+                              console.log('💾 [Remember Me] Checkbox checked, will save email on successful login')
+                            }
+                          }}
+                          className="rounded border-border text-secondary focus:ring-ring cursor-pointer" 
+                        />
+                        <span>Remember me</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => navigateTo("forgot-password")}
+                        className="font-medium text-secondary transition-colors hover:text-accent"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  )}
+                  
+                  {loginType === "driver" && (
+                    <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-text-secondary">
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={rememberMe}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            console.log('☑️ [Remember Me] Checkbox changed. New value:', checked)
+                            console.log('📱 [Remember Me] Current phone:', driverFormData.phoneNumber)
+                            setRememberMe(checked)
+                            if (!checked) {
+                              console.log('🗑️ [Remember Me] Checkbox unchecked, will remove remembered phone on login')
+                            } else {
+                              console.log('💾 [Remember Me] Checkbox checked, will save phone on successful login')
+                            }
+                          }}
+                          className="rounded border-border text-secondary focus:ring-ring cursor-pointer" 
+                        />
+                        <span>Remember me</span>
                       </label>
                       <button
                         type="button"

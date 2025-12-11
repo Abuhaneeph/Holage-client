@@ -32,6 +32,7 @@ import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import StateSelect from "../components/StateSelect"
 import NotificationCenter from "../components/NotificationCenter"
+import SingleShipmentMap from "../components/SingleShipmentMap"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -1546,7 +1547,7 @@ const FleetManagerDashboard = () => {
                           </div>
                         </div>
                         <div className="pt-3 border-t border-border">
-                          <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                             <div>
                               <p className="text-text-secondary">Pickup</p>
                               <p className="text-text-primary font-medium">{formatLocation(shipment.pickupState, shipment.pickupLga)}</p>
@@ -1555,6 +1556,16 @@ const FleetManagerDashboard = () => {
                               <p className="text-text-secondary">Destination</p>
                               <p className="text-text-primary font-medium">{formatLocation(shipment.destinationState, shipment.destinationLga)}</p>
                             </div>
+                          </div>
+                          
+                          {/* Route Map for this shipment */}
+                          <div className="mt-3 pt-3 border-t border-border">
+                            <h4 className="text-text-primary font-bold text-sm mb-2">Route Map</h4>
+                            <SingleShipmentMap
+                              shipment={shipment}
+                              height="300px"
+                              statesData={states}
+                            />
                           </div>
                         </div>
                       </div>
