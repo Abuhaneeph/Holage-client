@@ -56,26 +56,30 @@ export const calculateDistance = async (pickupState, pickupLga, destinationState
 };
 
 /**
- * Estimate shipping cost based on states and weight
+ * Estimate shipping cost based on states and truck type
  * @param {string} pickupState - Pickup state code
  * @param {string} pickupLga - Pickup LGA slug
  * @param {string} destinationState - Destination state code
  * @param {string} destinationLga - Destination LGA slug
- * @param {number} weight - Weight in tons
+ * @param {string} truckType - Truck type (e.g., "10 ton packers", "Flatbed trucks")
  * @param {object} pickupCoordinates - Optional: {lat, lng} for pickup location
  * @param {object} destinationCoordinates - Optional: {lat, lng} for destination location
  * @param {boolean} fragileItems - Whether items are fragile/perishable
  * @param {boolean} insurance - Whether insurance is selected
  * @returns {Promise<object>} Cost estimation result
  */
-export const estimateShippingCost = async (pickupState, pickupLga, destinationState, destinationLga, weight = 1, pickupCoordinates = null, destinationCoordinates = null, fragileItems = false, insurance = false) => {
+export const estimateShippingCost = async (pickupState, pickupLga, destinationState, destinationLga, truckType, pickupCoordinates = null, destinationCoordinates = null, fragileItems = false, insurance = false) => {
   try {
+    if (!truckType) {
+      throw new Error('Truck type is required for cost estimation')
+    }
+
     const body = {
       pickupState,
       pickupLga,
       destinationState,
       destinationLga,
-      weight,
+      truckType,
       fragileItems,
       insurance
     }

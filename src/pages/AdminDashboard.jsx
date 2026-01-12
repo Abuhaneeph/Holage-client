@@ -57,11 +57,25 @@ const AdminDashboard = () => {
   const [shipmentTranscript, setShipmentTranscript] = useState(null)
   const [loadingTranscript, setLoadingTranscript] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
+  const defaultTruckPricing = {
+    '10 ton truck': 1285,
+    '15 ton truck': 1428,
+    '20 ton truck': 1571,
+    '30 ton truck': 1714,
+    '40 ton truck': 1928,
+    '50 ton truck': 2142,
+    '60 ton truck/flatbed/Container': 2857
+  }
+  const [truckPricing, setTruckPricing] = useState(defaultTruckPricing)
+  const [truckPricingInputs, setTruckPricingInputs] = useState(defaultTruckPricing)
+  const [loadingTruckPricing, setLoadingTruckPricing] = useState(false)
+  const [updatingTruckPricing, setUpdatingTruckPricing] = useState({})
 
   // Fetch all complaints for stats on component mount
   useEffect(() => {
     fetchAllComplaintsForStats()
     fetchDieselRate()
+    fetchTruckPricing()
   }, [])
 
   // Fetch KYC submissions when KYC view is active or status changes
@@ -123,9 +137,81 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error updating diesel rate:', error)
-      toast.error('Error updating diesel rate')
+      toast.error('Failed to update diesel rate')
     } finally {
       setUpdatingDieselRate(false)
+    }
+  }
+
+  // Fetch truck pricing
+  const fetchTruckPricing = async () => {
+    setLoadingTruckPricing(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/settings/truck-pricing`)
+      const data = await response.json()
+
+      if (response.ok && data.success && data.pricing) {
+        setTruckPricing(data.pricing)
+        // Initialize input values with fetched pricing
+        setTruckPricingInputs(data.pricing)
+      } else {
+        // If API fails, use default values
+        console.warn('Failed to fetch truck pricing, using defaults:', data.message)
+        setTruckPricing(defaultTruckPricing)
+        setTruckPricingInputs(defaultTruckPricing)
+      }
+    } catch (error) {
+      console.error('Error fetching truck pricing:', error)
+      // Use default values on error
+      setTruckPricing(defaultTruckPricing)
+      setTruckPricingInputs(defaultTruckPricing)
+    } finally {
+      setLoadingTruckPricing(false)
+    }
+  }
+
+  // Update truck pricing
+  const handleUpdateTruckPricing = async (truckType) => {
+    const pricePerKm = truckPricingInputs[truckType]
+    const price = parseFloat(pricePerKm)
+    if (isNaN(price) || price <= 0) {
+      toast.error('Please enter a valid price per KM (positive number)')
+      return
+    }
+
+    if (price === truckPricing[truckType]) {
+      return // No change
+    }
+
+    setUpdatingTruckPricing(prev => ({ ...prev, [truckType]: true }))
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/settings/truck-pricing`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ truckType, pricePerKm: price })
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        toast.success(`${truckType} pricing updated successfully`)
+        setTruckPricing(prev => ({ ...prev, [truckType]: price }))
+      } else {
+        toast.error(data.message || 'Failed to update truck pricing')
+        // Revert input on error
+        setTruckPricingInputs(prev => ({ ...prev, [truckType]: truckPricing[truckType] }))
+      }
+    } catch (error) {
+      console.error('Error updating truck pricing:', error)
+      toast.error('Failed to update truck pricing')
+      // Revert input on error
+      setTruckPricingInputs(prev => ({ ...prev, [truckType]: truckPricing[truckType] }))
+    } finally {
+      setUpdatingTruckPricing(prev => ({ ...prev, [truckType]: false }))
     }
   }
 
@@ -1165,10 +1251,84 @@ const AdminDashboard = () => {
                       <strong>Note:</strong> This rate is used in the shipping cost formula:
                     </p>
                     <p className="text-xs text-text-secondary mt-1 break-words">
-                      Total Cost = (Distance ÷ Fuel Efficiency × Diesel Rate) + (Tonnage × Distance × Rate per Ton-KM) + Base Fee
+                      Total Cost = (Distance × Price per KM) + Base Fee + Additional Fees (Fragile/Insurance)
                     </p>
                   </div>
                 </form>
+              )}
+            </div>
+
+            {/* Truck Pricing Settings */}
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+              <div className="flex items-start sm:items-center space-x-3 mb-3 sm:mb-4">
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Truck className="w-5 h-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base sm:text-lg font-semibold text-text-primary">Truck Pricing Per KM</h3>
+                  <p className="text-xs sm:text-sm text-text-secondary mt-1">Update pricing per kilometer for each truck type</p>
+                </div>
+              </div>
+              
+              {loadingTruckPricing ? (
+                <div className="flex items-center justify-center py-6 sm:py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(truckPricing).map(([truckType, price]) => (
+                    <div key={truckType} className="border border-border rounded-xl p-3 sm:p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-sm font-medium text-text-primary mb-1">
+                            {truckType}
+                          </label>
+                          <p className="text-xs text-text-secondary">
+                            Current: ₦{price.toLocaleString()} per KM
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 sm:w-64">
+                          <input
+                            type="number"
+                            min="1"
+                            step="0.01"
+                            value={truckPricingInputs[truckType] !== undefined ? truckPricingInputs[truckType] : price}
+                            onChange={(e) => {
+                              setTruckPricingInputs(prev => ({
+                                ...prev,
+                                [truckType]: e.target.value
+                              }))
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleUpdateTruckPricing(truckType)
+                              }
+                            }}
+                            className="flex-1 px-3 py-2 border border-border rounded-xl text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Price per KM"
+                          />
+                          <button
+                            onClick={() => handleUpdateTruckPricing(truckType)}
+                            disabled={updatingTruckPricing[truckType] || (truckPricingInputs[truckType] && parseFloat(truckPricingInputs[truckType]) === price)}
+                            className="px-3 sm:px-4 py-2 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm whitespace-nowrap"
+                          >
+                            {updatingTruckPricing[truckType] ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            ) : (
+                              'Update'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 sm:p-4 mt-4">
+                    <p className="text-xs sm:text-sm text-text-primary">
+                      <strong>Note:</strong> Pricing is calculated as: Total Cost = (Distance × Price per KM) + Base Fee + Additional Fees
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </div>

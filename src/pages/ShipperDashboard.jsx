@@ -551,7 +551,7 @@ const ShipperDashboard = () => {
   // Auto-calculate distance and cost
   useEffect(() => {
     const calculateShipmentDetails = async () => {
-      const { pickupState, pickupLga, pickupWard, destinationState, destinationLga, destinationWard, weight } = shipmentForm
+      const { pickupState, pickupLga, pickupWard, destinationState, destinationLga, destinationWard, truckType } = shipmentForm
       
       if (!pickupState || !pickupLga || !destinationState || !destinationLga) {
         setDistanceInfo(null)
@@ -579,14 +579,14 @@ const ShipperDashboard = () => {
         setDistanceInfo(distance)
         setDistanceError(null)
         
-        if (weight && parseFloat(weight) > 0) {
+        if (truckType) {
           try {
             const cost = await estimateShippingCost(
               pickupState, 
               pickupLga,
               destinationState, 
               destinationLga,
-              parseFloat(weight),
+              truckType,
               pickupCoords,
               destinationCoords,
               shipmentForm.fragileItems,
@@ -611,7 +611,7 @@ const ShipperDashboard = () => {
     }
 
     calculateShipmentDetails()
-  }, [shipmentForm.pickupState, shipmentForm.pickupLga, shipmentForm.pickupWard, shipmentForm.destinationState, shipmentForm.destinationLga, shipmentForm.destinationWard, shipmentForm.weight, shipmentForm.fragileItems, shipmentForm.insurance, states])
+  }, [shipmentForm.pickupState, shipmentForm.pickupLga, shipmentForm.pickupWard, shipmentForm.destinationState, shipmentForm.destinationLga, shipmentForm.destinationWard, shipmentForm.truckType, shipmentForm.fragileItems, shipmentForm.insurance, states])
   
   const handleFormChange = (field, value) => {
     setShipmentForm((prev) => {
@@ -2429,7 +2429,7 @@ const ShipperDashboard = () => {
                   <p className="text-text-secondary text-sm mb-1">Estimated Cost</p>
                   <p className="text-success font-bold text-3xl">{costEstimate.cost.formattedCost}</p>
                   <p className="text-text-secondary text-xs mt-2">
-                    Based on {shipmentForm.weight || 1} ton(s) • {distanceInfo?.distance} km
+                    {shipmentForm.truckType ? `${truckOptions.find(opt => opt.value === shipmentForm.truckType)?.label || shipmentForm.truckType}` : 'Truck type not selected'} • {distanceInfo?.distance} km
                   </p>
                   {(costEstimate.cost.fragileFee > 0 || costEstimate.cost.insuranceFee > 0) && (
                     <div className="mt-3 pt-3 border-t border-success/20 space-y-1">
