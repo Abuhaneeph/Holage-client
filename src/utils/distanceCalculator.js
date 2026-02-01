@@ -1,16 +1,19 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 /**
- * Calculate distance between two Nigerian states/LGAs
+ * Calculate distance between two Nigerian states/LGAs (and optional wards).
+ * Backend: ward-level uses nigeria-states-lgas.json; LGA-only uses lgas.json.
  * @param {string} pickupState - Pickup state code (e.g., 'lagos')
  * @param {string} pickupLga - Pickup LGA slug
  * @param {string} destinationState - Destination state code
  * @param {string} destinationLga - Destination LGA slug
  * @param {object} pickupCoordinates - Optional: {lat, lng} for pickup location
  * @param {object} destinationCoordinates - Optional: {lat, lng} for destination location
+ * @param {string} pickupWard - Optional pickup ward slug (for ward-level coords from nigeria-states-lgas)
+ * @param {string} destinationWard - Optional destination ward slug
  * @returns {Promise<object>} Distance calculation result
  */
-export const calculateDistance = async (pickupState, pickupLga, destinationState, destinationLga, pickupCoordinates = null, destinationCoordinates = null) => {
+export const calculateDistance = async (pickupState, pickupLga, destinationState, destinationLga, pickupCoordinates = null, destinationCoordinates = null, pickupWard = null, destinationWard = null) => {
   try {
     const body = {
       pickupState,
@@ -18,6 +21,9 @@ export const calculateDistance = async (pickupState, pickupLga, destinationState
       destinationState,
       destinationLga,
     }
+
+    if (pickupWard && String(pickupWard).trim()) body.pickupWard = pickupWard
+    if (destinationWard && String(destinationWard).trim()) body.destinationWard = destinationWard
 
     // Add coordinates if available
     if (pickupCoordinates && pickupCoordinates.lat && pickupCoordinates.lng) {
@@ -56,7 +62,8 @@ export const calculateDistance = async (pickupState, pickupLga, destinationState
 };
 
 /**
- * Estimate shipping cost based on states and truck type
+ * Estimate shipping cost based on states and truck type (and optional wards).
+ * Backend: ward-level uses nigeria-states-lgas.json; LGA-only uses lgas.json.
  * @param {string} pickupState - Pickup state code
  * @param {string} pickupLga - Pickup LGA slug
  * @param {string} destinationState - Destination state code
@@ -66,9 +73,11 @@ export const calculateDistance = async (pickupState, pickupLga, destinationState
  * @param {object} destinationCoordinates - Optional: {lat, lng} for destination location
  * @param {boolean} fragileItems - Whether items are fragile/perishable
  * @param {boolean} insurance - Whether insurance is selected
+ * @param {string} pickupWard - Optional pickup ward slug
+ * @param {string} destinationWard - Optional destination ward slug
  * @returns {Promise<object>} Cost estimation result
  */
-export const estimateShippingCost = async (pickupState, pickupLga, destinationState, destinationLga, truckType, pickupCoordinates = null, destinationCoordinates = null, fragileItems = false, insurance = false) => {
+export const estimateShippingCost = async (pickupState, pickupLga, destinationState, destinationLga, truckType, pickupCoordinates = null, destinationCoordinates = null, fragileItems = false, insurance = false, pickupWard = null, destinationWard = null) => {
   try {
     if (!truckType) {
       throw new Error('Truck type is required for cost estimation')
@@ -83,6 +92,9 @@ export const estimateShippingCost = async (pickupState, pickupLga, destinationSt
       fragileItems,
       insurance
     }
+
+    if (pickupWard && String(pickupWard).trim()) body.pickupWard = pickupWard
+    if (destinationWard && String(destinationWard).trim()) body.destinationWard = destinationWard
 
     // Add coordinates if available
     if (pickupCoordinates && pickupCoordinates.lat && pickupCoordinates.lng) {

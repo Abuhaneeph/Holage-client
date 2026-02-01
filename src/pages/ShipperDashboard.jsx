@@ -564,17 +564,22 @@ const ShipperDashboard = () => {
       setDistanceError(null)
       
       try {
-        // Get coordinates from selected LGAs/Wards (prefers ward coordinates if available)
-        const pickupCoords = getLgaCoordinates(pickupState, pickupLga, pickupWard)
-        const destinationCoords = getLgaCoordinates(destinationState, destinationLga, destinationWard)
-        
+        // Only send coordinates when user picked a ward (ward-level from nigeria-states-lgas).
+        // When LGA-only, send null so backend uses lgas.json for true LGA lat/lng.
+        const hasPickupWard = pickupWard && String(pickupWard).trim()
+        const hasDestinationWard = destinationWard && String(destinationWard).trim()
+        const pickupCoords = hasPickupWard ? getLgaCoordinates(pickupState, pickupLga, pickupWard) : null
+        const destinationCoords = hasDestinationWard ? getLgaCoordinates(destinationState, destinationLga, destinationWard) : null
+
         const distance = await calculateDistance(
-          pickupState, 
-          pickupLga, 
-          destinationState, 
+          pickupState,
+          pickupLga,
+          destinationState,
           destinationLga,
           pickupCoords,
-          destinationCoords
+          destinationCoords,
+          hasPickupWard ? pickupWard : null,
+          hasDestinationWard ? destinationWard : null
         )
         setDistanceInfo(distance)
         setDistanceError(null)
@@ -582,15 +587,17 @@ const ShipperDashboard = () => {
         if (truckType) {
           try {
             const cost = await estimateShippingCost(
-              pickupState, 
+              pickupState,
               pickupLga,
-              destinationState, 
+              destinationState,
               destinationLga,
               truckType,
               pickupCoords,
               destinationCoords,
               shipmentForm.fragileItems,
-              shipmentForm.insurance
+              shipmentForm.insurance,
+              hasPickupWard ? pickupWard : null,
+              hasDestinationWard ? destinationWard : null
             )
             setCostEstimate(cost)
           } catch (costError) {
