@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Package, Shield, Truck, ArrowRight, Globe, Zap } from "lucide-react"
+import { Package, Shield, Truck, ArrowRight, Globe, Zap, UserPlus } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import Header from "../components/Header"
 import Reveal from "../components/Reveal"
@@ -40,7 +40,7 @@ const heroSlides = [
 ]
 
 const LandingPage = () => {
-  const { navigateTo, setUserRole } = useAppContext()
+  const { navigateTo, setUserRole, navigateToSignupWithRole } = useAppContext()
   const [currentSlide, setCurrentSlide] = useState(0)
 
   useEffect(() => {
@@ -150,7 +150,7 @@ const LandingPage = () => {
               })}
             </div>
 
-            <Reveal delay={250} className="flex flex-col sm:flex-row gap-6 justify-center max-w-lg mx-auto">
+            <Reveal delay={250} className="flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-6 justify-center max-w-4xl mx-auto">
               <button
                 onClick={() => handleRoleSelect("shipper")}
                 className="group bg-gradient-to-r from-secondary to-accent text-white px-8 py-4 rounded-2xl font-bold hover:from-secondary/90 hover:to-accent/90 transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-secondary/25 flex items-center justify-center space-x-2"
@@ -165,6 +165,15 @@ const LandingPage = () => {
               >
                 <Truck className="w-5 h-5" />
                 <span>Drive & Earn</span>
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateToSignupWithRole("agent")}
+                className="group border-2 border-white/40 bg-white/10 text-white px-8 py-4 rounded-2xl font-bold hover:bg-white/15 hover:border-white/60 transition-all duration-300 transform hover:scale-105 shadow-xl flex items-center justify-center space-x-2 backdrop-blur-sm"
+              >
+                <UserPlus className="w-5 h-5" />
+                <span>Register as an agent</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
             </Reveal>

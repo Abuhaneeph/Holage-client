@@ -10,6 +10,9 @@ import TruckerDashboard from "./pages/TruckerDashboard"
 import ShipperDashboard from "./pages/ShipperDashboard"
 import FleetManagerDashboard from "./pages/FleetManagerDashboard"
 import AdminDashboard from "./pages/AdminDashboard"
+import AgentDashboard from "./pages/AgentDashboard"
+import StaffSignupPage from "./pages/StaffSignupPage"
+import StaffDashboard from "./pages/StaffDashboard"
 import ComplaintPage from "./pages/ComplaintPage"
 import DriverLoginPage from "./pages/DriverLoginPage"
 import DriverDashboard from "./pages/DriverDashboard"
@@ -40,6 +43,12 @@ const Router = () => {
         return <FleetManagerDashboard />
       case "admin-dashboard":
         return <AdminDashboard />
+      case "agent-dashboard":
+        return <AgentDashboard />
+      case "staff-signup":
+        return <StaffSignupPage />
+      case "staff-dashboard":
+        return <StaffDashboard />
       case "complaint":
         return <ComplaintPage />
       case "driver-login":

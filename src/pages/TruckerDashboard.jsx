@@ -26,7 +26,8 @@ import {
   CreditCard,
   ChevronDown,
   Search,
-  X
+  X,
+  Star
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -115,6 +116,7 @@ const TruckerDashboard = () => {
   })
   const [states, setStates] = useState([])
   const [loadingStates, setLoadingStates] = useState(false)
+  const [myRating, setMyRating] = useState({ average: 0, count: 0 })
   
   const truckOptions = [
     { label: "Flatbed trucks", value: "Flatbed trucks" },
@@ -218,6 +220,14 @@ const TruckerDashboard = () => {
         }
         // Fetch active loads
         fetchActiveLoads()
+        // Fetch my rating (trucker)
+        if (user?.id) {
+          try {
+            const rr = await fetch(`${API_BASE_URL}/ratings/ratee?rateeType=trucker&rateeId=${user.id}`)
+            const rd = await rr.json()
+            if (rr.ok && rd.success && (rd.count > 0)) setMyRating({ average: rd.average, count: rd.count })
+          } catch (_) {}
+        }
       } catch (error) {
         console.error('Error checking KYC status:', error)
         setKycCheckDone(true)
@@ -369,6 +379,34 @@ const TruckerDashboard = () => {
       }
     }
     input.click()
+  }
+
+  // Vehicle photo upload (trucker-only endpoint)
+  const handleVehiclePhotoUpload = async (file) => {
+    if (!file) return
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+    setUploadingDoc('vehiclePhoto')
+    try {
+      const formData = new FormData()
+      formData.append('vehiclePhoto', file)
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/kyc/vehicle-photo`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      })
+      const data = await response.json()
+      if (response.ok) {
+        toast.success('Vehicle photo updated!')
+        setDocuments((prev) => ({ ...prev, vehiclePhoto: data.vehiclePhoto }))
+      } else {
+        toast.error(data.message || 'Upload failed')
+      }
+    } catch (e) {
+      toast.error('Error uploading vehicle photo')
+    } finally {
+      setUploadingDoc(null)
+    }
   }
 
   // Handle withdraw
@@ -700,37 +738,7 @@ const TruckerDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, filters.pickupState, filters.destinationState, filters.truckType, kycCheckDone])
 
-  // Auto-refresh active loads and bids every 30 seconds to catch new assignments
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (activeView === "home") {
-        fetchActiveLoads()
-        // Also refresh wallet balance to catch payment updates
-        const refreshWallet = async () => {
-          try {
-            const token = localStorage.getItem('authToken')
-            const wr = await fetch(`${API_BASE_URL}/wallet`, { 
-              headers: { 'Authorization': `Bearer ${token}` } 
-            })
-            const wd = await wr.json()
-            if (wr.ok && wd.wallet) {
-              setWallet(wd.wallet)
-              const refreshedBalance = parseFloat(wd.wallet.balance || 0)
-              setWalletBalance(refreshedBalance)
-            }
-          } catch (e) {
-            console.error('Error refreshing wallet:', e)
-          }
-        }
-        refreshWallet()
-      }
-      if (activeView === "jobs") {
-        fetchMyBids()
-      }
-    }, 30000) // Refresh every 30 seconds
-
-    return () => clearInterval(interval)
-  }, [activeView])
+  // (Auto-refresh of active loads and bids removed; driver can now refresh manually)
 
   // Start trip to pick up
   const handleStartPickupTrip = async (shipmentId) => {
@@ -1268,12 +1276,27 @@ const TruckerDashboard = () => {
                 <p className="text-white font-bold text-2xl">₦{formattedMonthlyEarnings}</p>
               </div>
             </div>
+            {myRating.count > 0 && (
+              <div className="flex items-center gap-2 text-text-secondary text-sm">
+                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                <span className="text-text-primary font-medium">Your rating:</span>
+                <span>{myRating.average} ({myRating.count} {myRating.count === 1 ? 'review' : 'reviews'})</span>
+              </div>
+            )}
 
             {/* Active Loads */}
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-text-primary font-bold text-lg">Active Loads</h3>
-                <span className="text-primary text-sm font-medium">See all</span>
+                <button
+                  type="button"
+                  onClick={() => fetchActiveLoads(true)}
+                  disabled={loadingActiveLoads}
+                  className="text-primary text-sm font-medium flex items-center gap-1 disabled:opacity-60"
+                >
+                  <Loader className={`w-4 h-4 ${loadingActiveLoads ? 'animate-spin' : ''}`} />
+                  <span>{loadingActiveLoads ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
               </div>
               
               {loadingActiveLoads ? (
@@ -2300,6 +2323,64 @@ const TruckerDashboard = () => {
                           <>
                             <Upload className="w-4 h-4" />
                             <span className="text-sm">{documents?.vehicleReg ? 'Update' : 'Upload'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Vehicle Photo (shown on bids when no driver assigned) */}
+                  <div className={`bg-card border-2 rounded-xl p-4 ${
+                    documents?.vehiclePhoto ? 'border-success/30' : 'border-border'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        {documents?.vehiclePhoto ? (
+                          <img
+                            src={documents.vehiclePhoto}
+                            alt="Vehicle"
+                            className="w-12 h-12 rounded-lg object-cover cursor-pointer"
+                            onClick={() => window.open(documents.vehiclePhoto, '_blank')}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                            <Truck className="w-6 h-6 text-text-secondary" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-text-primary font-bold">Vehicle Photo</p>
+                          <p className="text-text-secondary text-sm">
+                            {documents?.vehiclePhoto ? 'Uploaded ✓' : 'Optional – shown on your bids'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const input = document.createElement('input')
+                          input.type = 'file'
+                          input.accept = 'image/*'
+                          input.onchange = (e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleVehiclePhotoUpload(file)
+                          }
+                          input.click()
+                        }}
+                        disabled={uploadingDoc === 'vehiclePhoto'}
+                        className={`px-4 py-2 rounded-lg font-medium flex items-center space-x-2 ${
+                          documents?.vehiclePhoto
+                            ? 'bg-secondary/10 text-secondary hover:bg-secondary/20'
+                            : 'bg-primary text-white hover:bg-primary/90'
+                        } disabled:opacity-50`}
+                      >
+                        {uploadingDoc === 'vehiclePhoto' ? (
+                          <>
+                            <Loader className="w-4 h-4 animate-spin" />
+                            <span className="text-sm">...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4" />
+                            <span className="text-sm">{documents?.vehiclePhoto ? 'Update' : 'Upload'}</span>
                           </>
                         )}
                       </button>

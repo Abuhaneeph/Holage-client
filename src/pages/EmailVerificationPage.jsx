@@ -31,13 +31,12 @@ const handleVerification = async (e) => {
   }
 
   try {
-    // Call the verification API endpoint - now returns token
-   await verifyEmail(formData.verificationCode)
-    
-    
-    
-    // If successful, navigate to KYC page
-    navigateTo("kyc")
+    const data = await verifyEmail(formData.verificationCode)
+    if (data?.user?.role === "agent") {
+      navigateTo("agent-dashboard")
+    } else {
+      navigateTo("kyc")
+    }
   } catch (error) {
     // Error is already handled in the AppContext (alert shown)
     console.error("Email verification failed:", error)

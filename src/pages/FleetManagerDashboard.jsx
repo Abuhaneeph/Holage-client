@@ -26,7 +26,8 @@ import {
   ArrowDown,
   Search,
   ChevronDown,
-  Navigation
+  Navigation,
+  Star
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -37,7 +38,7 @@ import SingleShipmentMap from "../components/SingleShipmentMap"
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
 const FleetManagerDashboard = () => {
-  const { user, logoutUser, navigateTo } = useAppContext()
+  const { user, logoutUser, navigateTo, handleSessionExpired } = useAppContext()
   const toast = useToast()
   const [activeView, setActiveView] = useState("home")
   const [showBalance, setShowBalance] = useState(true)
@@ -55,6 +56,7 @@ const FleetManagerDashboard = () => {
   const [showRegisterDriverTruckModal, setShowRegisterDriverTruckModal] = useState(false)
   const [selectedTruck, setSelectedTruck] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [uploadingTruckPhotoId, setUploadingTruckPhotoId] = useState(null)
   
   // Truck form state
   const [truckForm, setTruckForm] = useState({
@@ -96,6 +98,7 @@ const FleetManagerDashboard = () => {
   const [showEditDriverModal, setShowEditDriverModal] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [submittingDriver, setSubmittingDriver] = useState(false)
+  const [driverRatings, setDriverRatings] = useState({}) // { driverId: { average, count } }
   
   // Driver form state
   const [driverForm, setDriverForm] = useState({
@@ -201,7 +204,10 @@ const FleetManagerDashboard = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await response.json()
-      
+      if (response.status === 401 || data.expired === true) {
+        handleSessionExpired?.()
+        return
+      }
       if (response.ok && data.success) {
         setTrucks(data.trucks || [])
       } else {
@@ -230,7 +236,10 @@ const FleetManagerDashboard = () => {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const data = await response.json()
-        
+        if (response.status === 401 || data.expired === true) {
+          handleSessionExpired?.()
+          return
+        }
         if (data.success) {
           setDocuments(data.documents)
           
@@ -250,6 +259,10 @@ const FleetManagerDashboard = () => {
             headers: { 'Authorization': `Bearer ${token}` }
           })
           const wd = await wr.json()
+          if (wr.status === 401 || wd.expired === true) {
+            handleSessionExpired?.()
+            return
+          }
           if (wr.ok && wd.wallet) {
             setWallet(wd.wallet)
             setWalletBalance(parseFloat(wd.wallet.balance || 0))
@@ -545,8 +558,26 @@ const FleetManagerDashboard = () => {
       })
       const data = await response.json()
       
+      if (response.status === 401 || data.expired === true) {
+        handleSessionExpired?.()
+        return
+      }
       if (response.ok && data.success) {
-        setDrivers(data.drivers || [])
+        const list = data.drivers || []
+        setDrivers(list)
+        // Fetch driver ratings in batch
+        if (list.length > 0) {
+          const ids = list.map((d) => d.id).filter(Boolean)
+          try {
+            const rr = await fetch(`${API_BASE_URL}/ratings/ratee/batch?rateeType=driver&rateeIds=${ids.join(",")}`)
+            const rd = await rr.json()
+            if (rr.ok && rd.success && rd.ratings) setDriverRatings(rd.ratings)
+          } catch (_) {
+            setDriverRatings({})
+          }
+        } else {
+          setDriverRatings({})
+        }
       } else {
         toast.error(data.message || 'Failed to fetch drivers')
       }
@@ -724,7 +755,10 @@ const FleetManagerDashboard = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await response.json()
-      
+      if (response.status === 401 || data.expired === true) {
+        handleSessionExpired?.()
+        return
+      }
       if (response.ok && data.success) {
         setAssignedShipments(data.shipments || [])
       }
@@ -775,6 +809,37 @@ const FleetManagerDashboard = () => {
       toast.error('Error adding truck')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // Upload vehicle photo for truck (Edit Truck modal)
+  const handleTruckPhotoUpload = async (truckId, file) => {
+    if (!file || file.size > 5 * 1024 * 1024) {
+      toast.error("Please select an image under 5MB")
+      return
+    }
+    setUploadingTruckPhotoId(truckId)
+    try {
+      const token = localStorage.getItem("authToken")
+      const formData = new FormData()
+      formData.append("truckImage", file)
+      const res = await fetch(`${API_BASE_URL}/trucks/${truckId}/photo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      })
+      const data = await res.json()
+      if (res.ok && data.truck) {
+        toast.success("Vehicle photo updated.")
+        setSelectedTruck((prev) => (prev?.id === truckId ? { ...prev, imageUrl: data.truck.imageUrl } : prev))
+        fetchTrucks()
+      } else {
+        toast.error(data.message || "Failed to upload photo")
+      }
+    } catch (e) {
+      toast.error("Failed to upload vehicle photo")
+    } finally {
+      setUploadingTruckPhotoId(null)
     }
   }
 
@@ -1703,6 +1768,12 @@ const FleetManagerDashboard = () => {
                         <div>
                           <p className="text-text-primary font-bold text-lg">{driver.driverName}</p>
                           <p className="text-text-secondary text-sm">{driver.phoneNumber}</p>
+                          {driverRatings[driver.id]?.count > 0 && (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                              <span className="text-text-secondary text-xs">{driverRatings[driver.id].average} ({driverRatings[driver.id].count} {driverRatings[driver.id].count === 1 ? "review" : "reviews"})</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       {driver.isActive ? (
@@ -2425,6 +2496,42 @@ const FleetManagerDashboard = () => {
                   <option value="inactive">Inactive</option>
                   <option value="maintenance">Maintenance</option>
                 </select>
+              </div>
+
+              {/* Vehicle photo */}
+              <div>
+                <label className="block text-text-primary font-medium mb-2">Vehicle Photo</label>
+                <div className="flex items-center gap-3">
+                  {selectedTruck?.imageUrl ? (
+                    <img
+                      src={selectedTruck.imageUrl}
+                      alt="Vehicle"
+                      className="w-20 h-20 rounded-lg object-cover border border-border"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-lg border border-border bg-muted flex items-center justify-center">
+                      <Truck className="w-8 h-8 text-text-secondary" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingTruckPhotoId === selectedTruck?.id}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file && selectedTruck?.id) handleTruckPhotoUpload(selectedTruck.id, file)
+                        e.target.value = ""
+                      }}
+                      className="w-full text-sm text-text-secondary file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-white file:text-sm"
+                    />
+                    {uploadingTruckPhotoId === selectedTruck?.id && (
+                      <p className="text-primary text-xs mt-1 flex items-center gap-1">
+                        <Loader className="w-3 h-3 animate-spin" /> Uploading...
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="pt-4">

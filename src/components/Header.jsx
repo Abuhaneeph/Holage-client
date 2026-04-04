@@ -5,7 +5,7 @@ import { Truck, Menu, X, LogIn, UserPlus } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 
 const Header = ({ transparent = false }) => {
-  const { navigateTo } = useAppContext()
+  const { navigateTo, navigateToSignupWithRole } = useAppContext()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
@@ -57,6 +57,24 @@ const Header = ({ transparent = false }) => {
             >
               <LogIn className="w-4 h-4" />
               <span>Login</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateToSignupWithRole("agent")}
+              className={`text-sm font-medium transition-colors ${
+                transparent ? "text-white/80 hover:text-white" : "text-text-primary hover:text-secondary"
+              }`}
+            >
+              Agent signup
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateTo("staff-signup")}
+              className={`text-sm font-medium transition-colors ${
+                transparent ? "text-white/80 hover:text-white" : "text-text-primary hover:text-secondary"
+              }`}
+            >
+              Staff request
             </button>
             <button
               onClick={() => navigateTo("signup")}
@@ -121,6 +139,24 @@ const Header = ({ transparent = false }) => {
                   }`}
                 >
                   Login
+                </button>
+                <button
+                  onClick={() => {
+                    navigateToSignupWithRole("agent")
+                    setMobileMenuOpen(false)
+                  }}
+                  className="text-left text-sm font-medium py-2.5 px-2 rounded-lg text-amber-900 bg-amber-100/90 hover:bg-amber-100 transition-colors"
+                >
+                  Agent signup
+                </button>
+                <button
+                  onClick={() => {
+                    navigateTo("staff-signup")
+                    setMobileMenuOpen(false)
+                  }}
+                  className="text-left text-sm font-medium py-2.5 px-2 rounded-lg border border-border text-text-primary hover:bg-muted/40"
+                >
+                  Staff request
                 </button>
                 <button
                   onClick={() => {

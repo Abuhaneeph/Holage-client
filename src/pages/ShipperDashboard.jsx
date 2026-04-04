@@ -27,7 +27,8 @@ import {
   Phone,
   MapPin,
   CreditCard,
-  Search
+  Search,
+  Star
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -100,6 +101,10 @@ const ShipperDashboard = () => {
   const [showBidAcceptModal, setShowBidAcceptModal] = useState(false)
   const [selectedBidForAccept, setSelectedBidForAccept] = useState(null)
   const [selectedShipmentForBid, setSelectedShipmentForBid] = useState(null)
+  const [shipmentDetails, setShipmentDetails] = useState({}) // { shipmentId: { acceptedBidWithRating, shipmentRatings } }
+  const [loadingShipmentDetail, setLoadingShipmentDetail] = useState({})
+  const [ratingForm, setRatingForm] = useState({ rating: 5, comment: '' })
+  const [submittingRating, setSubmittingRating] = useState(null) // shipmentId-rateeType
   
   // Pagination
   const [activeShipmentsPage, setActiveShipmentsPage] = useState(1)
@@ -875,6 +880,73 @@ const ShipperDashboard = () => {
     }
   }
 
+  // Fetch shipment detail (for rating info when delivered)
+  const fetchShipmentDetail = async (shipmentId) => {
+    if (loadingShipmentDetail[shipmentId]) return
+    setLoadingShipmentDetail(prev => ({ ...prev, [shipmentId]: true }))
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setShipmentDetails(prev => ({
+          ...prev,
+          [shipmentId]: {
+            acceptedBidWithRating: data.acceptedBidWithRating || null,
+            shipmentRatings: data.shipmentRatings || []
+          }
+        }))
+      }
+    } catch (e) {
+      console.error('Error fetching shipment detail:', e)
+    } finally {
+      setLoadingShipmentDetail(prev => ({ ...prev, [shipmentId]: false }))
+    }
+  }
+
+  // When a delivered+confirmed shipment is expanded but we don't have rating detail yet, fetch it (e.g. after confirm or refresh)
+  useEffect(() => {
+    if (!expandedShipmentId || !shipments.length) return
+    const shipment = shipments.find((s) => s.id === expandedShipmentId)
+    if (!shipment || shipment.status !== 'delivered' || !shipment.deliveryConfirmed) return
+    if (shipmentDetails[expandedShipmentId] != null || loadingShipmentDetail[expandedShipmentId]) return
+    fetchShipmentDetail(expandedShipmentId)
+  }, [expandedShipmentId, shipments, shipmentDetails, loadingShipmentDetail])
+
+  const handleSubmitRating = async (shipmentId, rateeType, rateeId) => {
+    const key = `${shipmentId}-${rateeType}`
+    if (submittingRating) return
+    setSubmittingRating(key)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/ratings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          shipmentId,
+          rateeType,
+          rateeId,
+          rating: ratingForm.rating,
+          comment: ratingForm.comment || undefined
+        })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || 'Failed to submit rating')
+      toast.success('Rating submitted. Thank you!')
+      setRatingForm({ rating: 5, comment: '' })
+      fetchShipmentDetail(shipmentId)
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setSubmittingRating(null)
+    }
+  }
+
   // Show bid acceptance confirmation modal
   const handleAcceptBidClick = (bid, shipment) => {
     setSelectedBidForAccept(bid)
@@ -1180,14 +1252,16 @@ const ShipperDashboard = () => {
   const formatStateName = (stateSlug) => toTitleCase(stateSlug)
 
   // Helper function to get status info
-  const getStatusInfo = (status) => {
+  const getStatusInfo = (status, deliveryConfirmed = false) => {
     const statusMap = {
       'pending': { icon: Clock, color: 'warning', label: 'Pending' },
       'assigned': { icon: CheckCircle, color: 'info', label: 'Assigned' },
       'picking_up': { icon: Truck, color: 'primary', label: 'Going to Pick Up' },
       'picked_up': { icon: Package, color: 'warning', label: 'Picked Up (Awaiting Your Confirmation)' },
       'in_transit': { icon: Truck, color: 'primary', label: 'In Transit to Destination' },
-      'delivered': { icon: CheckCircle, color: 'warning', label: 'Delivered (Awaiting Your Confirmation)' },
+      'delivered': deliveryConfirmed
+        ? { icon: CheckCircle, color: 'success', label: 'Delivered' }
+        : { icon: CheckCircle, color: 'warning', label: 'Delivered (Awaiting Your Confirmation)' },
       'cancelled': { icon: X, color: 'error', label: 'Cancelled' }
     }
     return statusMap[status] || statusMap['pending']
@@ -1195,7 +1269,7 @@ const ShipperDashboard = () => {
 
   // Confirm pickup
   const handleConfirmPickup = async (shipmentId) => {
-    if (!window.confirm('Confirm that the shipment has been picked up? This will release 60% payment to the trucker/driver.')) {
+    if (!window.confirm('Confirm that the shipment has been picked up? This will release 65% payment to the trucker/driver.')) {
       return
     }
 
@@ -1210,7 +1284,7 @@ const ShipperDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Pickup confirmed! 60% payment has been released.')
+        toast.success(data.message || 'Pickup confirmed! 65% payment has been released.')
         // Refresh shipments and wallet
         fetchMyShipments()
         fetchWallet()
@@ -1226,7 +1300,7 @@ const ShipperDashboard = () => {
 
   // Confirm delivery
   const handleConfirmDelivery = async (shipmentId) => {
-    if (!window.confirm('Confirm that the shipment has been delivered? This will release the remaining 35% payment to the trucker/driver.')) {
+    if (!window.confirm('Confirm that the shipment has been delivered? This will release the remaining 30% payment to the trucker/driver.')) {
       return
     }
 
@@ -1241,11 +1315,13 @@ const ShipperDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Delivery confirmed! Remaining 35% payment has been released.')
+        toast.success(data.message || 'Delivery confirmed! Remaining 30% payment has been released.')
         // Refresh shipments and wallet
         fetchMyShipments()
         fetchWallet()
         fetchTransactions()
+        // Load rating section for this shipment so it appears without re-expanding
+        fetchShipmentDetail(shipmentId)
       } else {
         toast.error(data.message || 'Failed to confirm delivery')
       }
@@ -1374,7 +1450,7 @@ const ShipperDashboard = () => {
                 <>
                 <div className="space-y-3">
                     {paginatedActiveShipments.map((shipment) => {
-                    const statusInfo = getStatusInfo(shipment.status)
+                    const statusInfo = getStatusInfo(shipment.status, !!shipment.deliveryConfirmed)
                     return (
                       <div key={shipment.id} className="bg-card border border-border rounded-2xl p-4 shadow-sm">
                         <div className="space-y-2">
@@ -1461,7 +1537,7 @@ const ShipperDashboard = () => {
               </div>
             ) : shipments.length > 0 ? (
               shipments.map((shipment) => {
-                const statusInfo = getStatusInfo(shipment.status)
+                const statusInfo = getStatusInfo(shipment.status, !!shipment.deliveryConfirmed)
                 const StatusIcon = statusInfo.icon
                 const isExpanded = expandedShipmentId === shipment.id
                 return (
@@ -1485,9 +1561,9 @@ const ShipperDashboard = () => {
                           onClick={() => {
                             const newExpandedId = isExpanded ? null : shipment.id
                             setExpandedShipmentId(newExpandedId)
-                            // Fetch bids when expanding
-                            if (newExpandedId && shipment.status === 'pending') {
-                              fetchShipmentBids(shipment.id)
+                            if (newExpandedId) {
+                              if (shipment.status === 'pending') fetchShipmentBids(shipment.id)
+                              if (shipment.status === 'delivered' && shipment.deliveryConfirmed) fetchShipmentDetail(shipment.id)
                             }
                           }}
                           className="bg-primary text-white px-6 py-3 rounded-xl font-medium text-base"
@@ -1548,14 +1624,14 @@ const ShipperDashboard = () => {
                       <div className="mt-4 pt-4 border-t border-border">
                         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
                           <p className="text-warning font-medium mb-2">Driver has marked shipment as picked up</p>
-                          <p className="text-text-secondary text-sm">Please confirm pickup to release 60% payment and allow driver to start trip to destination.</p>
+                          <p className="text-text-secondary text-sm">Please confirm pickup to release 65% payment and allow driver to start trip to destination.</p>
                         </div>
                         <button
                           onClick={() => handleConfirmPickup(shipment.id)}
                           className="w-full bg-warning text-white py-3 rounded-xl font-bold hover:bg-warning/90 transition-colors flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />
-                          <span>Confirm Pickup (Release 60% Payment)</span>
+                          <span>Confirm Pickup (Release 65% Payment)</span>
                         </button>
                       </div>
                     )}
@@ -1564,14 +1640,14 @@ const ShipperDashboard = () => {
                       <div className="mt-4 pt-4 border-t border-border">
                         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
                           <p className="text-warning font-medium mb-2">Driver has marked shipment as delivered</p>
-                          <p className="text-text-secondary text-sm">Please confirm delivery to release the remaining 35% payment.</p>
+                          <p className="text-text-secondary text-sm">Please confirm delivery to release the remaining 30% payment.</p>
                         </div>
                         <button
                           onClick={() => handleConfirmDelivery(shipment.id)}
                           className="w-full bg-success text-white py-3 rounded-xl font-bold hover:bg-success/90 transition-colors flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />
-                          <span>Confirm Delivery (Release 35% Payment)</span>
+                          <span>Confirm Delivery (Release 30% Payment)</span>
                         </button>
                       </div>
                     )}
@@ -1592,6 +1668,125 @@ const ShipperDashboard = () => {
                       </div>
                     )}
 
+                    {/* Ratings: show accepted driver/trucker rating and allow shipper to rate after delivery */}
+                    {Boolean(shipment.deliveryConfirmed) && (() => {
+                      const detail = shipmentDetails[shipment.id]
+                      const accepted = detail?.acceptedBidWithRating
+                      const ratings = detail?.shipmentRatings || []
+                      if (loadingShipmentDetail[shipment.id]) {
+                        return (
+                          <div className="mt-4 pt-4 border-t border-border flex items-center gap-2 text-text-secondary text-sm">
+                            <Loader className="w-4 h-4 animate-spin" /> Loading rating options...
+                          </div>
+                        )
+                      }
+                      if (!accepted) return null
+                      const canRateTrucker = accepted.canRateTrucker
+                      const canRateDriver = accepted.canRateDriver
+                      const showRateForm = canRateTrucker || canRateDriver
+                      return (
+                        <div className="mt-4 pt-4 border-t border-border">
+                          <h4 className="text-text-primary font-bold mb-2">Ratings</h4>
+                          {(accepted.vehicleImageUrl || accepted.vehiclePlateNumber) && (
+                            <div className="mb-3 flex items-center gap-3 p-3 bg-muted/30 rounded-xl">
+                              {accepted.vehicleImageUrl ? (
+                                <img
+                                  src={accepted.vehicleImageUrl}
+                                  alt="Vehicle"
+                                  className="w-20 h-20 object-cover rounded-lg border border-border"
+                                />
+                              ) : (
+                                <div className="w-20 h-20 rounded-lg border border-border bg-muted flex items-center justify-center">
+                                  <Truck className="w-8 h-8 text-text-secondary" />
+                                </div>
+                              )}
+                              <div>
+                                {accepted.vehiclePlateNumber && (
+                                  <p className="text-text-primary font-medium">Vehicle: {accepted.vehiclePlateNumber}</p>
+                                )}
+                                <p className="text-text-secondary text-xs">Assigned vehicle for this delivery</p>
+                              </div>
+                            </div>
+                          )}
+                          <div className="space-y-2 mb-3">
+                            {accepted.truckerName && (
+                              <p className="text-text-secondary text-sm flex items-center gap-2">
+                                <span>{accepted.truckerName}</span>
+                                {accepted.truckerRating?.count > 0 ? (
+                                  <span className="flex items-center gap-0.5 text-amber-500">
+                                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                    {accepted.truckerRating.average} ({accepted.truckerRating.count} reviews)
+                                  </span>
+                                ) : (
+                                  <span className="text-text-secondary/70 text-xs">No ratings yet</span>
+                                )}
+                              </p>
+                            )}
+                            {accepted.driverName && (
+                              <p className="text-text-secondary text-sm flex items-center gap-2">
+                                <span>Driver: {accepted.driverName}</span>
+                                {accepted.driverRating?.count > 0 ? (
+                                  <span className="flex items-center gap-0.5 text-amber-500">
+                                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                    {accepted.driverRating.average} ({accepted.driverRating.count} reviews)
+                                  </span>
+                                ) : (
+                                  <span className="text-text-secondary/70 text-xs">No ratings yet</span>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                          {ratings.length > 0 && (
+                            <p className="text-success text-sm mb-2">You rated this delivery.</p>
+                          )}
+                          {showRateForm && (
+                            <div className="bg-muted/30 rounded-xl p-4 space-y-3">
+                              <p className="text-text-primary text-sm font-medium">Rate your experience</p>
+                              <div className="flex items-center gap-2">
+                                {[1, 2, 3, 4, 5].map((n) => (
+                                  <button
+                                    key={n}
+                                    type="button"
+                                    onClick={() => setRatingForm(prev => ({ ...prev, rating: n }))}
+                                    className={`p-1 rounded transition-colors ${ratingForm.rating >= n ? 'text-amber-400' : 'text-text-secondary hover:text-amber-400/70'}`}
+                                    aria-label={`${n} star${n > 1 ? 's' : ''}`}
+                                  >
+                                    <Star className={`w-5 h-5 ${ratingForm.rating >= n ? 'fill-amber-400' : ''}`} />
+                                  </button>
+                                ))}
+                              </div>
+                              <input
+                                type="text"
+                                placeholder="Optional comment"
+                                value={ratingForm.comment}
+                                onChange={(e) => setRatingForm(prev => ({ ...prev, comment: e.target.value }))}
+                                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-text-primary text-sm"
+                              />
+                              <div className="flex flex-wrap gap-2">
+                                {canRateTrucker && accepted.truckerId && (
+                                  <button
+                                    onClick={() => handleSubmitRating(shipment.id, 'trucker', accepted.truckerId)}
+                                    disabled={!!submittingRating}
+                                    className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                                  >
+                                    {submittingRating === `${shipment.id}-trucker` ? 'Submitting...' : 'Rate Trucker'}
+                                  </button>
+                                )}
+                                {canRateDriver && accepted.driverId && (
+                                  <button
+                                    onClick={() => handleSubmitRating(shipment.id, 'driver', accepted.driverId)}
+                                    disabled={!!submittingRating}
+                                    className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                                  >
+                                    {submittingRating === `${shipment.id}-driver` ? 'Submitting...' : 'Rate Driver'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
 
                     {/* Bids Section - Only show for pending shipments */}
                     {shipment.status === 'pending' && (
@@ -1624,21 +1819,55 @@ const ShipperDashboard = () => {
                                     'border-border'
                                   }`}
                                 >
-                                  <div className="flex items-start justify-between mb-2">
-                                    <div className="flex-1">
+                                  <div className="flex items-start justify-between gap-3 mb-2">
+                                    <div className="flex-1 min-w-0">
                                       <p className="text-text-primary font-bold text-lg">
                                         ₦{parseFloat(bid.bidAmount || 0).toLocaleString('en-NG')}
                                       </p>
                                       <p className="text-text-secondary text-sm">
                                         {bid.truckerName || 'Trucker'} {bid.truckerPhone ? `• ${bid.truckerPhone}` : ''}
                                       </p>
+                                      {(bid.truckerRating?.count > 0 || bid.driverRating?.count > 0) && (
+                                        <p className="text-text-secondary text-xs mt-1 flex items-center gap-2">
+                                          {bid.truckerRating?.count > 0 && (
+                                            <span className="flex items-center gap-0.5">
+                                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                              {bid.truckerRating.average} ({bid.truckerRating.count})
+                                            </span>
+                                          )}
+                                          {bid.driverId && bid.driverRating?.count > 0 && (
+                                            <span className="flex items-center gap-0.5">
+                                              Driver: <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                              {bid.driverRating.average} ({bid.driverRating.count})
+                                            </span>
+                                          )}
+                                        </p>
+                                      )}
                                       {bid.message && (
                                         <p className="text-text-secondary text-sm mt-2 italic">
                                           "{bid.message}"
                                         </p>
                                       )}
+                                      {(bid.vehicleImageUrl || bid.vehiclePlateNumber) && (
+                                        <div className="mt-2 flex items-center gap-2">
+                                          {bid.vehicleImageUrl ? (
+                                            <img
+                                              src={bid.vehicleImageUrl}
+                                              alt="Vehicle"
+                                              className="w-16 h-16 object-cover rounded-lg border border-border"
+                                            />
+                                          ) : (
+                                            <div className="w-16 h-16 rounded-lg border border-border bg-muted flex items-center justify-center">
+                                              <Truck className="w-6 h-6 text-text-secondary" />
+                                            </div>
+                                          )}
+                                          {bid.vehiclePlateNumber && (
+                                            <span className="text-text-secondary text-xs font-medium">{bid.vehiclePlateNumber}</span>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="text-right">
+                                    <div className="text-right flex-shrink-0">
                                       {bid.status === 'accepted' && (
                                         <span className="inline-block bg-success/10 text-success px-3 py-1 rounded-lg text-xs font-medium">
                                           Accepted
@@ -2627,11 +2856,11 @@ const ShipperDashboard = () => {
                     </li>
                     <li className="flex items-start">
                       <Clock className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">60%</strong> will be credited when shipment is picked up</span>
+                      <span><strong className="text-text-primary">65%</strong> will be credited when shipment is picked up</span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">35%</strong> will be credited upon delivery completion</span>
+                      <span><strong className="text-text-primary">30%</strong> will be credited upon delivery completion</span>
                     </li>
                   </ul>
                 </div>

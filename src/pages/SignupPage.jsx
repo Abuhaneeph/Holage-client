@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Truck, User, Mail, Lock, Eye, EyeOff, Package, Users, ArrowRight, ShieldCheck, CheckCircle2, Sparkles } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Truck, User, Mail, Lock, Eye, EyeOff, Package, Users, UserPlus, ArrowRight, ShieldCheck, CheckCircle2, Sparkles } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import Header from "../components/Header"
@@ -13,6 +13,16 @@ const SignupPage = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [step, setStep] = useState(1) // 1: Role selection, 2: Basic info, 3: Additional info (for fleet managers)
+
+  useEffect(() => {
+    const preset = sessionStorage.getItem("holage_signup_role")
+    if (!preset) return
+    sessionStorage.removeItem("holage_signup_role")
+    const allowed = ["shipper", "trucker", "fleet_manager", "agent"]
+    if (!allowed.includes(preset)) return
+    setUserRole(preset)
+    setStep(2)
+  }, [setUserRole])
 
   const roleOptions = [
     {
@@ -35,6 +45,13 @@ const SignupPage = () => {
       description: "Manage multiple trucks and grow your fleet business.",
       icon: Users,
       color: "from-purple-500 to-purple-600",
+    },
+    {
+      value: "agent",
+      label: "I'm an Agent",
+      description: "Onboard drivers with your referral code and earn from eligible trips.",
+      icon: UserPlus,
+      color: "from-amber-500 to-orange-600",
     },
   ]
 
@@ -88,7 +105,15 @@ const SignupPage = () => {
     try {
       // For fleet managers, NIN and BVN are not collected during signup (collected during KYC)
       // For all roles, submit without NIN/BVN during signup
-      await registerUser(formData.fullName, formData.email, formData.password, userRole, null, null)
+      await registerUser(
+        formData.fullName,
+        formData.email,
+        formData.password,
+        userRole,
+        null,
+        null,
+        userRole === "trucker" ? formData.agentReferralCode : null,
+      )
       
       navigateTo("email-verification")
     } catch (error) {
@@ -180,7 +205,8 @@ const SignupPage = () => {
                         Create your Holage account
                       </h2>
                       <p className="mt-2 text-xs sm:text-sm text-text-secondary">
-                        Choose your role to personalize the onboarding journey.
+                        Choose your role—including <span className="font-medium text-text-primary">Agent</span> to onboard
+                        drivers with your referral code.
                       </p>
                     </div>
                     <div className="hidden sm:flex rounded-2xl bg-gradient-to-br from-primary to-secondary p-3 text-white shadow-lg ml-4">
@@ -267,14 +293,31 @@ const SignupPage = () => {
                     </button>
                     <p className="text-xs font-semibold uppercase tracking-[0.35em] text-secondary">Step 2 of 2</p>
                     <h2 className="mt-2 text-xl sm:text-2xl font-bold text-text-primary md:text-3xl">
-                      {userRole === "fleet_manager" ? "Fleet Manager Information" : "Create Your Account"}
+                      {userRole === "fleet_manager"
+                        ? "Fleet Manager Information"
+                        : userRole === "agent"
+                          ? "Agent registration"
+                          : "Create Your Account"}
                     </h2>
                     <p className="mt-2 text-xs sm:text-sm text-text-secondary">
-                      {userRole === "fleet_manager" 
-                        ? "Enter your basic information" 
-                        : "Fill in your details to create your account"}
+                      {userRole === "fleet_manager"
+                        ? "Enter your basic information"
+                        : userRole === "agent"
+                          ? "Use a real email—you will verify it to activate your account and see your referral code."
+                          : "Fill in your details to create your account"}
                     </p>
                   </div>
+
+                  {userRole === "agent" && (
+                    <div className="mb-6 rounded-2xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm text-amber-950">
+                      <p className="font-semibold text-amber-900">How agent signup works</p>
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-amber-900/90">
+                        <li>No NIN or BVN is required at signup.</li>
+                        <li>After you verify your email, you get your personal referral code and agent ID on your dashboard.</li>
+                        <li>Use that code when onboarding eligible drivers.</li>
+                      </ul>
+                    </div>
+                  )}
 
                   <form onSubmit={(e) => { e.preventDefault(); handleNext() }} className="space-y-5 sm:space-y-6">
                     <div className="space-y-2">
@@ -359,6 +402,25 @@ const SignupPage = () => {
                       </div>
                     </div>
 
+                    {userRole === "trucker" && (
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-text-secondary">
+                          Agent referral code (optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.agentReferralCode || ""}
+                          onChange={(e) => handleInputChange("agentReferralCode", e.target.value)}
+                          className="w-full rounded-2xl border border-border bg-white/80 py-3 sm:py-3.5 px-4 text-text-primary text-sm sm:text-base shadow-sm transition-all duration-200 placeholder:text-text-secondary/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+                          placeholder="e.g. HOLAGE-ABC23"
+                          disabled={loading}
+                        />
+                        <p className="text-xs text-text-secondary">
+                          If an agent referred you, enter their Holage code (starts with HOLAGE-).
+                        </p>
+                      </div>
+                    )}
+
                     <button
                       type="submit"
                       disabled={loading}
@@ -390,7 +452,13 @@ const SignupPage = () => {
                         </>
                       ) : (
                         <>
-                          <span className="text-sm sm:text-base">{userRole === "fleet_manager" ? "Next" : "Create account"}</span>
+                          <span className="text-sm sm:text-base">
+                            {userRole === "fleet_manager"
+                              ? "Next"
+                              : userRole === "agent"
+                                ? "Create agent account"
+                                : "Create account"}
+                          </span>
                           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                         </>
                       )}

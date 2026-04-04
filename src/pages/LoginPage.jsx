@@ -11,6 +11,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 const LoginPage = () => {
   const { 
     navigateTo, 
+    navigateToSignupWithRole,
     formData, 
     handleInputChange, 
     loginUser, 
@@ -209,13 +210,23 @@ const LoginPage = () => {
           console.log("Role set to:", response.user.role)
         }
         
+        if (response.user?.role === "agent") {
+          navigateTo("agent-dashboard")
+          return
+        }
+
+        if (response.user?.role === "staff") {
+          navigateTo("staff-dashboard")
+          return
+        }
+
         // Check if user needs to complete KYC (if kycStatus is null or they haven't filled basic info)
         if (!response.user?.kycStatus || response.user?.kycStatus === null) {
           console.log("User needs to complete KYC, redirecting to KYC page")
           navigateTo("kyc")
           return
         }
-        
+
         // Navigate directly based on user role
         if (response.user?.role === "trucker") {
           console.log("Navigating to trucker dashboard")
@@ -358,7 +369,7 @@ const LoginPage = () => {
                   >
                     <div className="flex items-center justify-center gap-2">
                       <User className="h-4 w-4" />
-                      <span>Regular User</span>
+                      <span>Email login</span>
                     </div>
                   </button>
                   <button
@@ -576,15 +587,33 @@ const LoginPage = () => {
               </button>
 
                   {loginType === "regular" && (
-                    <div className="text-center text-sm text-text-secondary">
-                      New to Holage?{" "}
-                      <button
-                        type="button"
-                        onClick={() => navigateTo("signup")}
-                        className="font-medium text-secondary transition-colors hover:text-accent"
-                      >
-                        Create an account
-                      </button>
+                    <div className="text-center text-sm text-text-secondary space-y-2">
+                      <div>
+                        New to Holage?{" "}
+                        <button
+                          type="button"
+                          onClick={() => navigateTo("signup")}
+                          className="font-medium text-secondary transition-colors hover:text-accent"
+                        >
+                          Create an account
+                        </button>
+                      </div>
+                      <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-4">
+                        <button
+                          type="button"
+                          onClick={() => navigateToSignupWithRole("agent")}
+                          className="text-xs font-medium text-amber-800/90 hover:text-amber-950 underline underline-offset-2"
+                        >
+                          Register as agent
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigateTo("staff-signup")}
+                          className="text-xs font-medium text-secondary hover:text-accent underline underline-offset-2"
+                        >
+                          Request staff access
+                        </button>
+                      </div>
                     </div>
                   )}
                   {loginType === "driver" && (

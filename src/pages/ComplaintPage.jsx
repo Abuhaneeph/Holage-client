@@ -228,6 +228,9 @@ const ComplaintPage = () => {
     if (userRole === 'trucker') return 'trucker-dashboard'
     if (userRole === 'shipper') return 'shipper-dashboard'
     if (userRole === 'fleet_manager') return 'fleet-manager-dashboard'
+    if (userRole === 'admin') return 'admin-dashboard'
+    if (userRole === 'agent') return 'agent-dashboard'
+    if (userRole === 'staff') return 'staff-dashboard'
     return 'landing'
   }
 
@@ -235,6 +238,9 @@ const ComplaintPage = () => {
     if (userRole === 'trucker') return 'Trucker'
     if (userRole === 'shipper') return 'Shipper'
     if (userRole === 'fleet_manager') return 'Fleet Manager'
+    if (userRole === 'admin') return 'Admin'
+    if (userRole === 'agent') return 'Agent'
+    if (userRole === 'staff') return 'Staff'
     return 'User'
   }
 

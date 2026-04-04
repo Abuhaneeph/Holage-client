@@ -36,6 +36,7 @@ export const AppProvider = ({ children }) => {
     email: "",
     password: "",
     confirmPassword: "",
+    agentReferralCode: "",
     verificationCode: "",
     resetCode: "", // Added for forgot password flow
     newPassword: "", // Added for forgot password flow
@@ -55,6 +56,14 @@ export const AppProvider = ({ children }) => {
   // Navigation handler
   const navigateTo = (page) => {
     setCurrentPage(page)
+  }
+
+  /** Opens signup with a role pre-selected (skips role cards). Uses sessionStorage because routing is in-memory. */
+  const navigateToSignupWithRole = (role) => {
+    if (role) {
+      sessionStorage.setItem("holage_signup_role", String(role).toLowerCase())
+    }
+    setCurrentPage("signup")
   }
 
   // Handle token expiration - clear session and redirect to login
@@ -92,6 +101,7 @@ export const AppProvider = ({ children }) => {
       email: "",
       password: "",
       confirmPassword: "",
+      agentReferralCode: "",
       verificationCode: "",
       resetCode: "",
       newPassword: "",
@@ -274,7 +284,7 @@ export const AppProvider = ({ children }) => {
   }
 
   // Auth functions
-  const registerUser = async (fullName, email, password, role, nin, bvn) => {
+  const registerUser = async (fullName, email, password, role, nin, bvn, agentReferralCode) => {
     try {
       const payload = { fullName, email, password, role }
 
@@ -294,8 +304,16 @@ export const AppProvider = ({ children }) => {
         payload.bvn = normalizedBvn
       }
 
+      const normalizedAgentCode = normalizeOptional(agentReferralCode)
+      if (normalizedAgentCode) {
+        payload.agentReferralCode = normalizedAgentCode
+      }
+
       const data = await callApi("/auth/register", "POST", payload)
       toast.success(data.message)
+      if (data.referralCode) {
+        toast.success(`Your referral code: ${data.referralCode} — you will see it again after email verification.`)
+      }
       return data
     } catch (err) {
       console.error("Registration failed:", err)
@@ -333,6 +351,19 @@ export const AppProvider = ({ children }) => {
     setUserRole("")
     resetForm()
     navigateTo("landing")
+  }
+
+  // Call when API returns 401 / token expired – clears session and sends user to login (so they aren’t stuck)
+  const handleSessionExpired = () => {
+    localStorage.removeItem("authToken")
+    localStorage.removeItem("userInfo")
+    localStorage.removeItem("driverInfo")
+    localStorage.removeItem("userRole")
+    localStorage.removeItem("rememberedEmail")
+    localStorage.removeItem("rememberedPhone")
+    setUser(null)
+    setUserRole("")
+    navigateTo("login")
   }
   
   const verifyEmail = async (verificationCode) => {
@@ -572,6 +603,10 @@ export const AppProvider = ({ children }) => {
             navigateTo("fleet-manager-dashboard")
           } else if (userData.role === "admin") {
             navigateTo("admin-dashboard")
+          } else if (userData.role === "agent") {
+            navigateTo("agent-dashboard")
+          } else if (userData.role === "staff") {
+            navigateTo("staff-dashboard")
           }
         } catch (error) {
           console.error("Error parsing user info:", error)
@@ -602,6 +637,10 @@ export const AppProvider = ({ children }) => {
                 navigateTo("fleet-manager-dashboard")
               } else if (storedRole === "admin") {
                 navigateTo("admin-dashboard")
+              } else if (storedRole === "agent") {
+                navigateTo("agent-dashboard")
+              } else if (storedRole === "staff") {
+                navigateTo("staff-dashboard")
               }
             }
           } else if (response.status === 401) {
@@ -635,6 +674,7 @@ export const AppProvider = ({ children }) => {
     error,
     formData,
     navigateTo,
+    navigateToSignupWithRole,
     setUserRole,
     setUser,
     handleInputChange,
@@ -643,12 +683,14 @@ export const AppProvider = ({ children }) => {
     registerUser,
     loginUser,
     logoutUser,
+    handleSessionExpired,
     verifyEmail,
     resendVerificationCode,
     forgotPassword,
     verifyResetCode, // Added missing function
     resetPassword,
     submitKyc,
+    callApiWithFiles,
     getKycStatus,
     validateKycStep,
     isAuthenticated,

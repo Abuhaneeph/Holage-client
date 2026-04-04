@@ -15,7 +15,8 @@ import {
   Navigation,
   Phone,
   Mail,
-  AlertCircle
+  AlertCircle,
+  Star
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -39,6 +40,7 @@ const DriverDashboard = () => {
   const [showPODCapture, setShowPODCapture] = useState(false)
   const [selectedShipmentForPOD, setSelectedShipmentForPOD] = useState(null)
   const [selectedPODType, setSelectedPODType] = useState(null)
+  const [myRating, setMyRating] = useState({ average: 0, count: 0 })
 
   useEffect(() => {
     const token = localStorage.getItem('authToken')
@@ -55,6 +57,15 @@ const DriverDashboard = () => {
       fetchFleetManagerInfo(driver.fleetManagerId)
       fetchAssignedShipments()
       fetchAssignedTrucks()
+      // Fetch driver rating
+      if (driver.id) {
+        fetch(`${API_BASE_URL}/ratings/ratee?rateeType=driver&rateeId=${driver.id}`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.success && d.count > 0) setMyRating({ average: d.average, count: d.count })
+          })
+          .catch(() => {})
+      }
     } catch (error) {
       console.error('Error parsing driver info:', error)
       navigateTo('driver-login')
@@ -344,6 +355,12 @@ const DriverDashboard = () => {
             <div className="min-w-0 flex-1">
               <p className="text-white/80 text-xs sm:text-sm">Driver</p>
               <p className="text-white font-bold text-base sm:text-lg truncate">{driverInfo.driverName || "Driver"}</p>
+              {myRating.count > 0 && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                  <span className="text-white/90 text-xs">{myRating.average} ({myRating.count} {myRating.count === 1 ? "review" : "reviews"})</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center space-x-2">

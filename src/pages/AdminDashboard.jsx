@@ -35,6 +35,9 @@ const AdminDashboard = () => {
   const [activeView, setActiveView] = useState("home")
   const [complaints, setComplaints] = useState([])
   const [loading, setLoading] = useState(false)
+  const [staffRequests, setStaffRequests] = useState([])
+  const [loadingStaffRequests, setLoadingStaffRequests] = useState(false)
+  const [staffRequestStatus, setStaffRequestStatus] = useState("pending")
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -85,6 +88,14 @@ const AdminDashboard = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, selectedKycStatus])
+
+  // Fetch staff requests when staff-requests view is active or filter changes
+  useEffect(() => {
+    if (activeView === "staff-requests") {
+      fetchStaffRequests()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, staffRequestStatus])
 
   // Fetch diesel rate
   const fetchDieselRate = async () => {
@@ -580,6 +591,70 @@ const AdminDashboard = () => {
     }
   }
 
+  const fetchStaffRequests = async () => {
+    setLoadingStaffRequests(true)
+    try {
+      const token = localStorage.getItem("authToken")
+      const q = staffRequestStatus ? `?status=${staffRequestStatus}` : ""
+      const response = await fetch(`${API_BASE_URL}/staff-requests${q}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setStaffRequests(data.requests || [])
+      } else {
+        toast.error(data.message || "Failed to fetch staff requests")
+      }
+    } catch (error) {
+      console.error("Error fetching staff requests:", error)
+      toast.error("Error fetching staff requests")
+    } finally {
+      setLoadingStaffRequests(false)
+    }
+  }
+
+  const approveStaffRequest = async (requestId) => {
+    try {
+      const token = localStorage.getItem("authToken")
+      const response = await fetch(`${API_BASE_URL}/staff-requests/${requestId}/approve`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success("Approved. Staff account created.")
+        fetchStaffRequests()
+      } else {
+        toast.error(data.message || "Approval failed")
+      }
+    } catch (error) {
+      console.error("Error approving staff request:", error)
+      toast.error("Approval failed")
+    }
+  }
+
+  const rejectStaffRequest = async (requestId) => {
+    const reason = window.prompt("Reason for rejection (optional):") || ""
+    try {
+      const token = localStorage.getItem("authToken")
+      const response = await fetch(`${API_BASE_URL}/staff-requests/${requestId}/reject`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success("Rejected.")
+        fetchStaffRequests()
+      } else {
+        toast.error(data.message || "Rejection failed")
+      }
+    } catch (error) {
+      console.error("Error rejecting staff request:", error)
+      toast.error("Rejection failed")
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -624,6 +699,16 @@ const AdminDashboard = () => {
             }`}
           >
             Complaints
+          </button>
+          <button
+            onClick={() => setActiveView("staff-requests")}
+            className={`px-3 sm:px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+              activeView === "staff-requests"
+                ? "bg-white text-purple-700"
+                : "bg-white/20 text-white hover:bg-white/30"
+            }`}
+          >
+            Staff Requests
           </button>
           <button
             onClick={() => setActiveView("kyc")}
@@ -968,6 +1053,78 @@ const AdminDashboard = () => {
                           Submitted: {new Date(complaint.createdAt).toLocaleString()}
                         </p>
                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeView === "staff-requests" && (
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Staff Registration Requests</h2>
+              <select
+                value={staffRequestStatus}
+                onChange={(e) => setStaffRequestStatus(e.target.value)}
+                className="px-3 sm:px-4 py-2 bg-white border border-border rounded-xl text-text-primary text-sm sm:text-base w-full sm:w-auto"
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+
+            {loadingStaffRequests ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              </div>
+            ) : staffRequests.length === 0 ? (
+              <div className="bg-white rounded-2xl p-12 text-center border border-border">
+                <Users className="w-16 h-16 text-text-secondary mx-auto mb-4" />
+                <p className="text-text-secondary">No staff requests found</p>
+              </div>
+            ) : (
+              <div className="space-y-3 sm:space-y-4">
+                {staffRequests.map((r) => (
+                  <div
+                    key={r.id}
+                    className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-lg font-semibold text-text-primary truncate">{r.fullName}</p>
+                        <p className="text-sm text-text-secondary break-all">{r.email}</p>
+                        <p className="text-xs text-text-secondary mt-2">
+                          Status: <span className="font-medium">{r.status}</span> · Submitted:{" "}
+                          {r.createdAt ? new Date(r.createdAt).toLocaleString() : "—"}
+                        </p>
+                        {r.rejectionReason && (
+                          <p className="text-xs text-error mt-1">Reason: {r.rejectionReason}</p>
+                        )}
+                      </div>
+
+                      {r.status === "pending" ? (
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                          <button
+                            onClick={() => approveStaffRequest(r.id)}
+                            className="px-4 py-2 bg-success text-white rounded-xl font-medium hover:bg-success/90 transition-colors"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => rejectStaffRequest(r.id)}
+                            className="px-4 py-2 bg-error text-white rounded-xl font-medium hover:bg-error/90 transition-colors"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-text-secondary">
+                          Reviewed: {r.reviewedAt ? new Date(r.reviewedAt).toLocaleString() : "—"}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
