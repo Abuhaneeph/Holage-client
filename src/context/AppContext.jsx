@@ -310,6 +310,12 @@ export const AppProvider = ({ children }) => {
       }
 
       const data = await callApi("/auth/register", "POST", payload)
+      if (data.email) {
+        handleInputChange("email", data.email)
+      }
+      if (data.requiresVerification) {
+        handleInputChange("verificationCode", "")
+      }
       toast.success(data.message)
       if (data.referralCode) {
         toast.success(`Your referral code: ${data.referralCode} — you will see it again after email verification.`)
