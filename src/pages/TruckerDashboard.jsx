@@ -56,6 +56,11 @@ const TruckerDashboard = () => {
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [uploadingDoc, setUploadingDoc] = useState(null)
   
+  // Identity edit state
+  const [editingIdentity, setEditingIdentity] = useState(false)
+  const [identityForm, setIdentityForm] = useState({ nin: '', bvn: '' })
+  const [updatingIdentity, setUpdatingIdentity] = useState(false)
+
   // Bank account edit state
   const [editingBankAccount, setEditingBankAccount] = useState(false)
   const [bankAccountForm, setBankAccountForm] = useState({
@@ -1873,16 +1878,6 @@ const TruckerDashboard = () => {
                 
                 <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
                   <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <CreditCard className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-text-secondary text-sm mb-1">NIN</p>
-                    <p className="text-text-primary font-medium">{documents?.nin || "Not provided"}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
-                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Truck className="w-5 h-5 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1901,6 +1896,136 @@ const TruckerDashboard = () => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Identity Verification (NIN & BVN) */}
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-text-primary font-bold text-lg flex items-center space-x-2">
+                  <CreditCard className="w-5 h-5 text-primary" />
+                  <span>Identity Verification</span>
+                </h3>
+                {!editingIdentity && (
+                  <button
+                    onClick={() => {
+                      setEditingIdentity(true)
+                      setIdentityForm({ nin: documents?.nin || '', bvn: documents?.bvn || '' })
+                    }}
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                  >
+                    {documents?.nin || documents?.bvn ? 'Edit' : 'Add'}
+                  </button>
+                )}
+              </div>
+
+              {editingIdentity ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">NIN (National Identification Number)</label>
+                    <input
+                      type="text"
+                      value={identityForm.nin}
+                      onChange={(e) => setIdentityForm(f => ({ ...f, nin: e.target.value.replace(/\D/g, '') }))}
+                      maxLength="11"
+                      placeholder="Enter 11-digit NIN"
+                      className="w-full px-4 py-3 bg-muted/30 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-text-primary placeholder:text-text-secondary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">BVN (Bank Verification Number)</label>
+                    <input
+                      type="text"
+                      value={identityForm.bvn}
+                      onChange={(e) => setIdentityForm(f => ({ ...f, bvn: e.target.value.replace(/\D/g, '') }))}
+                      maxLength="11"
+                      placeholder="Enter 11-digit BVN"
+                      className="w-full px-4 py-3 bg-muted/30 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-text-primary placeholder:text-text-secondary"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        if (!identityForm.nin && !identityForm.bvn) {
+                          toast.error('Enter at least NIN or BVN')
+                          return
+                        }
+                        setUpdatingIdentity(true)
+                        try {
+                          const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+                          const token = localStorage.getItem('authToken')
+                          const res = await fetch(`${API_BASE_URL}/kyc/identity`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify({ nin: identityForm.nin || undefined, bvn: identityForm.bvn || undefined })
+                          })
+                          const data = await res.json()
+                          if (res.ok && data.success) {
+                            toast.success('Identity updated successfully')
+                            setDocuments(d => ({ ...d, nin: identityForm.nin || d?.nin, bvn: identityForm.bvn || d?.bvn }))
+                            setEditingIdentity(false)
+                          } else {
+                            toast.error(data.message || 'Failed to update identity')
+                          }
+                        } catch {
+                          toast.error('Error updating identity')
+                        } finally {
+                          setUpdatingIdentity(false)
+                        }
+                      }}
+                      disabled={updatingIdentity}
+                      className="flex-1 px-4 py-2 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {updatingIdentity ? <><Loader className="w-4 h-4 animate-spin" /> Saving...</> : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => setEditingIdentity(false)}
+                      className="px-4 py-2 bg-muted text-text-primary rounded-xl font-medium hover:bg-muted/80 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <CreditCard className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-text-secondary text-sm mb-1">NIN</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-text-primary font-medium">{documents?.nin || 'Not provided'}</p>
+                        {documents?.ninVerified && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                            <CheckCircle className="w-3 h-3" /> Verified
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <CreditCard className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-text-secondary text-sm mb-1">BVN</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-text-primary font-medium">{documents?.bvn || 'Not provided'}</p>
+                        {documents?.bvnVerified && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                            <CheckCircle className="w-3 h-3" /> Verified
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {(!documents?.ninVerified || !documents?.bvnVerified) && (documents?.nin || documents?.bvn) && (
+                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      Your identity is pending verification by an admin.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Bank Account Details (For Withdrawals) */}

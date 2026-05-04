@@ -57,6 +57,8 @@ const AdminDashboard = () => {
   const [selectedKycStatus, setSelectedKycStatus] = useState("pending")
   const [selectedKycSubmission, setSelectedKycSubmission] = useState(null)
   const [updatingKycStatus, setUpdatingKycStatus] = useState(false)
+  const [verifyingNin, setVerifyingNin] = useState(false)
+  const [verifyingBvn, setVerifyingBvn] = useState(false)
   const [shipmentTranscript, setShipmentTranscript] = useState(null)
   const [loadingTranscript, setLoadingTranscript] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
@@ -499,6 +501,52 @@ const AdminDashboard = () => {
     }
   }
 
+  const handleVerifyNin = async (userId) => {
+    setVerifyingNin(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/kyc/admin/submissions/${userId}/verify-nin`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success('NIN verified successfully')
+        fetchKycSubmissionDetails(userId)
+      } else {
+        toast.error(data.message || 'NIN verification failed')
+      }
+    } catch (error) {
+      console.error('Error verifying NIN:', error)
+      toast.error('Error verifying NIN')
+    } finally {
+      setVerifyingNin(false)
+    }
+  }
+
+  const handleVerifyBvn = async (userId) => {
+    setVerifyingBvn(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/kyc/admin/submissions/${userId}/verify-bvn`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success('BVN verified successfully')
+        fetchKycSubmissionDetails(userId)
+      } else {
+        toast.error(data.message || 'BVN verification failed')
+      }
+    } catch (error) {
+      console.error('Error verifying BVN:', error)
+      toast.error('Error verifying BVN')
+    } finally {
+      setVerifyingBvn(false)
+    }
+  }
+
   const getKycStatusColor = (status) => {
     switch (status) {
       case 'pending':
@@ -523,6 +571,17 @@ const AdminDashboard = () => {
       default:
         return <Clock className="w-4 h-4" />
     }
+  }
+
+  const getMissingDocuments = (submission) => {
+    const missing = []
+    if (!submission.profilePhoto) missing.push('Profile Photo')
+    if (!submission.utilityBill) missing.push('Utility Bill')
+    if (submission.role === 'trucker') {
+      if (!submission.driverLicense) missing.push('Driver License')
+      if (!submission.vehicleReg) missing.push('Vehicle Registration')
+    }
+    return missing
   }
 
   const getRoleLabel = (role) => {
@@ -1208,7 +1267,68 @@ const AdminDashboard = () => {
                     </div>
                     <div>
                       <p className="text-text-secondary text-sm mb-1">NIN</p>
-                      <p className="text-text-primary font-medium">{selectedKycSubmission.nin || 'N/A'}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-text-primary font-medium">{selectedKycSubmission.nin || 'N/A'}</p>
+                        {selectedKycSubmission.ninVerified ? (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
+                            <CheckCircle className="w-3 h-3" /> Verified
+                          </span>
+                        ) : selectedKycSubmission.nin ? (
+                          <button
+                            onClick={() => handleVerifyNin(selectedKycSubmission.id)}
+                            disabled={verifyingNin}
+                            className="px-3 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200 hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {verifyingNin ? 'Verifying...' : 'Verify NIN'}
+                          </button>
+                        ) : null}
+                      </div>
+                      {selectedKycSubmission.ninVerified && selectedKycSubmission.ninVerificationData && (() => {
+                        const d = typeof selectedKycSubmission.ninVerificationData === 'string'
+                          ? JSON.parse(selectedKycSubmission.ninVerificationData)
+                          : selectedKycSubmission.ninVerificationData
+                        return (
+                          <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-xs text-green-800 space-y-1">
+                            <p className="font-semibold">{[d.firstname, d.middlename, d.surname].filter(Boolean).join(' ')}</p>
+                            {d.birthdate && <p>DOB: {d.birthdate}</p>}
+                            {d.gender && <p>Gender: {d.gender}</p>}
+                            {d.telephoneno && <p>Phone: {d.telephoneno}</p>}
+                            {d.residence_state && <p>State: {d.residence_state}{d.residence_lga ? `, ${d.residence_lga}` : ''}</p>}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                    <div>
+                      <p className="text-text-secondary text-sm mb-1">BVN</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-text-primary font-medium">{selectedKycSubmission.bvn || 'N/A'}</p>
+                        {selectedKycSubmission.bvnVerified ? (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
+                            <CheckCircle className="w-3 h-3" /> Verified
+                          </span>
+                        ) : selectedKycSubmission.bvn ? (
+                          <button
+                            onClick={() => handleVerifyBvn(selectedKycSubmission.id)}
+                            disabled={verifyingBvn}
+                            className="px-3 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200 hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {verifyingBvn ? 'Verifying...' : 'Verify BVN'}
+                          </button>
+                        ) : null}
+                      </div>
+                      {selectedKycSubmission.bvnVerified && selectedKycSubmission.bvnVerificationData && (() => {
+                        const d = typeof selectedKycSubmission.bvnVerificationData === 'string'
+                          ? JSON.parse(selectedKycSubmission.bvnVerificationData)
+                          : selectedKycSubmission.bvnVerificationData
+                        return (
+                          <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-xs text-green-800 space-y-1">
+                            <p className="font-semibold">{[d.firstname, d.middlename, d.surname].filter(Boolean).join(' ')}</p>
+                            {d.birthdate && <p>DOB: {d.birthdate}</p>}
+                            {d.gender && <p>Gender: {d.gender}</p>}
+                            {d.telephoneno && <p>Phone: {d.telephoneno}</p>}
+                          </div>
+                        )
+                      })()}
                     </div>
                     {selectedKycSubmission.role === 'trucker' && (
                       <>
@@ -1226,8 +1346,22 @@ const AdminDashboard = () => {
 
                   <div className="border-t border-border pt-4 sm:pt-6">
                     <h4 className="text-base sm:text-lg font-semibold text-text-primary mb-3 sm:mb-4">Documents</h4>
+
+                    {getMissingDocuments(selectedKycSubmission).length > 0 && (
+                      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm font-semibold text-yellow-800">Missing Required Documents</p>
+                          <p className="text-xs text-yellow-700 mt-0.5">
+                            {getMissingDocuments(selectedKycSubmission).join(' · ')}
+                          </p>
+                          <p className="text-xs text-yellow-600 mt-1">Approval is disabled until all required documents are uploaded.</p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      {selectedKycSubmission.profilePhoto && (
+                      {selectedKycSubmission.profilePhoto ? (
                         <div className="border border-border rounded-xl p-4">
                           <p className="text-text-secondary text-sm mb-2">Profile Photo</p>
                           <a href={selectedKycSubmission.profilePhoto} target="_blank" rel="noopener noreferrer" className="block">
@@ -1238,32 +1372,54 @@ const AdminDashboard = () => {
                             </button>
                           </a>
                         </div>
-                      )}
-                      {selectedKycSubmission.driverLicense && (
-                        <div className="border border-border rounded-xl p-4">
-                          <p className="text-text-secondary text-sm mb-2">Driver License</p>
-                          <a href={selectedKycSubmission.driverLicense} target="_blank" rel="noopener noreferrer" className="block">
-                            <img src={selectedKycSubmission.driverLicense} alt="Driver License" className="w-full h-48 object-cover rounded-lg mb-2" />
-                            <button className="flex items-center space-x-2 text-primary hover:text-primary/80">
-                              <Download className="w-4 h-4" />
-                              <span className="text-sm">View Full Size</span>
-                            </button>
-                          </a>
+                      ) : (
+                        <div className="border border-dashed border-yellow-300 bg-yellow-50 rounded-xl p-4 flex flex-col items-center justify-center h-32">
+                          <AlertCircle className="w-6 h-6 text-yellow-500 mb-1" />
+                          <p className="text-yellow-700 text-sm font-medium">Profile Photo</p>
+                          <p className="text-yellow-600 text-xs">Not uploaded</p>
                         </div>
                       )}
-                      {selectedKycSubmission.vehicleReg && (
-                        <div className="border border-border rounded-xl p-4">
-                          <p className="text-text-secondary text-sm mb-2">Vehicle Registration</p>
-                          <a href={selectedKycSubmission.vehicleReg} target="_blank" rel="noopener noreferrer" className="block">
-                            <img src={selectedKycSubmission.vehicleReg} alt="Vehicle Registration" className="w-full h-48 object-cover rounded-lg mb-2" />
-                            <button className="flex items-center space-x-2 text-primary hover:text-primary/80">
-                              <Download className="w-4 h-4" />
-                              <span className="text-sm">View Full Size</span>
-                            </button>
-                          </a>
-                        </div>
+                      {selectedKycSubmission.role === 'trucker' && (
+                        selectedKycSubmission.driverLicense ? (
+                          <div className="border border-border rounded-xl p-4">
+                            <p className="text-text-secondary text-sm mb-2">Driver License</p>
+                            <a href={selectedKycSubmission.driverLicense} target="_blank" rel="noopener noreferrer" className="block">
+                              <img src={selectedKycSubmission.driverLicense} alt="Driver License" className="w-full h-48 object-cover rounded-lg mb-2" />
+                              <button className="flex items-center space-x-2 text-primary hover:text-primary/80">
+                                <Download className="w-4 h-4" />
+                                <span className="text-sm">View Full Size</span>
+                              </button>
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="border border-dashed border-yellow-300 bg-yellow-50 rounded-xl p-4 flex flex-col items-center justify-center h-32">
+                            <AlertCircle className="w-6 h-6 text-yellow-500 mb-1" />
+                            <p className="text-yellow-700 text-sm font-medium">Driver License</p>
+                            <p className="text-yellow-600 text-xs">Not uploaded</p>
+                          </div>
+                        )
                       )}
-                      {selectedKycSubmission.utilityBill && (
+                      {selectedKycSubmission.role === 'trucker' && (
+                        selectedKycSubmission.vehicleReg ? (
+                          <div className="border border-border rounded-xl p-4">
+                            <p className="text-text-secondary text-sm mb-2">Vehicle Registration</p>
+                            <a href={selectedKycSubmission.vehicleReg} target="_blank" rel="noopener noreferrer" className="block">
+                              <img src={selectedKycSubmission.vehicleReg} alt="Vehicle Registration" className="w-full h-48 object-cover rounded-lg mb-2" />
+                              <button className="flex items-center space-x-2 text-primary hover:text-primary/80">
+                                <Download className="w-4 h-4" />
+                                <span className="text-sm">View Full Size</span>
+                              </button>
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="border border-dashed border-yellow-300 bg-yellow-50 rounded-xl p-4 flex flex-col items-center justify-center h-32">
+                            <AlertCircle className="w-6 h-6 text-yellow-500 mb-1" />
+                            <p className="text-yellow-700 text-sm font-medium">Vehicle Registration</p>
+                            <p className="text-yellow-600 text-xs">Not uploaded</p>
+                          </div>
+                        )
+                      )}
+                      {selectedKycSubmission.utilityBill ? (
                         <div className="border border-border rounded-xl p-4">
                           <p className="text-text-secondary text-sm mb-2">Utility Bill</p>
                           <a href={selectedKycSubmission.utilityBill} target="_blank" rel="noopener noreferrer" className="block">
@@ -1274,6 +1430,12 @@ const AdminDashboard = () => {
                             </button>
                           </a>
                         </div>
+                      ) : (
+                        <div className="border border-dashed border-yellow-300 bg-yellow-50 rounded-xl p-4 flex flex-col items-center justify-center h-32">
+                          <AlertCircle className="w-6 h-6 text-yellow-500 mb-1" />
+                          <p className="text-yellow-700 text-sm font-medium">Utility Bill</p>
+                          <p className="text-yellow-600 text-xs">Not uploaded</p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1282,7 +1444,8 @@ const AdminDashboard = () => {
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-border">
                       <button
                         onClick={() => handleKycStatusUpdate(selectedKycSubmission.id, 'approved')}
-                        disabled={updatingKycStatus}
+                        disabled={updatingKycStatus || getMissingDocuments(selectedKycSubmission).length > 0}
+                        title={getMissingDocuments(selectedKycSubmission).length > 0 ? `Missing: ${getMissingDocuments(selectedKycSubmission).join(', ')}` : ''}
                         className="flex-1 bg-green-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
                       >
                         <Check className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1329,12 +1492,22 @@ const AdminDashboard = () => {
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold text-text-primary mb-1">{submission.fullName}</h3>
                           <p className="text-text-secondary text-sm mb-2">{submission.email}</p>
-                          <div className="flex items-center space-x-3">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="text-text-secondary text-xs">{getRoleLabel(submission.role)}</span>
                             <span className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center space-x-1 w-fit ${getKycStatusColor(submission.kycStatus)}`}>
                               {getKycStatusIcon(submission.kycStatus)}
                               <span className="capitalize">{submission.kycStatus}</span>
                             </span>
+                            {submission.ninVerified ? (
+                              <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
+                                <CheckCircle className="w-3 h-3" /> NIN
+                              </span>
+                            ) : null}
+                            {submission.bvnVerified ? (
+                              <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
+                                <CheckCircle className="w-3 h-3" /> BVN
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                       </div>

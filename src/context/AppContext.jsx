@@ -471,6 +471,7 @@ export const AppProvider = ({ children }) => {
       kycFormData.append('phone', formData.phone)
       kycFormData.append('address', formData.address)
       kycFormData.append('nin', formData.nin)
+      if (formData.bvn) kycFormData.append('bvn', formData.bvn)
       
       // Add trucker-specific fields if applicable
       if (userRole === "trucker") {

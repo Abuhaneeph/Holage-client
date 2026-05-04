@@ -79,6 +79,7 @@ const KYCPage = () => {
           if (data.documents.phone) updates.phone = data.documents.phone
           if (data.documents.address) updates.address = data.documents.address
           if (data.documents.nin) updates.nin = data.documents.nin
+          if (data.documents.bvn) updates.bvn = data.documents.bvn
           if (data.documents.plateNumber) updates.plateNumber = data.documents.plateNumber
           if (data.documents.vehicleType) updates.vehicleType = data.documents.vehicleType
           if (data.documents.bankAccountNumber) updates.bankAccountNumber = data.documents.bankAccountNumber
@@ -219,6 +220,23 @@ const KYCPage = () => {
                   placeholder="Enter your 11-digit NIN"
                   maxLength="11"
                   required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                BVN (Bank Verification Number)
+              </label>
+              <div className="relative">
+                <FileText className="absolute left-4 top-3.5 w-5 h-5 text-text-secondary/70" />
+                <input
+                  type="text"
+                  value={formData.bvn || ''}
+                  onChange={(e) => handleInputChange("bvn", e.target.value.replace(/\D/g, ""))}
+                  className="w-full pl-12 pr-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
+                  placeholder="Enter your 11-digit BVN"
+                  maxLength="11"
                 />
               </div>
             </div>
