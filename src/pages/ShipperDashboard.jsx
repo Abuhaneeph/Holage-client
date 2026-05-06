@@ -2160,7 +2160,7 @@ const ShipperDashboard = () => {
                       <p className="text-text-secondary text-sm mb-1">NIN</p>
                       <div className="flex items-center gap-2">
                         <p className="text-text-primary font-medium">{documents?.nin || 'Not provided'}</p>
-                        {documents?.ninVerified && (
+                        {!!documents?.ninVerified && (
                           <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
                             <CheckCircle className="w-3 h-3" /> Verified
                           </span>
@@ -2176,7 +2176,7 @@ const ShipperDashboard = () => {
                       <p className="text-text-secondary text-sm mb-1">BVN</p>
                       <div className="flex items-center gap-2">
                         <p className="text-text-primary font-medium">{documents?.bvn || 'Not provided'}</p>
-                        {documents?.bvnVerified && (
+                        {!!documents?.bvnVerified && (
                           <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
                             <CheckCircle className="w-3 h-3" /> Verified
                           </span>
@@ -2184,7 +2184,7 @@ const ShipperDashboard = () => {
                       </div>
                     </div>
                   </div>
-                  {(!documents?.ninVerified || !documents?.bvnVerified) && (documents?.nin || documents?.bvn) && (
+                  {(!documents?.ninVerified && !documents?.bvnVerified) && (documents?.nin || documents?.bvn) && (
                     <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                       Your identity is pending verification by an admin.
                     </p>

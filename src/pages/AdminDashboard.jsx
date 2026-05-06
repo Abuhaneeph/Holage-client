@@ -57,8 +57,12 @@ const AdminDashboard = () => {
   const [selectedKycStatus, setSelectedKycStatus] = useState("pending")
   const [selectedKycSubmission, setSelectedKycSubmission] = useState(null)
   const [updatingKycStatus, setUpdatingKycStatus] = useState(false)
-  const [verifyingNin, setVerifyingNin] = useState(false)
-  const [verifyingBvn, setVerifyingBvn] = useState(false)
+  const [fetchingNin, setFetchingNin] = useState(false)
+  const [fetchingBvn, setFetchingBvn] = useState(false)
+  const [confirmingNin, setConfirmingNin] = useState(false)
+  const [confirmingBvn, setConfirmingBvn] = useState(false)
+  const [ninFetchedData, setNinFetchedData] = useState(null)
+  const [bvnFetchedData, setBvnFetchedData] = useState(null)
   const [shipmentTranscript, setShipmentTranscript] = useState(null)
   const [loadingTranscript, setLoadingTranscript] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
@@ -501,49 +505,99 @@ const AdminDashboard = () => {
     }
   }
 
-  const handleVerifyNin = async (userId) => {
-    setVerifyingNin(true)
+  const handleFetchNin = async (userId) => {
+    setFetchingNin(true)
+    setNinFetchedData(null)
     try {
       const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/kyc/admin/submissions/${userId}/verify-nin`, {
+      const response = await fetch(`${API_BASE_URL}/kyc/admin/submissions/${userId}/fetch-nin`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success('NIN verified successfully')
-        fetchKycSubmissionDetails(userId)
+        setNinFetchedData(data.data)
       } else {
-        toast.error(data.message || 'NIN verification failed')
+        toast.error(data.message || 'NIN lookup failed')
       }
     } catch (error) {
-      console.error('Error verifying NIN:', error)
-      toast.error('Error verifying NIN')
+      console.error('Error fetching NIN:', error)
+      toast.error('Error fetching NIN data')
     } finally {
-      setVerifyingNin(false)
+      setFetchingNin(false)
     }
   }
 
-  const handleVerifyBvn = async (userId) => {
-    setVerifyingBvn(true)
+  const handleConfirmNin = async (userId) => {
+    setConfirmingNin(true)
     try {
       const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/kyc/admin/submissions/${userId}/verify-bvn`, {
+      const response = await fetch(`${API_BASE_URL}/kyc/admin/submissions/${userId}/confirm-nin`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: ninFetchedData })
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success('NIN confirmed and marked as verified')
+        setNinFetchedData(null)
+        fetchKycSubmissionDetails(userId)
+      } else {
+        toast.error(data.message || 'Failed to confirm NIN')
+      }
+    } catch (error) {
+      console.error('Error confirming NIN:', error)
+      toast.error('Error confirming NIN')
+    } finally {
+      setConfirmingNin(false)
+    }
+  }
+
+  const handleFetchBvn = async (userId) => {
+    setFetchingBvn(true)
+    setBvnFetchedData(null)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/kyc/admin/submissions/${userId}/fetch-bvn`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success('BVN verified successfully')
-        fetchKycSubmissionDetails(userId)
+        setBvnFetchedData(data.data)
       } else {
-        toast.error(data.message || 'BVN verification failed')
+        toast.error(data.message || 'BVN lookup failed')
       }
     } catch (error) {
-      console.error('Error verifying BVN:', error)
-      toast.error('Error verifying BVN')
+      console.error('Error fetching BVN:', error)
+      toast.error('Error fetching BVN data')
     } finally {
-      setVerifyingBvn(false)
+      setFetchingBvn(false)
+    }
+  }
+
+  const handleConfirmBvn = async (userId) => {
+    setConfirmingBvn(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/kyc/admin/submissions/${userId}/confirm-bvn`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: bvnFetchedData })
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success('BVN confirmed and marked as verified')
+        setBvnFetchedData(null)
+        fetchKycSubmissionDetails(userId)
+      } else {
+        toast.error(data.message || 'Failed to confirm BVN')
+      }
+    } catch (error) {
+      console.error('Error confirming BVN:', error)
+      toast.error('Error confirming BVN')
+    } finally {
+      setConfirmingBvn(false)
     }
   }
 
@@ -1269,31 +1323,63 @@ const AdminDashboard = () => {
                       <p className="text-text-secondary text-sm mb-1">NIN</p>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-text-primary font-medium">{selectedKycSubmission.nin || 'N/A'}</p>
-                        {selectedKycSubmission.ninVerified ? (
+                        {!!selectedKycSubmission.ninVerified ? (
                           <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
                             <CheckCircle className="w-3 h-3" /> Verified
                           </span>
-                        ) : selectedKycSubmission.nin ? (
+                        ) : selectedKycSubmission.nin && !ninFetchedData ? (
                           <button
-                            onClick={() => handleVerifyNin(selectedKycSubmission.id)}
-                            disabled={verifyingNin}
+                            onClick={() => handleFetchNin(selectedKycSubmission.id)}
+                            disabled={fetchingNin}
                             className="px-3 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200 hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {verifyingNin ? 'Verifying...' : 'Verify NIN'}
+                            {fetchingNin ? 'Fetching...' : 'Fetch NIN Data'}
                           </button>
                         ) : null}
                       </div>
-                      {selectedKycSubmission.ninVerified && selectedKycSubmission.ninVerificationData && (() => {
-                        const d = typeof selectedKycSubmission.ninVerificationData === 'string'
+                      {!!selectedKycSubmission.ninVerified && selectedKycSubmission.ninVerificationData && (() => {
+                        const raw = typeof selectedKycSubmission.ninVerificationData === 'string'
                           ? JSON.parse(selectedKycSubmission.ninVerificationData)
                           : selectedKycSubmission.ninVerificationData
+                        const d = raw?.data?.data || raw?.data || raw
+                        const skip = new Set(['nin', 'bvn', 'id', 'photo', 'signature', 'status', 'base64image', 'watchlisted', 'enrollmentbank', 'levelofaccount', 'registrationdate'])
+                        const entries = Object.entries(d).filter(([k, v]) => v && !skip.has(k.toLowerCase()) && String(v).length < 200)
                         return (
                           <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-xs text-green-800 space-y-1">
-                            <p className="font-semibold">{[d.firstname, d.middlename, d.surname].filter(Boolean).join(' ')}</p>
-                            {d.birthdate && <p>DOB: {d.birthdate}</p>}
-                            {d.gender && <p>Gender: {d.gender}</p>}
-                            {d.telephoneno && <p>Phone: {d.telephoneno}</p>}
-                            {d.residence_state && <p>State: {d.residence_state}{d.residence_lga ? `, ${d.residence_lga}` : ''}</p>}
+                            {entries.length > 0 ? entries.map(([key, val]) => (
+                              <p key={key}>
+                                <span className="font-semibold capitalize">{key.replace(/_/g, ' ')}:</span> {String(val)}
+                              </p>
+                            )) : <p>Verified</p>}
+                          </div>
+                        )
+                      })()}
+                      {ninFetchedData && !selectedKycSubmission.ninVerified && (() => {
+                        const skip = new Set(['nin', 'bvn', 'id', 'photo', 'signature', 'status', 'base64image', 'watchlisted', 'enrollmentbank', 'levelofaccount', 'registrationdate'])
+                        const entries = Object.entries(ninFetchedData).filter(([k, v]) => v && !skip.has(k.toLowerCase()) && String(v).length < 200)
+                        return (
+                          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
+                            <p className="font-semibold text-blue-800 mb-1">NIN Data — does this match?</p>
+                            {entries.map(([key, val]) => (
+                              <p key={key}>
+                                <span className="font-semibold capitalize">{key.replace(/_/g, ' ')}:</span> {String(val)}
+                              </p>
+                            ))}
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => handleConfirmNin(selectedKycSubmission.id)}
+                                disabled={confirmingNin}
+                                className="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+                              >
+                                {confirmingNin ? 'Confirming...' : 'Confirm Verified'}
+                              </button>
+                              <button
+                                onClick={() => setNinFetchedData(null)}
+                                className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-lg hover:bg-red-200 transition-colors"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
                           </div>
                         )
                       })()}
@@ -1302,30 +1388,63 @@ const AdminDashboard = () => {
                       <p className="text-text-secondary text-sm mb-1">BVN</p>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-text-primary font-medium">{selectedKycSubmission.bvn || 'N/A'}</p>
-                        {selectedKycSubmission.bvnVerified ? (
+                        {!!selectedKycSubmission.bvnVerified ? (
                           <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
                             <CheckCircle className="w-3 h-3" /> Verified
                           </span>
-                        ) : selectedKycSubmission.bvn ? (
+                        ) : selectedKycSubmission.bvn && !bvnFetchedData ? (
                           <button
-                            onClick={() => handleVerifyBvn(selectedKycSubmission.id)}
-                            disabled={verifyingBvn}
+                            onClick={() => handleFetchBvn(selectedKycSubmission.id)}
+                            disabled={fetchingBvn}
                             className="px-3 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200 hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {verifyingBvn ? 'Verifying...' : 'Verify BVN'}
+                            {fetchingBvn ? 'Fetching...' : 'Fetch BVN Data'}
                           </button>
                         ) : null}
                       </div>
-                      {selectedKycSubmission.bvnVerified && selectedKycSubmission.bvnVerificationData && (() => {
-                        const d = typeof selectedKycSubmission.bvnVerificationData === 'string'
+                      {!!selectedKycSubmission.bvnVerified && selectedKycSubmission.bvnVerificationData && (() => {
+                        const raw = typeof selectedKycSubmission.bvnVerificationData === 'string'
                           ? JSON.parse(selectedKycSubmission.bvnVerificationData)
                           : selectedKycSubmission.bvnVerificationData
+                        const d = raw?.data?.data || raw?.data || raw
+                        const skip = new Set(['nin', 'bvn', 'id', 'photo', 'signature', 'status', 'base64image', 'watchlisted', 'enrollmentbank', 'levelofaccount', 'registrationdate'])
+                        const entries = Object.entries(d).filter(([k, v]) => v && !skip.has(k.toLowerCase()) && String(v).length < 200)
                         return (
                           <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-xs text-green-800 space-y-1">
-                            <p className="font-semibold">{[d.firstname, d.middlename, d.surname].filter(Boolean).join(' ')}</p>
-                            {d.birthdate && <p>DOB: {d.birthdate}</p>}
-                            {d.gender && <p>Gender: {d.gender}</p>}
-                            {d.telephoneno && <p>Phone: {d.telephoneno}</p>}
+                            {entries.length > 0 ? entries.map(([key, val]) => (
+                              <p key={key}>
+                                <span className="font-semibold capitalize">{key.replace(/_/g, ' ')}:</span> {String(val)}
+                              </p>
+                            )) : <p>Verified</p>}
+                          </div>
+                        )
+                      })()}
+                      {bvnFetchedData && !selectedKycSubmission.bvnVerified && (() => {
+                        const skip = new Set(['nin', 'bvn', 'id', 'photo', 'signature', 'status', 'base64image', 'watchlisted', 'enrollmentbank', 'levelofaccount', 'registrationdate'])
+                        const entries = Object.entries(bvnFetchedData).filter(([k, v]) => v && !skip.has(k.toLowerCase()) && String(v).length < 200)
+                        return (
+                          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
+                            <p className="font-semibold text-blue-800 mb-1">BVN Data — does this match?</p>
+                            {entries.map(([key, val]) => (
+                              <p key={key}>
+                                <span className="font-semibold capitalize">{key.replace(/_/g, ' ')}:</span> {String(val)}
+                              </p>
+                            ))}
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => handleConfirmBvn(selectedKycSubmission.id)}
+                                disabled={confirmingBvn}
+                                className="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+                              >
+                                {confirmingBvn ? 'Confirming...' : 'Confirm Verified'}
+                              </button>
+                              <button
+                                onClick={() => setBvnFetchedData(null)}
+                                className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-lg hover:bg-red-200 transition-colors"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
                           </div>
                         )
                       })()}
@@ -1498,12 +1617,12 @@ const AdminDashboard = () => {
                               {getKycStatusIcon(submission.kycStatus)}
                               <span className="capitalize">{submission.kycStatus}</span>
                             </span>
-                            {submission.ninVerified ? (
+                            {!!submission.ninVerified ? (
                               <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
                                 <CheckCircle className="w-3 h-3" /> NIN
                               </span>
                             ) : null}
-                            {submission.bvnVerified ? (
+                            {!!submission.bvnVerified ? (
                               <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
                                 <CheckCircle className="w-3 h-3" /> BVN
                               </span>

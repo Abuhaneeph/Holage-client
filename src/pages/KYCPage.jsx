@@ -207,9 +207,16 @@ const KYCPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                NIN (National Identification Number) *
-              </label>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="block text-sm font-medium text-text-secondary">
+                  NIN (National Identification Number) *
+                </label>
+                {!!existingData?.ninVerified && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                    <CheckCircle className="w-3 h-3" /> Verified
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <FileText className="absolute left-4 top-3.5 w-5 h-5 text-text-secondary/70" />
                 <input
@@ -225,9 +232,16 @@ const KYCPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                BVN (Bank Verification Number)
-              </label>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="block text-sm font-medium text-text-secondary">
+                  BVN (Bank Verification Number)
+                </label>
+                {!!existingData?.bvnVerified && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                    <CheckCircle className="w-3 h-3" /> Verified
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <FileText className="absolute left-4 top-3.5 w-5 h-5 text-text-secondary/70" />
                 <input
