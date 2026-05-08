@@ -864,7 +864,7 @@ const ShipperDashboard = () => {
   // Fetch bids for a shipment
   const fetchShipmentBids = async (shipmentId) => {
     if (loadingBids[shipmentId]) return
-    
+
     setLoadingBids(prev => ({ ...prev, [shipmentId]: true }))
     try {
       const token = localStorage.getItem('authToken')
@@ -873,13 +873,17 @@ const ShipperDashboard = () => {
           'Authorization': `Bearer ${token}`
         }
       })
-      
+
       const data = await response.json()
       if (response.ok && data.success) {
         setShipmentBids(prev => ({ ...prev, [shipmentId]: data.bids || [] }))
+      } else {
+        console.error('fetchShipmentBids error:', response.status, data?.error || data?.message)
+        toast.error(data.message || 'Failed to load bids')
       }
     } catch (error) {
       console.error('Error fetching bids:', error)
+      toast.error('Error loading bids. Please try again.')
     } finally {
       setLoadingBids(prev => ({ ...prev, [shipmentId]: false }))
     }
