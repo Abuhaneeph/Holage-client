@@ -1278,7 +1278,7 @@ const ShipperDashboard = () => {
 
   // Confirm pickup
   const handleConfirmPickup = async (shipmentId) => {
-    if (!window.confirm('Confirm that the shipment has been picked up? This will release 65% payment to the trucker/driver.')) {
+    if (!window.confirm('Confirm that the shipment has been picked up? This will release 60% payment to the trucker/driver.')) {
       return
     }
 
@@ -1293,7 +1293,7 @@ const ShipperDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Pickup confirmed! 65% payment has been released.')
+        toast.success(data.message || 'Pickup confirmed! 60% payment has been released.')
         // Refresh shipments and wallet
         fetchMyShipments()
         fetchWallet()
@@ -1633,14 +1633,14 @@ const ShipperDashboard = () => {
                       <div className="mt-4 pt-4 border-t border-border">
                         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
                           <p className="text-warning font-medium mb-2">Driver has marked shipment as picked up</p>
-                          <p className="text-text-secondary text-sm">Please confirm pickup to release 65% payment and allow driver to start trip to destination.</p>
+                          <p className="text-text-secondary text-sm">Please confirm pickup to release 60% payment and allow driver to start trip to destination.</p>
                         </div>
                         <button
                           onClick={() => handleConfirmPickup(shipment.id)}
                           className="w-full bg-warning text-white py-3 rounded-xl font-bold hover:bg-warning/90 transition-colors flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />
-                          <span>Confirm Pickup (Release 65% Payment)</span>
+                          <span>Confirm Pickup (Release 60% Payment)</span>
                         </button>
                       </div>
                     )}
@@ -2986,7 +2986,7 @@ const ShipperDashboard = () => {
                     </li>
                     <li className="flex items-start">
                       <Clock className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">65%</strong> will be credited when shipment is picked up</span>
+                      <span><strong className="text-text-primary">60%</strong> will be credited when shipment is picked up</span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
