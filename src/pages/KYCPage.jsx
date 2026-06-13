@@ -701,6 +701,8 @@ const KYCPage = () => {
                       navigateTo('trucker-dashboard')
                     } else if (userRole === 'fleet_manager') {
                       navigateTo('fleet-manager-dashboard')
+                    } else if (userRole === 'agent') {
+                      navigateTo('agent-dashboard')
                     } else {
                       navigateTo('landing')
                     }

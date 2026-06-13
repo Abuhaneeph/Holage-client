@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   Truck,
   Package,
@@ -22,7 +22,10 @@ import {
   Wallet,
   ArrowUp,
   ArrowDown,
-  Send
+  Send,
+  Edit,
+  FileText,
+  X
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -59,6 +62,12 @@ const DriverDashboard = () => {
   const [bidAmount, setBidAmount] = useState("")
   const [bidMessage, setBidMessage] = useState("")
   const [submittingBid, setSubmittingBid] = useState(false)
+  const [editingBid, setEditingBid] = useState(null)
+  const [cancellingBidId, setCancellingBidId] = useState(null)
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [invoiceData, setInvoiceData] = useState(null)
+  const [loadingInvoice, setLoadingInvoice] = useState(false)
+  const [locationSharing, setLocationSharing] = useState(false)
   const [availablePage, setAvailablePage] = useState(1)
   const [availableTotalPages, setAvailableTotalPages] = useState(1)
   const ITEMS_PER_PAGE = 10
@@ -94,6 +103,7 @@ const DriverDashboard = () => {
       fetchFleetManagerInfo(driver.fleetManagerId)
       fetchAssignedShipments()
       fetchAssignedTrucks()
+      fetchWallet()
 
       const savedBankDetails = localStorage.getItem('driverBankDetails')
       if (savedBankDetails) {
@@ -125,6 +135,64 @@ const DriverDashboard = () => {
       navigateTo('driver-login')
     }
   }, [])
+
+  // Share phone/browser GPS with backend (for km-away on shipper bids)
+  useEffect(() => {
+    if (!driverInfo?.id || !navigator.geolocation) return
+
+    const token = localStorage.getItem("authToken")
+    let lastSentAt = 0
+
+    const sendLocation = (position) => {
+      const now = Date.now()
+      if (now - lastSentAt < 60000) return
+      lastSentAt = now
+
+      fetch(`${API_BASE_URL}/drivers/location`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) setLocationSharing(true)
+        })
+        .catch(() => {})
+    }
+
+    const onError = () => setLocationSharing(false)
+
+    navigator.geolocation.getCurrentPosition(sendLocation, onError, {
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 120000,
+    })
+
+    const watchId = navigator.geolocation.watchPosition(sendLocation, onError, {
+      enableHighAccuracy: false,
+      maximumAge: 180000,
+      timeout: 25000,
+    })
+
+    const interval = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(sendLocation, onError, {
+        enableHighAccuracy: false,
+        maximumAge: 180000,
+        timeout: 20000,
+      })
+    }, 3 * 60 * 1000)
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId)
+      clearInterval(interval)
+    }
+  }, [driverInfo?.id])
 
   // Auto-refresh shipments every 30 seconds
   useEffect(() => {
@@ -356,6 +424,98 @@ const DriverDashboard = () => {
     }
   }
 
+  const monthlyEarnings = useMemo(() => {
+    const now = new Date()
+    return walletTransactions
+      .filter((tx) => {
+        if (tx.type !== "credit" || !tx.createdAt) return false
+        const d = new Date(tx.createdAt)
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      })
+      .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0)
+  }, [walletTransactions])
+
+  const formattedMonthlyEarnings = useMemo(() => {
+    if (monthlyEarnings >= 1000000) return `${(monthlyEarnings / 1000000).toFixed(1)}M`
+    if (monthlyEarnings >= 1000) return `${(monthlyEarnings / 1000).toFixed(1)}k`
+    return monthlyEarnings.toLocaleString("en-NG")
+  }, [monthlyEarnings])
+
+  const openBidModal = (shipment, bid = null) => {
+    setSelectedBidShipment(shipment)
+    setEditingBid(bid)
+    if (bid) {
+      setBidAmount(String(bid.bidAmount || ""))
+      setBidMessage(bid.message || "")
+    } else {
+      setBidAmount(String(Math.ceil(parseFloat(shipment.estimatedCost || 0))))
+      setBidMessage("")
+    }
+    setShowBidModal(true)
+  }
+
+  const closeBidModal = () => {
+    setShowBidModal(false)
+    setEditingBid(null)
+    setBidAmount("")
+    setBidMessage("")
+    setSelectedBidShipment(null)
+  }
+
+  const handleCancelBid = async (bidId) => {
+    if (!window.confirm("Cancel this bid?")) return
+    setCancellingBidId(bidId)
+    try {
+      const token = localStorage.getItem("authToken")
+      const response = await fetch(`${API_BASE_URL}/bids/${bidId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || "Bid cancelled")
+        fetchMyBids()
+        fetchAvailableShipments(availablePage)
+      } else {
+        toast.error(data.message || "Failed to cancel bid")
+      }
+    } catch (error) {
+      console.error("Error cancelling bid:", error)
+      toast.error("Error cancelling bid")
+    } finally {
+      setCancellingBidId(null)
+    }
+  }
+
+  const fetchInvoice = async (bidId) => {
+    setLoadingInvoice(true)
+    setShowInvoiceModal(true)
+    setInvoiceData(null)
+    try {
+      const token = localStorage.getItem("authToken")
+      const response = await fetch(`${API_BASE_URL}/bids/${bidId}/invoice`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setInvoiceData(data.invoice)
+      } else {
+        toast.error(data.message || "Failed to load invoice")
+        setShowInvoiceModal(false)
+      }
+    } catch (error) {
+      console.error("Error fetching invoice:", error)
+      toast.error("Error loading invoice")
+      setShowInvoiceModal(false)
+    } finally {
+      setLoadingInvoice(false)
+    }
+  }
+
+  const handlePrintInvoice = () => {
+    window.print()
+  }
+
   const handleSubmitBid = async (e) => {
     e.preventDefault()
     if (!bidAmount || parseFloat(bidAmount) <= 0) {
@@ -364,31 +524,36 @@ const DriverDashboard = () => {
     }
     setSubmittingBid(true)
     try {
-      const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/bids`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          shipmentId: selectedBidShipment.id,
-          bidAmount: parseFloat(bidAmount),
-          message: bidMessage || null
-        })
-      })
+      const token = localStorage.getItem("authToken")
+      const isEdit = Boolean(editingBid)
+      const response = await fetch(
+        isEdit ? `${API_BASE_URL}/bids/${editingBid.id}` : `${API_BASE_URL}/bids`,
+        {
+          method: isEdit ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(
+            isEdit
+              ? { bidAmount: parseFloat(bidAmount), message: bidMessage || null }
+              : {
+                  shipmentId: selectedBidShipment.id,
+                  bidAmount: parseFloat(bidAmount),
+                  message: bidMessage || null,
+                }
+          ),
+        }
+      )
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success('Bid submitted successfully!')
-        setShowBidModal(false)
-        setBidAmount("")
-        setBidMessage("")
-        setSelectedBidShipment(null)
+        toast.success(isEdit ? "Bid updated successfully!" : "Bid submitted successfully!")
+        closeBidModal()
         fetchMyBids()
-        fetchAvailableShipments()
+        fetchAvailableShipments(availablePage)
       } else {
-        toast.error(data.message || 'Failed to submit bid')
+        toast.error(data.message || `Failed to ${isEdit ? "update" : "submit"} bid`)
       }
     } catch (error) {
-      console.error('Error submitting bid:', error)
-      toast.error('Error submitting bid')
+      console.error("Error submitting bid:", error)
+      toast.error("Error submitting bid")
     } finally {
       setSubmittingBid(false)
     }
@@ -431,6 +596,7 @@ const DriverDashboard = () => {
           deliveryConfirmed: bid.deliveryConfirmed || false,
           shipperName: bid.shipperName,
           shipperPhone: bid.shipperPhone,
+          bidId: bid.id,
           bidAmount: bid.bidAmount,
           bidMessage: bid.message,
           fleetManagerName: bid.fleetManagerName,
@@ -675,6 +841,23 @@ const DriverDashboard = () => {
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-3 mt-3 sm:mt-4">
+          <div className="bg-white/10 rounded-xl p-3">
+            <p className="text-white/80 text-xs">This Month</p>
+            <p className="text-white font-bold text-lg sm:text-xl">₦{formattedMonthlyEarnings}</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-3">
+            <p className="text-white/80 text-xs">Wallet Balance</p>
+            <p className="text-white font-bold text-lg sm:text-xl">₦{walletBalance.toLocaleString("en-NG")}</p>
+          </div>
+        </div>
+        {locationSharing && (
+          <p className="text-white/70 text-xs mt-2 flex items-center gap-1">
+            <MapPin className="w-3 h-3" />
+            Location shared — shippers see how far you are from pickup
+          </p>
+        )}
+
         {fleetManagerInfo && (
           <div className="mt-3 sm:mt-4 p-3 bg-white/10 rounded-xl">
             <p className="text-white/80 text-xs sm:text-sm mb-1">Fleet Manager</p>
@@ -753,7 +936,55 @@ const DriverDashboard = () => {
                         <p className="text-text-secondary text-xs mb-1">
                           #{bid.shipmentId} • {bid.cargoType} • {bid.weight}t
                         </p>
-                        <p className="text-success font-bold">₦{parseFloat(bid.bidAmount).toLocaleString('en-NG')}</p>
+                        <p className="text-success font-bold">₦{parseFloat(bid.bidAmount).toLocaleString("en-NG")}</p>
+                        {bid.status === "pending" && (
+                          <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openBidModal(
+                                  {
+                                    id: bid.shipmentId,
+                                    pickupState: bid.pickupState,
+                                    destinationState: bid.destinationState,
+                                    cargoType: bid.cargoType,
+                                    weight: bid.weight,
+                                    truckType: bid.truckType,
+                                    estimatedCost: bid.shipmentEstimatedCost,
+                                  },
+                                  bid
+                                )
+                              }
+                              className="flex-1 bg-primary/10 text-primary py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 hover:bg-primary/20"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              Edit Bid
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelBid(bid.id)}
+                              disabled={cancellingBidId === bid.id}
+                              className="flex-1 bg-error/10 text-error py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 hover:bg-error/20 disabled:opacity-50"
+                            >
+                              {cancellingBidId === bid.id ? (
+                                <Loader className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <X className="w-3.5 h-3.5" />
+                              )}
+                              Cancel Bid
+                            </button>
+                          </div>
+                        )}
+                        {bid.status === "accepted" && (
+                          <button
+                            type="button"
+                            onClick={() => fetchInvoice(bid.id)}
+                            className="mt-3 w-full bg-muted text-text-primary py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 hover:bg-muted/80"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            Invoice
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -793,21 +1024,36 @@ const DriverDashboard = () => {
                             </div>
                             <div className="flex-shrink-0">
                               {existingBid ? (
-                                <span className={`text-xs px-2 py-1 rounded-lg font-medium ${
-                                  existingBid.status === 'accepted' ? 'bg-success/10 text-success'
-                                  : existingBid.status === 'rejected' ? 'bg-error/10 text-error'
-                                  : 'bg-warning/10 text-warning'
-                                }`}>
-                                  Bid: {existingBid.status}
-                                </span>
+                                existingBid.status === "pending" ? (
+                                  <div className="flex flex-col gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => openBidModal(shipment, existingBid)}
+                                      className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-lg font-medium"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCancelBid(existingBid.id)}
+                                      disabled={cancellingBidId === existingBid.id}
+                                      className="bg-error/10 text-error text-xs px-2 py-1 rounded-lg font-medium disabled:opacity-50"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={`text-xs px-2 py-1 rounded-lg font-medium ${
+                                    existingBid.status === "accepted" ? "bg-success/10 text-success"
+                                    : existingBid.status === "rejected" ? "bg-error/10 text-error"
+                                    : "bg-warning/10 text-warning"
+                                  }`}>
+                                    Bid: {existingBid.status}
+                                  </span>
+                                )
                               ) : (
                                 <button
-                                  onClick={() => {
-                                    setSelectedBidShipment(shipment)
-                                    setBidAmount(String(Math.ceil(parseFloat(shipment.estimatedCost || 0))))
-                                    setBidMessage("")
-                                    setShowBidModal(true)
-                                  }}
+                                  onClick={() => openBidModal(shipment)}
                                   className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-medium hover:bg-primary/90 transition-colors"
                                 >
                                   Bid
@@ -847,15 +1093,25 @@ const DriverDashboard = () => {
           {/* ========== WALLET TAB ========== */}
           {activeTab === "wallet" && (
             <div className="space-y-4">
-              <div className="bg-gradient-to-br from-primary to-secondary rounded-2xl p-5 text-white">
-                <p className="text-white/80 text-sm mb-1">Available Balance</p>
-                {loadingWallet ? (
-                  <Loader className="w-6 h-6 animate-spin" />
-                ) : (
-                  <p className="text-3xl font-bold">₦{walletBalance.toLocaleString('en-NG')}</p>
-                )}
-                <p className="text-white/70 text-xs mt-1">Earnings are credited to your account as trips progress</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gradient-to-br from-primary to-secondary rounded-2xl p-5 text-white">
+                  <p className="text-white/80 text-sm mb-1">Available Balance</p>
+                  {loadingWallet ? (
+                    <Loader className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <p className="text-2xl sm:text-3xl font-bold">₦{walletBalance.toLocaleString("en-NG")}</p>
+                  )}
+                </div>
+                <div className="bg-gradient-to-br from-success to-success/80 rounded-2xl p-5 text-white">
+                  <p className="text-white/80 text-sm mb-1">This Month</p>
+                  {loadingWallet ? (
+                    <Loader className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <p className="text-2xl sm:text-3xl font-bold">₦{formattedMonthlyEarnings}</p>
+                  )}
+                </div>
               </div>
+              <p className="text-text-secondary text-xs -mt-2">Earnings are credited to your account as trips progress (5% / 60% / 35%)</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
@@ -1202,11 +1458,23 @@ const DriverDashboard = () => {
                           </div>
                         </div>
 
-                        <div className="pt-3 border-t border-border">
-                          <p className="text-text-secondary text-xs sm:text-sm mb-1">Bid Amount</p>
-                          <p className="text-success font-bold text-lg sm:text-xl">
-                            ₦{parseFloat(shipment.bidAmount || 0).toLocaleString('en-NG')}
-                          </p>
+                        <div className="pt-3 border-t border-border flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-text-secondary text-xs sm:text-sm mb-1">Bid Amount</p>
+                            <p className="text-success font-bold text-lg sm:text-xl">
+                              ₦{parseFloat(shipment.bidAmount || 0).toLocaleString("en-NG")}
+                            </p>
+                          </div>
+                          {shipment.bidId && (
+                            <button
+                              type="button"
+                              onClick={() => fetchInvoice(shipment.bidId)}
+                              className="bg-primary/10 text-primary px-3 py-2 rounded-xl text-xs sm:text-sm font-medium flex items-center gap-1.5 hover:bg-primary/20"
+                            >
+                              <FileText className="w-4 h-4" />
+                              Invoice
+                            </button>
+                          )}
                         </div>
 
                         {shipment.bidMessage && (
@@ -1350,12 +1618,104 @@ const DriverDashboard = () => {
       </div>
 
       {/* Bid Modal */}
+      {showInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4 print:p-0">
+          <div className="bg-card w-full max-w-lg rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto print:shadow-none print:max-h-none">
+            <div className="flex items-center justify-between p-5 border-b border-border print:hidden">
+              <h3 className="text-text-primary font-bold text-lg">Trip Invoice</h3>
+              <button
+                type="button"
+                onClick={() => { setShowInvoiceModal(false); setInvoiceData(null) }}
+                className="text-text-secondary hover:text-text-primary"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-5 space-y-4" id="driver-invoice-print">
+              {loadingInvoice ? (
+                <div className="flex justify-center py-12"><Loader className="w-8 h-8 animate-spin text-primary" /></div>
+              ) : invoiceData ? (
+                <>
+                  <div className="text-center border-b border-border pb-4">
+                    <p className="text-primary font-bold text-xl">Holage</p>
+                    <p className="text-text-secondary text-sm">Freight Trip Invoice</p>
+                    <p className="text-text-primary font-mono text-sm mt-2">{invoiceData.invoiceNumber}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-text-secondary text-xs">Driver</p>
+                      <p className="text-text-primary font-medium">{invoiceData.parties?.driverName || driverInfo?.driverName}</p>
+                    </div>
+                    <div>
+                      <p className="text-text-secondary text-xs">Shipper</p>
+                      <p className="text-text-primary font-medium">{invoiceData.parties?.shipperName || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-text-secondary text-xs">Shipment</p>
+                      <p className="text-text-primary font-medium">#{invoiceData.shipmentId}</p>
+                    </div>
+                    <div>
+                      <p className="text-text-secondary text-xs">Status</p>
+                      <p className="text-text-primary font-medium capitalize">{invoiceData.status}</p>
+                    </div>
+                  </div>
+                  <div className="bg-muted/30 rounded-xl p-4 text-sm space-y-2">
+                    <p><span className="text-text-secondary">Route:</span> {invoiceData.route?.pickup} → {invoiceData.route?.destination}</p>
+                    <p><span className="text-text-secondary">Cargo:</span> {invoiceData.cargo?.type} • {invoiceData.cargo?.weight}t • {invoiceData.cargo?.truckType}</p>
+                    {invoiceData.route?.distanceKm && (
+                      <p><span className="text-text-secondary">Distance:</span> {invoiceData.route.distanceKm} km</p>
+                    )}
+                  </div>
+                  <div className="border border-border rounded-xl overflow-hidden text-sm">
+                    <div className="bg-muted/50 px-4 py-2 font-medium text-text-primary">Payment breakdown</div>
+                    <div className="divide-y divide-border">
+                      <div className="flex justify-between px-4 py-2">
+                        <span className="text-text-secondary">Upfront (5%)</span>
+                        <span className="font-medium">₦{invoiceData.amounts?.upfront?.toLocaleString("en-NG")}</span>
+                      </div>
+                      <div className="flex justify-between px-4 py-2">
+                        <span className="text-text-secondary">Pickup (60%)</span>
+                        <span className="font-medium">₦{invoiceData.amounts?.pickup?.toLocaleString("en-NG")}</span>
+                      </div>
+                      <div className="flex justify-between px-4 py-2">
+                        <span className="text-text-secondary">Delivery (35%)</span>
+                        <span className="font-medium">₦{invoiceData.amounts?.delivery?.toLocaleString("en-NG")}</span>
+                      </div>
+                      <div className="flex justify-between px-4 py-3 bg-primary/5 font-bold text-primary">
+                        <span>Total</span>
+                        <span>₦{invoiceData.amounts?.total?.toLocaleString("en-NG")}</span>
+                      </div>
+                    </div>
+                  </div>
+                  {invoiceData.issuedAt && (
+                    <p className="text-text-secondary text-xs text-center">
+                      Issued {new Date(invoiceData.issuedAt).toLocaleString()}
+                    </p>
+                  )}
+                </>
+              ) : null}
+            </div>
+            {invoiceData && (
+              <div className="p-5 border-t border-border print:hidden">
+                <button
+                  type="button"
+                  onClick={handlePrintInvoice}
+                  className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90"
+                >
+                  Print / Save Invoice
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {showBidModal && selectedBidShipment && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4">
           <div className="bg-card w-full max-w-md rounded-2xl shadow-xl">
             <div className="flex items-center justify-between p-5 border-b border-border">
-              <h3 className="text-text-primary font-bold text-lg">Submit Bid</h3>
-              <button onClick={() => setShowBidModal(false)} className="text-text-secondary hover:text-text-primary">✕</button>
+              <h3 className="text-text-primary font-bold text-lg">{editingBid ? "Edit Bid" : "Submit Bid"}</h3>
+              <button type="button" onClick={closeBidModal} className="text-text-secondary hover:text-text-primary">✕</button>
             </div>
             <div className="p-5 space-y-4">
               <div className="bg-muted/30 rounded-xl p-4">
@@ -1397,7 +1757,11 @@ const DriverDashboard = () => {
                   disabled={submittingBid}
                   className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {submittingBid ? <><Loader className="w-5 h-5 animate-spin" /><span>Submitting...</span></> : <><Send className="w-5 h-5" /><span>Submit Bid</span></>}
+                  {submittingBid ? (
+                    <><Loader className="w-5 h-5 animate-spin" /><span>{editingBid ? "Updating..." : "Submitting..."}</span></>
+                  ) : (
+                    <><Send className="w-5 h-5" /><span>{editingBid ? "Update Bid" : "Submit Bid"}</span></>
+                  )}
                 </button>
               </form>
             </div>

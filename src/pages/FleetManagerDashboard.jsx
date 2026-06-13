@@ -52,6 +52,10 @@ const FleetManagerDashboard = () => {
   const [showAddTruckModal, setShowAddTruckModal] = useState(false)
   const [showEditTruckModal, setShowEditTruckModal] = useState(false)
   const [showRegisterDriverTruckModal, setShowRegisterDriverTruckModal] = useState(false)
+  const [showEnrollDriverModal, setShowEnrollDriverModal] = useState(false)
+  const [enrollForm, setEnrollForm] = useState({ driverCodeOrUsername: "" })
+  const [submittingEnroll, setSubmittingEnroll] = useState(false)
+  const [addTruckStep, setAddTruckStep] = useState(1)
   const [selectedTruck, setSelectedTruck] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [uploadingTruckPhotoId, setUploadingTruckPhotoId] = useState(null)
@@ -60,11 +64,20 @@ const FleetManagerDashboard = () => {
   const [truckForm, setTruckForm] = useState({
     plateNumber: "",
     vehicleType: "",
+    capacity: "",
+    product: "",
+    description: "",
+    type: "",
+    color: "",
+    notes: "",
     driverLicense: "",
     vehicleReg: "",
     status: "active",
     quantity: 1,
-    driverId: ""
+    driverId: "",
+    imageFront: null,
+    imageSide: null,
+    imageBack: null,
   })
   
   // Combined driver/truck registration form state
@@ -364,12 +377,22 @@ const FleetManagerDashboard = () => {
     setTruckForm({
       plateNumber: "",
       vehicleType: "",
+      capacity: "",
+      product: "",
+      description: "",
+      type: "",
+      color: "",
+      notes: "",
       driverLicense: "",
       vehicleReg: "",
       status: "active",
       quantity: 1,
-      driverId: ""
+      driverId: "",
+      imageFront: null,
+      imageSide: null,
+      imageBack: null,
     })
+    setAddTruckStep(1)
   }
   
   // Reset driver form
@@ -684,51 +707,103 @@ const FleetManagerDashboard = () => {
 
   }
 
-  // Handle add truck
-  const handleAddTruck = async (e) => {
+  const handleEnrollDriver = async (e) => {
     e.preventDefault()
-    
-    if (!truckForm.plateNumber || !truckForm.vehicleType) {
-      toast.error("Plate number and vehicle type are required")
+    if (!enrollForm.driverCodeOrUsername.trim()) {
+      toast.error("Enter the driver's code or username (phone number)")
       return
     }
-    
-    setSubmitting(true)
+    setSubmittingEnroll(true)
     try {
-      const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/trucks`, {
-        method: 'POST',
+      const token = localStorage.getItem("authToken")
+      const response = await fetch(`${API_BASE_URL}/drivers/enroll`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          ...truckForm,
-          quantity: parseInt(truckForm.quantity) || 1,
-          driverId: truckForm.driverId || null
-        })
+          driverCode: enrollForm.driverCodeOrUsername.trim(),
+        }),
       })
-      
       const data = await response.json()
-      
-      if (response.ok) {
-        toast.success('Truck added successfully!')
+      if (response.ok && data.success) {
+        toast.success(data.message || "Driver enrolled successfully")
+        setShowEnrollDriverModal(false)
+        setEnrollForm({ driverCodeOrUsername: "" })
+        fetchDrivers()
+        fetchFleetOverview()
+      } else {
+        toast.error(data.message || "Failed to enroll driver")
+      }
+    } catch (error) {
+      console.error("Error enrolling driver:", error)
+      toast.error("Error enrolling driver")
+    } finally {
+      setSubmittingEnroll(false)
+    }
+  }
+
+  // Handle add truck (details + images, no driver registration)
+  const handleAddTruck = async (e) => {
+    e.preventDefault()
+
+    if (addTruckStep === 1) {
+      if (!truckForm.plateNumber || !truckForm.vehicleType) {
+        toast.error("Plate number and vehicle type are required")
+        return
+      }
+      if (!truckForm.capacity || parseFloat(truckForm.capacity) <= 0) {
+        toast.error("Carrying capacity (tons) is required")
+        return
+      }
+      setAddTruckStep(2)
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const token = localStorage.getItem("authToken")
+      const formData = new FormData()
+      formData.append("plateNumber", truckForm.plateNumber)
+      formData.append("vehicleType", truckForm.vehicleType)
+      formData.append("capacity", truckForm.capacity)
+      if (truckForm.product) formData.append("product", truckForm.product)
+      if (truckForm.description) formData.append("description", truckForm.description)
+      if (truckForm.type) formData.append("type", truckForm.type)
+      if (truckForm.color) formData.append("color", truckForm.color)
+      if (truckForm.notes) formData.append("notes", truckForm.notes)
+      if (truckForm.driverId) formData.append("driverId", truckForm.driverId)
+      if (truckForm.imageFront) formData.append("imageFront", truckForm.imageFront)
+      if (truckForm.imageSide) formData.append("imageSide", truckForm.imageSide)
+      if (truckForm.imageBack) formData.append("imageBack", truckForm.imageBack)
+
+      const response = await fetch(`${API_BASE_URL}/trucks/with-images`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        toast.success("Truck added successfully!")
         setShowAddTruckModal(false)
         resetTruckForm()
         fetchTrucks()
       } else {
-        toast.error(data.message || 'Failed to add truck')
+        toast.error(data.message || "Failed to add truck")
       }
     } catch (error) {
-      console.error('Error adding truck:', error)
-      toast.error('Error adding truck')
+      console.error("Error adding truck:", error)
+      toast.error("Error adding truck")
     } finally {
       setSubmitting(false)
     }
   }
 
   // Upload vehicle photo for truck (Edit Truck modal)
-  const handleTruckPhotoUpload = async (truckId, file) => {
+  const handleTruckPhotoUpload = async (truckId, file, view = "front") => {
     if (!file || file.size > 5 * 1024 * 1024) {
       toast.error("Please select an image under 5MB")
       return
@@ -738,6 +813,7 @@ const FleetManagerDashboard = () => {
       const token = localStorage.getItem("authToken")
       const formData = new FormData()
       formData.append("truckImage", file)
+      formData.append("view", view)
       const res = await fetch(`${API_BASE_URL}/trucks/${truckId}/photo`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -746,7 +822,7 @@ const FleetManagerDashboard = () => {
       const data = await res.json()
       if (res.ok && data.truck) {
         toast.success("Vehicle photo updated.")
-        setSelectedTruck((prev) => (prev?.id === truckId ? { ...prev, imageUrl: data.truck.imageUrl } : prev))
+        setSelectedTruck((prev) => (prev?.id === truckId ? { ...prev, ...data.truck } : prev))
         fetchTrucks()
       } else {
         toast.error(data.message || "Failed to upload photo")
@@ -764,11 +840,20 @@ const FleetManagerDashboard = () => {
     setTruckForm({
       plateNumber: truck.plateNumber,
       vehicleType: truck.vehicleType,
+      capacity: truck.capacity != null ? String(truck.capacity) : "",
+      product: truck.product || "",
+      description: truck.description || "",
+      type: truck.type || "",
+      color: truck.color || "",
+      notes: truck.notes || "",
       driverLicense: truck.driverLicense || "",
       vehicleReg: truck.vehicleReg || "",
       status: truck.status || "active",
       quantity: 1,
-      driverId: truck.driverId ? String(truck.driverId) : ""
+      driverId: truck.driverId ? String(truck.driverId) : "",
+      imageFront: null,
+      imageSide: null,
+      imageBack: null,
     })
     setShowEditTruckModal(true)
   }
@@ -961,6 +1046,7 @@ const FleetManagerDashboard = () => {
         },
         body: JSON.stringify({
           ...truckForm,
+          capacity: truckForm.capacity ? parseFloat(truckForm.capacity) : null,
           driverId: truckForm.driverId || null
         })
       })
@@ -1299,17 +1385,28 @@ const FleetManagerDashboard = () => {
               </div>
             </div>
 
-            {/* Register Driver & Truck Button */}
-            <button
-              onClick={() => {
-                resetDriverTruckForm()
-                setShowRegisterDriverTruckModal(true)
-              }}
-              className="w-full bg-gradient-to-r from-primary to-primary/80 rounded-3xl p-6 shadow-lg flex items-center justify-center space-x-3 hover:shadow-xl transition-all"
-            >
-              <Plus className="w-6 h-6 text-white" />
-              <span className="text-white font-bold text-lg">Register Driver & Truck</span>
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setEnrollForm({ driverCodeOrUsername: "" })
+                  setShowEnrollDriverModal(true)
+                }}
+                className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-4 shadow-lg flex flex-col items-center justify-center space-y-2 hover:shadow-xl transition-all"
+              >
+                <Users className="w-6 h-6 text-white" />
+                <span className="text-white font-bold text-sm text-center">Enroll Driver</span>
+              </button>
+              <button
+                onClick={() => {
+                  resetTruckForm()
+                  setShowAddTruckModal(true)
+                }}
+                className="bg-gradient-to-r from-success to-success/80 rounded-2xl p-4 shadow-lg flex flex-col items-center justify-center space-y-2 hover:shadow-xl transition-all"
+              >
+                <Truck className="w-6 h-6 text-white" />
+                <span className="text-white font-bold text-sm text-center">Add Truck</span>
+              </button>
+            </div>
 
             {/* Trucks List */}
             <div>
@@ -1335,6 +1432,11 @@ const FleetManagerDashboard = () => {
                           <div>
                             <p className="text-text-primary font-bold">{truck.plateNumber}</p>
                             <p className="text-text-secondary text-sm">{truck.vehicleType}</p>
+                            {truck.capacity != null && (
+                              <p className="text-text-secondary text-xs mt-0.5">
+                                Capacity: {truck.capacity} tons
+                              </p>
+                            )}
                             {truck.driverName && (
                               <p className="text-text-secondary text-xs mt-1 flex items-center space-x-1">
                                 <User className="w-3 h-3" />
@@ -1559,13 +1661,13 @@ const FleetManagerDashboard = () => {
               <h2 className="text-text-primary font-bold text-2xl">Drivers</h2>
               <button
                 onClick={() => {
-                  resetDriverTruckForm()
-                  setShowRegisterDriverTruckModal(true)
+                  setEnrollForm({ driverCodeOrUsername: "" })
+                  setShowEnrollDriverModal(true)
                 }}
                 className="bg-primary text-white px-4 py-2 rounded-xl font-medium flex items-center space-x-2"
               >
                 <Plus className="w-5 h-5" />
-                <span>Register Driver & Truck</span>
+                <span>Enroll Driver</span>
               </button>
             </div>
 
@@ -1587,6 +1689,9 @@ const FleetManagerDashboard = () => {
                           <div>
                             <p className="text-text-primary font-bold text-lg">{driver.driverName}</p>
                             <p className="text-text-secondary text-sm">{driver.phoneNumber}</p>
+                            {driver.driverCode && (
+                              <p className="text-primary text-xs font-medium mt-0.5">Code: {driver.driverCode}</p>
+                            )}
                             {driverRatings[driver.id]?.count > 0 && (
                               <div className="flex items-center gap-1.5 mt-1">
                                 <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
@@ -2218,12 +2323,70 @@ const FleetManagerDashboard = () => {
         )}
       </div>
 
-      {/* Add Truck Modal - DEPRECATED: Use "Register Driver & Truck" flow instead */}
-      {false && showAddTruckModal && (
+      {/* Enroll Driver Modal */}
+      {showEnrollDriverModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[85vh] flex flex-col">
             <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">
-              <h3 className="text-text-primary font-bold text-xl">Add New Truck</h3>
+              <h3 className="text-text-primary font-bold text-xl">Enroll Existing Driver</h3>
+              <button
+                onClick={() => {
+                  setShowEnrollDriverModal(false)
+                  setEnrollForm({ driverCodeOrUsername: "" })
+                }}
+                className="w-10 h-10 bg-muted rounded-full flex items-center justify-center"
+              >
+                <X className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEnrollDriver} className="flex-1 overflow-y-auto p-4 space-y-4">
+              <p className="text-text-secondary text-sm">
+                Enter the driver&apos;s unique code or username (phone number) to add them to your fleet. This does not create a new driver account.
+              </p>
+              <div>
+                <label className="block text-text-primary font-medium mb-2">Driver Code or Username *</label>
+                <input
+                  type="text"
+                  value={enrollForm.driverCodeOrUsername}
+                  onChange={(e) => setEnrollForm({ driverCodeOrUsername: e.target.value })}
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                  placeholder="e.g. DRV-ABC123 or 08012345678"
+                  required
+                  disabled={submittingEnroll}
+                />
+              </div>
+
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={submittingEnroll}
+                  className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {submittingEnroll ? (
+                    <>
+                      <Loader className="w-5 h-5 animate-spin mr-2" />
+                      Enrolling...
+                    </>
+                  ) : (
+                    "Enroll Driver"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Truck Modal */}
+      {showAddTruckModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[85vh] flex flex-col">
+            <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">
+              <div>
+                <h3 className="text-text-primary font-bold text-xl">Add New Truck</h3>
+                <p className="text-text-secondary text-xs mt-1">Step {addTruckStep} of 2 — {addTruckStep === 1 ? "Truck details" : "Vehicle photos"}</p>
+              </div>
               <button
                 onClick={() => {
                   setShowAddTruckModal(false)
@@ -2236,82 +2399,125 @@ const FleetManagerDashboard = () => {
             </div>
 
             <form onSubmit={handleAddTruck} className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Plate Number *</label>
-                <input
-                  type="text"
-                  value={truckForm.plateNumber}
-                  onChange={(e) => setTruckForm({ ...truckForm, plateNumber: e.target.value.toUpperCase() })}
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  placeholder="e.g., ABC 123 XY"
-                  required
-                  disabled={submitting}
-                />
-              </div>
+              {addTruckStep === 1 ? (
+                <>
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Plate Number *</label>
+                    <input
+                      type="text"
+                      value={truckForm.plateNumber}
+                      onChange={(e) => setTruckForm({ ...truckForm, plateNumber: e.target.value.toUpperCase() })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="e.g., ABC 123 XY"
+                      required
+                      disabled={submitting}
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Vehicle Type *</label>
-                <select
-                  value={truckForm.vehicleType}
-                  onChange={(e) => setTruckForm({ ...truckForm, vehicleType: e.target.value })}
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  required
-                  disabled={submitting}
-                >
-                  <option value="">Select vehicle type</option>
-                  {vehicleTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Vehicle Type *</label>
+                    <select
+                      value={truckForm.vehicleType}
+                      onChange={(e) => setTruckForm({ ...truckForm, vehicleType: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      required
+                      disabled={submitting}
+                    >
+                      <option value="">Select vehicle type</option>
+                      {vehicleTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Carrying Capacity (tons) *</label>
+                    <input
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      value={truckForm.capacity}
+                      onChange={(e) => setTruckForm({ ...truckForm, capacity: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="e.g. 30"
+                      required
+                      disabled={submitting}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Assign Driver (Optional)</label>
+                    <select
+                      value={truckForm.driverId}
+                      onChange={(e) => setTruckForm({ ...truckForm, driverId: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      disabled={submitting}
+                    >
+                      <option value="">No driver assigned</option>
+                      {drivers.filter(d => d.isActive).map((driver) => (
+                        <option key={driver.id} value={driver.id}>
+                          {driver.driverName} - {driver.phoneNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-text-secondary text-sm">Upload front, side, and back views of the truck (optional but recommended).</p>
+                  {[
+                    { key: "imageFront", label: "Front View", field: "imageFront" },
+                    { key: "imageSide", label: "Side View", field: "imageSide" },
+                    { key: "imageBack", label: "Back View", field: "imageBack" },
+                  ].map(({ key, label, field }) => (
+                    <div key={key}>
+                      <label className="block text-text-primary font-medium mb-2">{label}</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={submitting}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null
+                          setTruckForm({ ...truckForm, [field]: file })
+                          e.target.value = ""
+                        }}
+                        className="w-full text-sm text-text-secondary file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-white file:text-sm"
+                      />
+                      {truckForm[field] && (
+                        <p className="text-success text-xs mt-1">{truckForm[field].name} selected</p>
+                      )}
+                    </div>
                   ))}
-                </select>
-              </div>
+                </>
+              )}
 
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Quantity *</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={truckForm.quantity}
-                  onChange={(e) => setTruckForm({ ...truckForm, quantity: parseInt(e.target.value) || 1 })}
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  placeholder="Number of units"
-                  required
-                  disabled={submitting}
-                />
-                <p className="text-text-secondary text-xs mt-1">Multiple trucks will be created with sequential plate numbers</p>
-              </div>
-
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Assign Driver (Optional)</label>
-                <select
-                  value={truckForm.driverId}
-                  onChange={(e) => setTruckForm({ ...truckForm, driverId: e.target.value })}
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  disabled={submitting}
-                >
-                  <option value="">No driver assigned</option>
-                  {drivers.filter(d => d.isActive).map((driver) => (
-                    <option key={driver.id} value={driver.id}>
-                      {driver.driverName} - {driver.phoneNumber}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="pt-4">
+              <div className="pt-4 flex gap-3">
+                {addTruckStep === 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setAddTruckStep(1)}
+                    disabled={submitting}
+                    className="flex-1 bg-muted text-text-primary py-4 rounded-xl font-bold text-lg hover:bg-muted/80 transition-colors disabled:opacity-50"
+                  >
+                    Back
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  className="flex-1 bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {submitting ? (
                     <>
                       <Loader className="w-5 h-5 animate-spin mr-2" />
                       Adding...
                     </>
+                  ) : addTruckStep === 1 ? (
+                    "Next: Photos"
                   ) : (
-                    'Add Truck'
+                    "Add Truck"
                   )}
                 </button>
               </div>
@@ -2371,6 +2577,21 @@ const FleetManagerDashboard = () => {
               </div>
 
               <div>
+                <label className="block text-text-primary font-medium mb-2">Carrying Capacity (tons) *</label>
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={truckForm.capacity}
+                  onChange={(e) => setTruckForm({ ...truckForm, capacity: e.target.value })}
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                  placeholder="e.g. 30"
+                  required
+                  disabled={submitting}
+                />
+              </div>
+
+              <div>
                 <label className="block text-text-primary font-medium mb-2">Assign Driver (Optional)</label>
                 <select
                   value={truckForm.driverId}
@@ -2402,40 +2623,49 @@ const FleetManagerDashboard = () => {
                 </select>
               </div>
 
-              {/* Vehicle photo */}
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Vehicle Photo</label>
-                <div className="flex items-center gap-3">
-                  {selectedTruck?.imageUrl ? (
-                    <img
-                      src={selectedTruck.imageUrl}
-                      alt="Vehicle"
-                      className="w-20 h-20 rounded-lg object-cover border border-border"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 rounded-lg border border-border bg-muted flex items-center justify-center">
-                      <Truck className="w-8 h-8 text-text-secondary" />
+              {/* Vehicle photos — front, side, back */}
+              <div className="space-y-4">
+                <label className="block text-text-primary font-medium">Vehicle Photos</label>
+                {[
+                  { view: "front", label: "Front View", url: selectedTruck?.imageFrontUrl || selectedTruck?.imageUrl },
+                  { view: "side", label: "Side View", url: selectedTruck?.imageSideUrl },
+                  { view: "back", label: "Back View", url: selectedTruck?.imageBackUrl },
+                ].map(({ view, label, url }) => (
+                  <div key={view}>
+                    <p className="text-text-secondary text-sm mb-2">{label}</p>
+                    <div className="flex items-center gap-3">
+                      {url ? (
+                        <img
+                          src={url}
+                          alt={label}
+                          className="w-20 h-20 rounded-lg object-cover border border-border"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 rounded-lg border border-border bg-muted flex items-center justify-center">
+                          <Truck className="w-8 h-8 text-text-secondary" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingTruckPhotoId === selectedTruck?.id}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file && selectedTruck?.id) handleTruckPhotoUpload(selectedTruck.id, file, view)
+                            e.target.value = ""
+                          }}
+                          className="w-full text-sm text-text-secondary file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-white file:text-sm"
+                        />
+                      </div>
                     </div>
-                  )}
-                  <div className="flex-1">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      disabled={uploadingTruckPhotoId === selectedTruck?.id}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file && selectedTruck?.id) handleTruckPhotoUpload(selectedTruck.id, file)
-                        e.target.value = ""
-                      }}
-                      className="w-full text-sm text-text-secondary file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-white file:text-sm"
-                    />
-                    {uploadingTruckPhotoId === selectedTruck?.id && (
-                      <p className="text-primary text-xs mt-1 flex items-center gap-1">
-                        <Loader className="w-3 h-3 animate-spin" /> Uploading...
-                      </p>
-                    )}
                   </div>
-                </div>
+                ))}
+                {uploadingTruckPhotoId === selectedTruck?.id && (
+                  <p className="text-primary text-xs flex items-center gap-1">
+                    <Loader className="w-3 h-3 animate-spin" /> Uploading...
+                  </p>
+                )}
               </div>
 
               <div className="pt-4">
@@ -2838,8 +3068,8 @@ const FleetManagerDashboard = () => {
         </div>
       )}
 
-      {/* Register Driver & Truck Modal */}
-      {showRegisterDriverTruckModal && (
+      {/* Register Driver & Truck Modal — deprecated; use Enroll Driver + Add Truck */}
+      {false && showRegisterDriverTruckModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">

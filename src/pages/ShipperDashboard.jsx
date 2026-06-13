@@ -42,6 +42,15 @@ import SingleShipmentMap from "../components/SingleShipmentMap"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
+const calculateStageAmount = (totalAmount, percentage) =>
+  Math.round(parseFloat(totalAmount || 0) * (percentage / 100) * 100) / 100
+
+const calculateBidAcceptUpfrontDue = (bidAmount, estimatedCost) => {
+  const bidUpfront = calculateStageAmount(bidAmount, 5)
+  const estimateUpfront = calculateStageAmount(estimatedCost, 5)
+  return Math.max(0, bidUpfront - estimateUpfront)
+}
+
 const ShipperDashboard = () => {
   const { user, logoutUser, navigateTo } = useAppContext()
   const toast = useToast()
@@ -106,6 +115,8 @@ const ShipperDashboard = () => {
   const [showBidAcceptModal, setShowBidAcceptModal] = useState(false)
   const [selectedBidForAccept, setSelectedBidForAccept] = useState(null)
   const [selectedShipmentForBid, setSelectedShipmentForBid] = useState(null)
+  const [showBidAcceptSuccessModal, setShowBidAcceptSuccessModal] = useState(false)
+  const [bidAcceptSuccessInfo, setBidAcceptSuccessInfo] = useState(null)
   const [shipmentDetails, setShipmentDetails] = useState({}) // { shipmentId: { acceptedBidWithRating, shipmentRatings } }
   const [loadingShipmentDetail, setLoadingShipmentDetail] = useState({})
   const [ratingForm, setRatingForm] = useState({ rating: 5, comment: '' })
@@ -687,6 +698,13 @@ const ShipperDashboard = () => {
       toast.error("Invalid LGA selection. Please select a valid LGA for both pickup and destination.")
       return
     }
+
+    const estimatedTotal = costEstimate?.cost?.totalCost || 0
+    const upfrontRequired = calculateStageAmount(estimatedTotal, 5)
+    if (estimatedTotal > 0 && walletBalance < upfrontRequired) {
+      toast.error(`Insufficient wallet balance. Required: ₦${upfrontRequired.toLocaleString('en-NG')} (5% upfront of ₦${estimatedTotal.toLocaleString('en-NG')}), Available: ₦${walletBalance.toLocaleString('en-NG')}`)
+      return
+    }
     
     const pickupSlug = `${slugifyValue(shipmentForm.pickupState)}-${slugifyValue(cleanPickupLga)}`
     const destinationSlug = `${slugifyValue(shipmentForm.destinationState)}-${slugifyValue(cleanDestinationLga)}`
@@ -970,11 +988,10 @@ const ShipperDashboard = () => {
     const bidId = selectedBidForAccept.id
     const bidAmount = parseFloat(selectedBidForAccept.bidAmount || 0)
     const estimatedCost = parseFloat(selectedShipmentForBid.estimatedCost || 0)
-    const additionalAmount = bidAmount - estimatedCost
+    const upfrontAdjustmentDue = calculateBidAcceptUpfrontDue(bidAmount, estimatedCost)
 
-    // Check if additional amount is needed and if shipper has sufficient balance
-    if (additionalAmount > 0 && walletBalance < additionalAmount) {
-      toast.error(`Insufficient wallet balance. The bid amount (₦${bidAmount.toLocaleString('en-NG')}) is ₦${additionalAmount.toLocaleString('en-NG')} higher than the estimated cost (₦${estimatedCost.toLocaleString('en-NG')}). Your current balance is ₦${walletBalance.toLocaleString('en-NG')}. Please fund your wallet.`)
+    if (upfrontAdjustmentDue > 0 && walletBalance < upfrontAdjustmentDue) {
+      toast.error(`Insufficient wallet balance. Required: ₦${upfrontAdjustmentDue.toLocaleString('en-NG')} (5% upfront adjustment), Available: ₦${walletBalance.toLocaleString('en-NG')}. Please fund your wallet.`)
       setShowBidAcceptModal(false)
       setSelectedBidForAccept(null)
       setSelectedShipmentForBid(null)
@@ -994,7 +1011,17 @@ const ShipperDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Bid accepted successfully! Payment has been credited to the trucker\'s wallet.')
+        const acceptedBid = selectedBidForAccept
+        const acceptedShipment = selectedShipmentForBid
+        setBidAcceptSuccessInfo({
+          driverName: acceptedBid.driverName || acceptedBid.truckerName || "Driver",
+          bidAmount: parseFloat(acceptedBid.bidAmount || 0),
+          shipmentId: acceptedShipment.id,
+          route: `${acceptedShipment.pickupState} → ${acceptedShipment.destinationState}`,
+          upfrontAdjustmentDue,
+          message: data.message,
+        })
+        setShowBidAcceptSuccessModal(true)
         // Refresh shipments and bids
         fetchMyShipments()
         if (data.shipment) {
@@ -1278,7 +1305,7 @@ const ShipperDashboard = () => {
 
   // Confirm pickup
   const handleConfirmPickup = async (shipmentId) => {
-    if (!window.confirm('Confirm that the shipment has been picked up? This will release 60% payment to the trucker/driver.')) {
+    if (!window.confirm('Confirm that the shipment has been picked up? This will charge 60% from your wallet and release it to the trucker/driver.')) {
       return
     }
 
@@ -1309,7 +1336,7 @@ const ShipperDashboard = () => {
 
   // Confirm delivery
   const handleConfirmDelivery = async (shipmentId) => {
-    if (!window.confirm('Confirm that the shipment has been delivered? This will release the remaining 30% payment to the trucker/driver.')) {
+    if (!window.confirm('Confirm that the shipment has been delivered? This will charge the remaining 35% from your wallet and release it to the trucker/driver.')) {
       return
     }
 
@@ -1324,7 +1351,7 @@ const ShipperDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Delivery confirmed! Remaining 30% payment has been released.')
+        toast.success(data.message || 'Delivery confirmed! Remaining 35% payment has been released.')
         // Refresh shipments and wallet
         fetchMyShipments()
         fetchWallet()
@@ -1633,7 +1660,7 @@ const ShipperDashboard = () => {
                       <div className="mt-4 pt-4 border-t border-border">
                         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
                           <p className="text-warning font-medium mb-2">Driver has marked shipment as picked up</p>
-                          <p className="text-text-secondary text-sm">Please confirm pickup to release 60% payment and allow driver to start trip to destination.</p>
+                          <p className="text-text-secondary text-sm">Please confirm pickup to charge and release 60% payment, then allow the driver to start the trip to destination.</p>
                         </div>
                         <button
                           onClick={() => handleConfirmPickup(shipment.id)}
@@ -1649,14 +1676,14 @@ const ShipperDashboard = () => {
                       <div className="mt-4 pt-4 border-t border-border">
                         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
                           <p className="text-warning font-medium mb-2">Driver has marked shipment as delivered</p>
-                          <p className="text-text-secondary text-sm">Please confirm delivery to release the remaining 30% payment.</p>
+                          <p className="text-text-secondary text-sm">Please confirm delivery to charge and release the remaining 35% payment.</p>
                         </div>
                         <button
                           onClick={() => handleConfirmDelivery(shipment.id)}
                           className="w-full bg-success text-white py-3 rounded-xl font-bold hover:bg-success/90 transition-colors flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />
-                          <span>Confirm Delivery (Release 30% Payment)</span>
+                          <span>Confirm Delivery (Release 35% Payment)</span>
                         </button>
                       </div>
                     )}
@@ -1797,11 +1824,11 @@ const ShipperDashboard = () => {
                       )
                     })()}
 
-                    {/* Bids Section - Only show for pending shipments */}
+                    {/* Bidding Dashboard - Only show for pending shipments */}
                     {shipment.status === 'pending' && (
                       <div className="mt-4 pt-4 border-t border-border">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-text-primary font-bold">Bids</h4>
+                          <h4 className="text-text-primary font-bold">Bidding Dashboard</h4>
                           <button
                             onClick={() => fetchShipmentBids(shipment.id)}
                             disabled={loadingBids[shipment.id]}
@@ -1819,7 +1846,14 @@ const ShipperDashboard = () => {
                           <div className="space-y-3">
                             {shipmentBids[shipment.id]
                               .sort((a, b) => parseFloat(a.bidAmount) - parseFloat(b.bidAmount))
-                              .map((bid) => (
+                              .map((bid) => {
+                                const driverName = bid.driverName || bid.truckerName || 'Driver'
+                                const bidRating = bid.rating || bid.driverRating || bid.truckerRating
+                                const capacityLabel = bid.carryingCapacity
+                                  ? `${bid.carryingCapacity} tons`
+                                  : bid.capacityRange || (bid.driverId ? '3 – 30 tons' : '5 – 60 tons')
+
+                                return (
                                 <div
                                   key={bid.id}
                                   className={`bg-muted/30 border rounded-xl p-4 ${
@@ -1828,54 +1862,67 @@ const ShipperDashboard = () => {
                                     'border-border'
                                   }`}
                                 >
-                                  <div className="flex items-start justify-between gap-3 mb-2">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-text-primary font-bold text-lg">
-                                        ₦{parseFloat(bid.bidAmount || 0).toLocaleString('en-NG')}
-                                      </p>
-                                      <p className="text-text-secondary text-sm">
-                                        {bid.truckerName || 'Trucker'} {bid.truckerPhone ? `• ${bid.truckerPhone}` : ''}
-                                      </p>
-                                      {(bid.truckerRating?.count > 0 || bid.driverRating?.count > 0) && (
-                                        <p className="text-text-secondary text-xs mt-1 flex items-center gap-2">
-                                          {bid.truckerRating?.count > 0 && (
-                                            <span className="flex items-center gap-0.5">
-                                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                              {bid.truckerRating.average} ({bid.truckerRating.count})
-                                            </span>
-                                          )}
-                                          {bid.driverId && bid.driverRating?.count > 0 && (
-                                            <span className="flex items-center gap-0.5">
-                                              Driver: <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                              {bid.driverRating.average} ({bid.driverRating.count})
-                                            </span>
-                                          )}
-                                        </p>
-                                      )}
-                                      {bid.message && (
-                                        <p className="text-text-secondary text-sm mt-2 italic">
-                                          "{bid.message}"
-                                        </p>
-                                      )}
-                                      {(bid.vehicleImageUrl || bid.vehiclePlateNumber) && (
-                                        <div className="mt-2 flex items-center gap-2">
-                                          {bid.vehicleImageUrl ? (
-                                            <img
-                                              src={bid.vehicleImageUrl}
-                                              alt="Vehicle"
-                                              className="w-16 h-16 object-cover rounded-lg border border-border"
-                                            />
-                                          ) : (
-                                            <div className="w-16 h-16 rounded-lg border border-border bg-muted flex items-center justify-center">
-                                              <Truck className="w-6 h-6 text-text-secondary" />
-                                            </div>
-                                          )}
-                                          {bid.vehiclePlateNumber && (
-                                            <span className="text-text-secondary text-xs font-medium">{bid.vehiclePlateNumber}</span>
-                                          )}
+                                  <div className="flex items-start gap-4">
+                                    <div className="flex-shrink-0">
+                                      {bid.vehicleImageUrl ? (
+                                        <img
+                                          src={bid.vehicleImageUrl}
+                                          alt="Truck"
+                                          className="w-20 h-20 object-cover rounded-lg border border-border"
+                                        />
+                                      ) : (
+                                        <div className="w-20 h-20 rounded-lg border border-border bg-muted flex items-center justify-center">
+                                          <Truck className="w-8 h-8 text-text-secondary" />
                                         </div>
                                       )}
+                                      {bid.vehiclePlateNumber && (
+                                        <p className="text-text-secondary text-xs font-medium text-center mt-1">{bid.vehiclePlateNumber}</p>
+                                      )}
                                     </div>
+
+                                    <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                                      <div>
+                                        <p className="text-text-secondary text-xs">Name of Driver</p>
+                                        <p className="text-text-primary font-semibold text-sm">{driverName}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-text-secondary text-xs">Amount (Bidding)</p>
+                                        <p className="text-text-primary font-bold text-lg">
+                                          ₦{parseFloat(bid.bidAmount || 0).toLocaleString('en-NG')}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-text-secondary text-xs">Carrying Capacity</p>
+                                        <p className="text-text-primary text-sm font-medium">{capacityLabel}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-text-secondary text-xs">Km Away</p>
+                                        <p className="text-text-primary text-sm font-medium flex items-center gap-1">
+                                          <MapPin className="w-3.5 h-3.5 text-primary" />
+                                          {bid.kmAway != null ? `${bid.kmAway} km` : '—'}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-text-secondary text-xs">Rating (Driver)</p>
+                                        <p className="text-text-primary text-sm font-medium flex items-center gap-1">
+                                          {bidRating?.count > 0 ? (
+                                            <>
+                                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                              {bidRating.average} ({bidRating.count})
+                                            </>
+                                          ) : (
+                                            'No ratings yet'
+                                          )}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-text-secondary text-xs">Mileage Covered / Trips Completed</p>
+                                        <p className="text-text-primary text-sm font-medium">
+                                          {(bid.mileageCovered ?? 0).toLocaleString('en-NG')} km / {bid.tripsCompleted ?? 0} trips
+                                        </p>
+                                      </div>
+                                    </div>
+
                                     <div className="text-right flex-shrink-0">
                                       {bid.status === 'accepted' && (
                                         <span className="inline-block bg-success/10 text-success px-3 py-1 rounded-lg text-xs font-medium">
@@ -1905,17 +1952,23 @@ const ShipperDashboard = () => {
                                       )}
                                     </div>
                                   </div>
+
+                                  {bid.message && (
+                                    <p className="text-text-secondary text-sm mt-3 italic border-t border-border pt-2">
+                                      "{bid.message}"
+                                    </p>
+                                  )}
                                   <p className="text-text-secondary text-xs mt-2">
                                     Submitted: {new Date(bid.createdAt).toLocaleString()}
                                   </p>
                                 </div>
-                              ))}
+                              )})}
                           </div>
                         ) : (
                           <div className="bg-muted/30 rounded-xl p-6 text-center">
                             <Truck className="w-8 h-8 text-text-secondary mx-auto mb-2" />
                             <p className="text-text-secondary text-sm">No bids yet</p>
-                            <p className="text-text-secondary text-xs mt-1">Truckers can bid on this shipment</p>
+                            <p className="text-text-secondary text-xs mt-1">Drivers and truckers can bid on this shipment</p>
                           </div>
                         )}
                       </div>
@@ -2794,6 +2847,12 @@ const ShipperDashboard = () => {
                 <div className="bg-success/10 border border-success/20 rounded-xl p-4">
                   <p className="text-text-secondary text-sm mb-1">Estimated Cost</p>
                   <p className="text-success font-bold text-3xl">{costEstimate.cost.formattedCost}</p>
+                  <p className="text-text-primary text-sm font-medium mt-2">
+                    5% upfront required now: ₦{calculateStageAmount(costEstimate.cost.totalCost, 5).toLocaleString('en-NG')}
+                  </p>
+                  <p className="text-text-secondary text-xs mt-1">
+                    60% charged at pickup • 35% charged at delivery
+                  </p>
                   <p className="text-text-secondary text-xs mt-2">
                     {shipmentForm.truckType ? `${truckOptions.find(opt => opt.value === shipmentForm.truckType)?.label || shipmentForm.truckType}` : 'Truck type not selected'} • {distanceInfo?.distance} km
                   </p>
@@ -2922,38 +2981,48 @@ const ShipperDashboard = () => {
                     ₦{parseFloat(selectedBidForAccept.bidAmount || 0).toLocaleString('en-NG')}
                   </p>
                   <p className="text-text-secondary text-xs mt-1">
-                    From: {selectedBidForAccept.truckerName || 'Trucker'} {selectedBidForAccept.truckerPhone ? `• ${selectedBidForAccept.truckerPhone}` : ''}
+                    From: {selectedBidForAccept.driverName || selectedBidForAccept.truckerName || 'Driver'}
                   </p>
                 </div>
 
                 {/* Payment Breakdown */}
+                {(() => {
+                  const bidAmount = parseFloat(selectedBidForAccept.bidAmount || 0)
+                  const estimatedCost = parseFloat(selectedShipmentForBid.estimatedCost || 0)
+                  const upfrontAdjustmentDue = calculateBidAcceptUpfrontDue(bidAmount, estimatedCost)
+                  return (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between py-2 border-b border-border">
-                    <span className="text-text-secondary text-sm">Original Shipment Cost</span>
+                    <span className="text-text-secondary text-sm">Estimated Shipment Cost</span>
                     <span className="text-text-primary font-medium">
-                      ₦{parseFloat(selectedShipmentForBid.estimatedCost || 0).toLocaleString('en-NG')}
+                      ₦{estimatedCost.toLocaleString('en-NG')}
                     </span>
                   </div>
-                  
-                  {parseFloat(selectedBidForAccept.bidAmount || 0) > parseFloat(selectedShipmentForBid.estimatedCost || 0) && (
-                    <>
-                      <div className="flex items-center justify-between py-2 border-b border-border">
-                        <span className="text-text-secondary text-sm">Bid Amount</span>
-                        <span className="text-text-primary font-medium">
-                          ₦{parseFloat(selectedBidForAccept.bidAmount || 0).toLocaleString('en-NG')}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between py-2 border-b border-error/30 bg-error/5 rounded-lg px-3">
-                        <span className="text-error text-sm font-medium">Additional Amount Needed</span>
-                        <span className="text-error font-bold">
-                          ₦{(parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0)).toLocaleString('en-NG')}
-                        </span>
-                      </div>
-                    </>
+                  <div className="flex items-center justify-between py-2 border-b border-border">
+                    <span className="text-text-secondary text-sm">Accepted Bid Amount</span>
+                    <span className="text-text-primary font-medium">
+                      ₦{bidAmount.toLocaleString('en-NG')}
+                    </span>
+                  </div>
+                  {upfrontAdjustmentDue > 0 && (
+                    <div className="flex items-center justify-between py-2 border-b border-error/30 bg-error/5 rounded-lg px-3">
+                      <span className="text-error text-sm font-medium">5% Upfront Adjustment Due Now</span>
+                      <span className="text-error font-bold">
+                        ₦{upfrontAdjustmentDue.toLocaleString('en-NG')}
+                      </span>
+                    </div>
                   )}
                 </div>
+                  )
+                })()}
 
                 {/* Wallet Balance Info */}
+                {(() => {
+                  const upfrontAdjustmentDue = calculateBidAcceptUpfrontDue(
+                    parseFloat(selectedBidForAccept.bidAmount || 0),
+                    parseFloat(selectedShipmentForBid.estimatedCost || 0)
+                  )
+                  return (
                 <div className="bg-muted/30 rounded-xl p-4 border border-border">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-text-secondary text-sm">Current Wallet Balance</span>
@@ -2962,19 +3031,21 @@ const ShipperDashboard = () => {
                     </span>
                   </div>
                   
-                  {parseFloat(selectedBidForAccept.bidAmount || 0) > parseFloat(selectedShipmentForBid.estimatedCost || 0) && (
+                  {upfrontAdjustmentDue > 0 && (
                     <div className="flex items-center justify-between pt-2 border-t border-border mt-2">
                       <span className="text-text-secondary text-sm">Balance After Deduction</span>
                       <span className={`font-semibold ${
-                        (walletBalance - (parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0))) < 0
+                        (walletBalance - upfrontAdjustmentDue) < 0
                           ? 'text-error' 
                           : 'text-text-primary'
                       }`}>
-                        ₦{Math.max(0, walletBalance - (parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0))).toLocaleString('en-NG')}
+                        ₦{Math.max(0, walletBalance - upfrontAdjustmentDue).toLocaleString('en-NG')}
                       </span>
                     </div>
                   )}
                 </div>
+                  )
+                })()}
 
                 {/* Payment Stages Info */}
                 <div className="bg-primary/5 rounded-xl p-4 border border-primary/20">
@@ -2982,34 +3053,39 @@ const ShipperDashboard = () => {
                   <ul className="space-y-1 text-xs text-text-secondary">
                     <li className="flex items-start">
                       <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">5%</strong> will be credited to trucker upon acceptance (pickup cost)</span>
+                      <span><strong className="text-text-primary">5%</strong> already paid at order creation; credited to driver upon acceptance</span>
                     </li>
                     <li className="flex items-start">
                       <Clock className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">60%</strong> will be credited when shipment is picked up</span>
+                      <span><strong className="text-text-primary">60%</strong> charged from your wallet and credited at pickup confirmation</span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">30%</strong> will be credited upon delivery completion</span>
+                      <span><strong className="text-text-primary">35%</strong> charged from your wallet and credited at delivery confirmation</span>
                     </li>
                   </ul>
                 </div>
 
                 {/* Warning if insufficient balance */}
-                {parseFloat(selectedBidForAccept.bidAmount || 0) > parseFloat(selectedShipmentForBid.estimatedCost || 0) && 
-                 walletBalance < (parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0)) && (
+                {(() => {
+                  const upfrontAdjustmentDue = calculateBidAcceptUpfrontDue(
+                    parseFloat(selectedBidForAccept.bidAmount || 0),
+                    parseFloat(selectedShipmentForBid.estimatedCost || 0)
+                  )
+                  return upfrontAdjustmentDue > 0 && walletBalance < upfrontAdjustmentDue ? (
                   <div className="bg-error/10 border border-error/30 rounded-xl p-4">
                     <div className="flex items-start">
                       <AlertCircle className="w-5 h-5 text-error mr-2 mt-0.5 flex-shrink-0" />
                       <div>
                         <p className="text-error font-medium text-sm mb-1">Insufficient Balance</p>
                         <p className="text-error/80 text-xs">
-                          You need ₦{(parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0)).toLocaleString('en-NG')} more in your wallet to accept this bid. Please fund your wallet first.
+                          You need ₦{upfrontAdjustmentDue.toLocaleString('en-NG')} more in your wallet to accept this bid. Please fund your wallet first.
                         </p>
                       </div>
                     </div>
                   </div>
-                )}
+                  ) : null
+                })()}
               </div>
 
               {/* Action Buttons */}
@@ -3028,8 +3104,10 @@ const ShipperDashboard = () => {
                   onClick={handleAcceptBid}
                   disabled={
                     acceptingBidId === selectedBidForAccept.id ||
-                    (parseFloat(selectedBidForAccept.bidAmount || 0) > parseFloat(selectedShipmentForBid.estimatedCost || 0) && 
-                     walletBalance < (parseFloat(selectedBidForAccept.bidAmount || 0) - parseFloat(selectedShipmentForBid.estimatedCost || 0)))
+                    walletBalance < calculateBidAcceptUpfrontDue(
+                      parseFloat(selectedBidForAccept.bidAmount || 0),
+                      parseFloat(selectedShipmentForBid.estimatedCost || 0)
+                    )
                   }
                   className="flex-1 bg-primary text-white py-3 rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
@@ -3043,6 +3121,68 @@ const ShipperDashboard = () => {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bid Accepted Success Modal */}
+      {showBidAcceptSuccessModal && bidAcceptSuccessInfo && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-9 h-9 text-success" />
+              </div>
+              <h3 className="text-text-primary font-bold text-xl mb-2">Bid Accepted Successfully!</h3>
+              <p className="text-text-secondary text-sm mb-4">
+                You have assigned <span className="text-text-primary font-semibold">{bidAcceptSuccessInfo.driverName}</span> to
+                shipment <span className="font-semibold text-text-primary">#{bidAcceptSuccessInfo.shipmentId}</span>
+                {bidAcceptSuccessInfo.route && (
+                  <span className="block mt-1 text-xs">{bidAcceptSuccessInfo.route}</span>
+                )}
+              </p>
+
+              <div className="bg-muted/30 rounded-xl p-4 border border-border text-left mb-4">
+                <p className="text-text-secondary text-xs mb-1">Accepted bid amount</p>
+                <p className="text-success font-bold text-2xl">
+                  ₦{bidAcceptSuccessInfo.bidAmount.toLocaleString("en-NG")}
+                </p>
+                {bidAcceptSuccessInfo.upfrontAdjustmentDue > 0 && (
+                  <p className="text-text-secondary text-xs mt-2">
+                    ₦{bidAcceptSuccessInfo.upfrontAdjustmentDue.toLocaleString("en-NG")} (5% upfront adjustment) deducted from your wallet.
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-primary/5 rounded-xl p-4 border border-primary/20 text-left mb-6">
+                <p className="text-text-primary text-sm font-medium mb-2">What happens next?</p>
+                <ul className="space-y-2 text-xs text-text-secondary">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                    <span><strong className="text-text-primary">5%</strong> has been credited to the driver. They will head to your pickup location.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Clock className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <span>When you <strong className="text-text-primary">confirm pickup</strong>, <strong className="text-text-primary">60%</strong> is charged from your wallet and paid to the driver.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <span>When you <strong className="text-text-primary">confirm delivery</strong>, the remaining <strong className="text-text-primary">35%</strong> is charged and paid to the driver.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBidAcceptSuccessModal(false)
+                  setBidAcceptSuccessInfo(null)
+                }}
+                className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors"
+              >
+                Got it
+              </button>
             </div>
           </div>
         </div>
