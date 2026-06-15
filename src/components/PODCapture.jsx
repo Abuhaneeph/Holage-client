@@ -88,8 +88,8 @@ const PODCapture = ({ shipmentId, podType, onSuccess, onClose }) => {
 
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(`POD ${podType} captured successfully!`)
-        if (onSuccess) onSuccess()
+        toast.success(data.message || `POD ${podType} captured successfully!`)
+        if (onSuccess) onSuccess(data)
         if (onClose) onClose()
       } else {
         toast.error(data.message || 'Failed to save POD')

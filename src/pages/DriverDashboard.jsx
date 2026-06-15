@@ -702,9 +702,9 @@ const DriverDashboard = () => {
     }
   }
 
-  // Mark as picked up
-  const handleMarkPickedUp = async (shipmentId) => {
-    if (!window.confirm('Mark shipment as picked up? Shipper will need to confirm before you can start trip to destination.')) {
+  // Mark as picked up (manual fallback; POD upload auto-advances status)
+  const handleMarkPickedUp = async (shipmentId, { skipConfirm = false } = {}) => {
+    if (!skipConfirm && !window.confirm('Mark shipment as picked up? Shipper will need to confirm before you can start trip to destination.')) {
       return
     }
 
@@ -768,9 +768,9 @@ const DriverDashboard = () => {
     }
   }
 
-  // Mark as delivered
-  const handleMarkDelivered = async (shipmentId) => {
-    if (!window.confirm('Mark shipment as delivered? Shipper will need to confirm before final payment is released.')) {
+  // Mark as delivered (manual fallback; POD upload auto-advances status)
+  const handleMarkDelivered = async (shipmentId, { skipConfirm = false } = {}) => {
+    if (!skipConfirm && !window.confirm('Mark shipment as delivered? Shipper will need to confirm before final payment is released.')) {
       return
     }
 
@@ -1111,7 +1111,7 @@ const DriverDashboard = () => {
                   )}
                 </div>
               </div>
-              <p className="text-text-secondary text-xs -mt-2">Earnings are credited to your account as trips progress (5% / 60% / 35%)</p>
+              <p className="text-text-secondary text-xs -mt-2">Earnings are credited to your account as trips progress (5% / 60% / 30%)</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
@@ -1678,7 +1678,7 @@ const DriverDashboard = () => {
                         <span className="font-medium">₦{invoiceData.amounts?.pickup?.toLocaleString("en-NG")}</span>
                       </div>
                       <div className="flex justify-between px-4 py-2">
-                        <span className="text-text-secondary">Delivery (35%)</span>
+                        <span className="text-text-secondary">Delivery (30%)</span>
                         <span className="font-medium">₦{invoiceData.amounts?.delivery?.toLocaleString("en-NG")}</span>
                       </div>
                       <div className="flex justify-between px-4 py-3 bg-primary/5 font-bold text-primary">
@@ -1774,16 +1774,23 @@ const DriverDashboard = () => {
         <PODCapture
           shipmentId={selectedShipmentForPOD}
           podType={selectedPODType}
-          onSuccess={() => {
-            // After POD is captured, update status
-            if (selectedPODType === 'pickup') {
-              handleMarkPickedUp(selectedShipmentForPOD)
-            } else if (selectedPODType === 'delivery') {
-              handleMarkDelivered(selectedShipmentForPOD)
-            }
+          onSuccess={(data) => {
+            const podType = selectedPODType
+            const shipmentId = selectedShipmentForPOD
             setShowPODCapture(false)
             setSelectedShipmentForPOD(null)
             setSelectedPODType(null)
+
+            if (data?.shipmentStatus) {
+              fetchAssignedShipments()
+              return
+            }
+
+            if (podType === 'pickup') {
+              handleMarkPickedUp(shipmentId, { skipConfirm: true })
+            } else if (podType === 'delivery') {
+              handleMarkDelivered(shipmentId, { skipConfirm: true })
+            }
           }}
           onClose={() => {
             setShowPODCapture(false)

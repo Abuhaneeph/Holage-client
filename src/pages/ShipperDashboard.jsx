@@ -1336,7 +1336,7 @@ const ShipperDashboard = () => {
 
   // Confirm delivery
   const handleConfirmDelivery = async (shipmentId) => {
-    if (!window.confirm('Confirm that the shipment has been delivered? This will charge the remaining 35% from your wallet and release it to the trucker/driver.')) {
+    if (!window.confirm('Confirm that the shipment has been delivered? This will charge the remaining 30% (+ 5% platform fee) from your wallet.')) {
       return
     }
 
@@ -1351,7 +1351,7 @@ const ShipperDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Delivery confirmed! Remaining 35% payment has been released.')
+        toast.success(data.message || 'Delivery confirmed! 30% has been released to the carrier.')
         // Refresh shipments and wallet
         fetchMyShipments()
         fetchWallet()
@@ -1676,14 +1676,14 @@ const ShipperDashboard = () => {
                       <div className="mt-4 pt-4 border-t border-border">
                         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
                           <p className="text-warning font-medium mb-2">Driver has marked shipment as delivered</p>
-                          <p className="text-text-secondary text-sm">Please confirm delivery to charge and release the remaining 35% payment.</p>
+                          <p className="text-text-secondary text-sm">Please confirm delivery to charge and release the remaining 30% (+ 5% platform fee).</p>
                         </div>
                         <button
                           onClick={() => handleConfirmDelivery(shipment.id)}
                           className="w-full bg-success text-white py-3 rounded-xl font-bold hover:bg-success/90 transition-colors flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />
-                          <span>Confirm Delivery (Release 35% Payment)</span>
+                          <span>Confirm Delivery (Release 30% + 5% Fee)</span>
                         </button>
                       </div>
                     )}
@@ -2851,7 +2851,7 @@ const ShipperDashboard = () => {
                     5% upfront required now: ₦{calculateStageAmount(costEstimate.cost.totalCost, 5).toLocaleString('en-NG')}
                   </p>
                   <p className="text-text-secondary text-xs mt-1">
-                    60% charged at pickup • 35% charged at delivery
+                    60% charged at pickup • 30% + 5% platform fee at delivery
                   </p>
                   <p className="text-text-secondary text-xs mt-2">
                     {shipmentForm.truckType ? `${truckOptions.find(opt => opt.value === shipmentForm.truckType)?.label || shipmentForm.truckType}` : 'Truck type not selected'} • {distanceInfo?.distance} km
@@ -3061,7 +3061,11 @@ const ShipperDashboard = () => {
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">35%</strong> charged from your wallet and credited at delivery confirmation</span>
+                      <span><strong className="text-text-primary">30%</strong> charged to carrier at delivery confirmation</span>
+                    </li>
+                    <li className="flex items-start">
+                      <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
+                      <span><strong className="text-text-primary">5%</strong> platform fee charged at delivery confirmation</span>
                     </li>
                   </ul>
                 </div>
@@ -3168,7 +3172,7 @@ const ShipperDashboard = () => {
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>When you <strong className="text-text-primary">confirm delivery</strong>, the remaining <strong className="text-text-primary">35%</strong> is charged and paid to the driver.</span>
+                    <span>When you <strong className="text-text-primary">confirm delivery</strong>, the remaining <strong className="text-text-primary">30%</strong> is paid to the driver and <strong className="text-text-primary">5%</strong> platform fee is charged.</span>
                   </li>
                 </ul>
               </div>

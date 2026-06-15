@@ -778,9 +778,9 @@ const TruckerDashboard = () => {
     }
   }
 
-  // Mark as picked up
-  const handleMarkPickedUp = async (shipmentId) => {
-    if (!window.confirm('Mark shipment as picked up? Shipper will need to confirm before you can start trip to destination.')) {
+  // Mark as picked up (manual fallback; POD upload auto-advances status)
+  const handleMarkPickedUp = async (shipmentId, { skipConfirm = false } = {}) => {
+    if (!skipConfirm && !window.confirm('Mark shipment as picked up? Shipper will need to confirm before you can start trip to destination.')) {
       return
     }
 
@@ -844,9 +844,9 @@ const TruckerDashboard = () => {
     }
   }
 
-  // Mark as delivered
-  const handleMarkDelivered = async (shipmentId) => {
-    if (!window.confirm('Mark shipment as delivered? Shipper will need to confirm before final payment is released.')) {
+  // Mark as delivered (manual fallback; POD upload auto-advances status)
+  const handleMarkDelivered = async (shipmentId, { skipConfirm = false } = {}) => {
+    if (!skipConfirm && !window.confirm('Mark shipment as delivered? Shipper will need to confirm before final payment is released.')) {
       return
     }
 
@@ -1441,16 +1441,23 @@ const TruckerDashboard = () => {
           <PODCapture
             shipmentId={selectedShipmentForPOD}
             podType={selectedPODType}
-            onSuccess={() => {
-              // After POD is captured, update status
-              if (selectedPODType === 'pickup') {
-                handleMarkPickedUp(selectedShipmentForPOD)
-              } else if (selectedPODType === 'delivery') {
-                handleMarkDelivered(selectedShipmentForPOD)
-              }
+            onSuccess={(data) => {
+              const podType = selectedPODType
+              const shipmentId = selectedShipmentForPOD
               setShowPODCapture(false)
               setSelectedShipmentForPOD(null)
               setSelectedPODType(null)
+
+              if (data?.shipmentStatus) {
+                fetchActiveLoads()
+                return
+              }
+
+              if (podType === 'pickup') {
+                handleMarkPickedUp(shipmentId, { skipConfirm: true })
+              } else if (podType === 'delivery') {
+                handleMarkDelivered(shipmentId, { skipConfirm: true })
+              }
             }}
             onClose={() => {
               setShowPODCapture(false)
