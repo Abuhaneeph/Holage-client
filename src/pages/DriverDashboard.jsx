@@ -702,10 +702,14 @@ const DriverDashboard = () => {
     }
   }
 
-  // Mark as picked up (manual fallback; POD upload auto-advances status)
-  const handleMarkPickedUp = async (shipmentId, { skipConfirm = false } = {}) => {
-    if (!skipConfirm && !window.confirm('Mark shipment as picked up? Shipper will need to confirm before you can start trip to destination.')) {
-      return
+  const updateShipmentStatusRequest = async (shipmentId, status, { skipConfirm = false, confirmMessage = null } = {}) => {
+    const shipment = assignedShipments.find((s) => s.id === shipmentId)
+    if (shipment?.status === status) {
+      return true
+    }
+
+    if (!skipConfirm && confirmMessage && !window.confirm(confirmMessage)) {
+      return false
     }
 
     setUpdatingStatus(shipmentId)
@@ -717,22 +721,33 @@ const DriverDashboard = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ status: 'picked_up' })
+        body: JSON.stringify({ status })
       })
-      
+
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Shipment marked as picked up. Waiting for shipper confirmation.')
+        toast.success(data.message || 'Shipment status updated.')
         fetchAssignedShipments()
-      } else {
-        toast.error(data.message || 'Failed to update status')
+        return true
       }
+
+      toast.error(data.message || 'Failed to update status')
+      return false
     } catch (error) {
-      console.error('Error marking as picked up:', error)
+      console.error('Error updating shipment status:', error)
       toast.error('Error updating status')
+      return false
     } finally {
       setUpdatingStatus(null)
     }
+  }
+
+  // Mark as picked up (manual fallback; POD upload auto-advances status)
+  const handleMarkPickedUp = async (shipmentId, options = {}) => {
+    return updateShipmentStatusRequest(shipmentId, 'picked_up', {
+      ...options,
+      confirmMessage: 'Mark shipment as picked up? Shipper will need to confirm before you can start trip to destination.'
+    })
   }
 
   // Start trip to destination (after pickup confirmed)
@@ -769,36 +784,11 @@ const DriverDashboard = () => {
   }
 
   // Mark as delivered (manual fallback; POD upload auto-advances status)
-  const handleMarkDelivered = async (shipmentId, { skipConfirm = false } = {}) => {
-    if (!skipConfirm && !window.confirm('Mark shipment as delivered? Shipper will need to confirm before final payment is released.')) {
-      return
-    }
-
-    setUpdatingStatus(shipmentId)
-    try {
-      const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: 'delivered' })
-      })
-      
-      const data = await response.json()
-      if (response.ok && data.success) {
-        toast.success(data.message || 'Shipment marked as delivered. Waiting for shipper confirmation.')
-        fetchAssignedShipments()
-      } else {
-        toast.error(data.message || 'Failed to update status')
-      }
-    } catch (error) {
-      console.error('Error marking as delivered:', error)
-      toast.error('Error updating status')
-    } finally {
-      setUpdatingStatus(null)
-    }
+  const handleMarkDelivered = async (shipmentId, options = {}) => {
+    return updateShipmentStatusRequest(shipmentId, 'delivered', {
+      ...options,
+      confirmMessage: 'Mark shipment as delivered? Shipper will need to confirm before final payment is released.'
+    })
   }
 
   if (!driverInfo) {
@@ -1774,23 +1764,11 @@ const DriverDashboard = () => {
         <PODCapture
           shipmentId={selectedShipmentForPOD}
           podType={selectedPODType}
-          onSuccess={(data) => {
-            const podType = selectedPODType
-            const shipmentId = selectedShipmentForPOD
+          onSuccess={() => {
             setShowPODCapture(false)
             setSelectedShipmentForPOD(null)
             setSelectedPODType(null)
-
-            if (data?.shipmentStatus) {
-              fetchAssignedShipments()
-              return
-            }
-
-            if (podType === 'pickup') {
-              handleMarkPickedUp(shipmentId, { skipConfirm: true })
-            } else if (podType === 'delivery') {
-              handleMarkDelivered(shipmentId, { skipConfirm: true })
-            }
+            fetchAssignedShipments()
           }}
           onClose={() => {
             setShowPODCapture(false)
