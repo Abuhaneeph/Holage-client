@@ -185,8 +185,10 @@ export const AppProvider = ({ children }) => {
         }
       }
 
-      // Check for token expiration (401 status or expired flag)
-      if (response.status === 401 || responseData.expired === true) {
+      // Check for token expiration — only applies to calls that actually sent a token.
+      // A 401 from a public endpoint (e.g. wrong password on /auth/login) is a normal
+      // error, not an expired session, and must fall through to be thrown below.
+      if (authRequired && (response.status === 401 || responseData.expired === true)) {
         handleTokenExpiration()
         // Don't show error toast, just redirect
         return
@@ -257,8 +259,10 @@ export const AppProvider = ({ children }) => {
       console.log("Response status:", response.status) // Debug log
       console.log("Response data:", responseData) // Debug log
 
-      // Check for token expiration (401 status or expired flag)
-      if (response.status === 401 || responseData.expired === true) {
+      // Check for token expiration — only applies to calls that actually sent a token.
+      // A 401 from a public endpoint (e.g. wrong password on /auth/login) is a normal
+      // error, not an expired session, and must fall through to be thrown below.
+      if (authRequired && (response.status === 401 || responseData.expired === true)) {
         handleTokenExpiration()
         // Don't show error toast, just redirect
         return
