@@ -10,6 +10,7 @@ import {
   LogOut,
   Loader,
   CheckCircle,
+  RefreshCw,
   Clock,
   MapPin,
   Navigation,
@@ -25,13 +26,25 @@ import {
   Send,
   Edit,
   FileText,
-  X
+  X,
+  UserCheck,
+  PackageCheck,
+  BadgeCheck,
+  XCircle,
+  Camera,
+  Upload,
+  Copy
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import NotificationCenter from "../components/NotificationCenter"
 import PODCapture from "../components/PODCapture"
 import SingleShipmentMap from "../components/SingleShipmentMap"
+import ShipmentProgressTracker from "../components/ShipmentProgressTracker"
+import BonusWallet from "../components/BonusWallet"
+import WalletStatement from "../components/WalletStatement"
+import EwaybillModal from "../components/EwaybillModal"
+import { formatWithCommas, parseFormattedNumber } from "../utils/currencyFormat"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -40,6 +53,7 @@ const DriverDashboard = () => {
   const toast = useToast()
   const [activeTab, setActiveTab] = useState("jobs") // jobs | findwork | wallet
   const [driverInfo, setDriverInfo] = useState(null)
+  const [copiedDriverCode, setCopiedDriverCode] = useState(false)
   const [fleetManagerInfo, setFleetManagerInfo] = useState(null)
   const [assignedShipments, setAssignedShipments] = useState([])
   const [loadingShipments, setLoadingShipments] = useState(false)
@@ -51,6 +65,7 @@ const DriverDashboard = () => {
   const [selectedShipmentForPOD, setSelectedShipmentForPOD] = useState(null)
   const [selectedPODType, setSelectedPODType] = useState(null)
   const [myRating, setMyRating] = useState({ average: 0, count: 0 })
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   // Find Work / Bidding state
   const [availableShipments, setAvailableShipments] = useState([])
@@ -79,6 +94,8 @@ const DriverDashboard = () => {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState("")
   const [withdrawLoading, setWithdrawLoading] = useState(false)
+  const [refreshingAll, setRefreshingAll] = useState(false)
+  const [ewaybillShipmentId, setEwaybillShipmentId] = useState(null)
   const [withdrawBankAccountNumber, setWithdrawBankAccountNumber] = useState("")
   const [withdrawBankCode, setWithdrawBankCode] = useState("")
   const [withdrawBankName, setWithdrawBankName] = useState("")
@@ -135,6 +152,51 @@ const DriverDashboard = () => {
       navigateTo('driver-login')
     }
   }, [])
+
+  // Self-service profile photo upload
+  const handleProfilePhotoUpload = async (file) => {
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const formData = new FormData()
+      formData.append('driverPhoto', file)
+
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/drivers/me/photo`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      })
+
+      const data = await response.json()
+      if (response.ok) {
+        toast.success('Profile photo updated!')
+        setDriverInfo((prev) => {
+          const updated = { ...(prev || {}), profilePhoto: data.profilePhoto }
+          localStorage.setItem('driverInfo', JSON.stringify(updated))
+          return updated
+        })
+      } else {
+        toast.error(data.message || 'Upload failed')
+      }
+    } catch (error) {
+      console.error('Error uploading profile photo:', error)
+      toast.error('Error uploading profile photo')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+
+  const triggerProfilePhotoUpload = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = (e) => {
+      const file = e.target.files[0]
+      if (file) handleProfilePhotoUpload(file)
+    }
+    input.click()
+  }
 
   // Share phone/browser GPS with backend (for km-away on shipper bids)
   useEffect(() => {
@@ -250,7 +312,9 @@ const DriverDashboard = () => {
         setFleetManagerInfo({
           fullName: driverData.fleetManagerName,
           phone: driverData.fleetManagerPhone,
-          email: driverData.fleetManagerEmail
+          email: driverData.fleetManagerEmail,
+          fleetManagerCode: driverData.fleetManagerCode,
+          cacVerified: driverData.fleetManagerCacVerified
         })
       }
     } catch (error) {
@@ -441,11 +505,19 @@ const DriverDashboard = () => {
     return monthlyEarnings.toLocaleString("en-NG")
   }, [monthlyEarnings])
 
+  // A pending bid can be revised within 10 minutes of its original submission (server-enforced too)
+  const BID_EDIT_WINDOW_MS = 10 * 60 * 1000
+  const getBidEditMinutesLeft = (bid) => {
+    if (!bid || bid.status !== "pending" || !bid.createdAt) return 0
+    const remainingMs = BID_EDIT_WINDOW_MS - (Date.now() - new Date(bid.createdAt).getTime())
+    return Math.max(0, Math.ceil(remainingMs / 60000))
+  }
+
   const openBidModal = (shipment, bid = null) => {
     setSelectedBidShipment(shipment)
     setEditingBid(bid)
     if (bid) {
-      setBidAmount(String(bid.bidAmount || ""))
+      setBidAmount(String(Math.round(parseFloat(bid.bidAmount || 0))))
       setBidMessage(bid.message || "")
     } else {
       setBidAmount(String(Math.ceil(parseFloat(shipment.estimatedCost || 0))))
@@ -594,6 +666,11 @@ const DriverDashboard = () => {
           status: bid.shipmentStatus || bid.status || 'assigned', // Fallback to 'assigned' if status missing
           pickupConfirmed: bid.pickupConfirmed || false,
           deliveryConfirmed: bid.deliveryConfirmed || false,
+          arrivedAtPickupAt: bid.arrivedAtPickupAt || null,
+          loadingStartedAt: bid.loadingStartedAt || null,
+          loadingConfirmedAt: bid.loadingConfirmedAt || null,
+          arrivedAtPodAt: bid.arrivedAtPodAt || null,
+          offloadingConfirmedAt: bid.offloadingConfirmedAt || null,
           shipperName: bid.shipperName,
           shipperPhone: bid.shipperPhone,
           bidId: bid.id,
@@ -640,6 +717,20 @@ const DriverDashboard = () => {
     }
   }
 
+  // Systemic refresh — always visible in the header, reloads shipments, trucks, and wallet
+  // regardless of which tab is active.
+  const handleGlobalRefresh = async () => {
+    setRefreshingAll(true)
+    try {
+      await Promise.all([fetchAssignedShipments(), fetchAssignedTrucks(), fetchWallet()])
+      toast.success('Refreshed')
+    } catch (error) {
+      console.error('Error during global refresh:', error)
+    } finally {
+      setRefreshingAll(false)
+    }
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('authToken')
     localStorage.removeItem('driverInfo')
@@ -648,22 +739,26 @@ const DriverDashboard = () => {
   }
 
 
-  const getStatusInfo = (status) => {
+  // Each status gets its own distinct icon (not a shared checkmark/truck) so the trip's
+  // stage reads at a glance from the icon alone, without needing to check the color/label.
+  const getStatusInfo = (status, deliveryConfirmed = false) => {
     switch (status) {
       case 'pending':
         return { icon: Clock, color: 'warning', bgColor: 'bg-warning/10', textColor: 'text-warning', label: 'Pending' }
       case 'assigned':
-        return { icon: CheckCircle, color: 'primary', bgColor: 'bg-primary/10', textColor: 'text-primary', label: 'Assigned' }
+        return { icon: UserCheck, color: 'primary', bgColor: 'bg-primary/10', textColor: 'text-primary', label: 'Assigned' }
       case 'picking_up':
         return { icon: Truck, color: 'primary', bgColor: 'bg-primary/10', textColor: 'text-primary', label: 'Going to Pick Up' }
       case 'picked_up':
-        return { icon: Package, color: 'warning', bgColor: 'bg-warning/10', textColor: 'text-warning', label: 'Picked Up (Awaiting Confirmation)' }
+        return { icon: PackageCheck, color: 'warning', bgColor: 'bg-warning/10', textColor: 'text-warning', label: 'Picked Up (Awaiting Confirmation)' }
       case 'in_transit':
         return { icon: Navigation, color: 'success', bgColor: 'bg-success/10', textColor: 'text-success', label: 'In Transit to Destination' }
       case 'delivered':
-        return { icon: CheckCircle, color: 'warning', bgColor: 'bg-warning/10', textColor: 'text-warning', label: 'Delivered (Awaiting Confirmation)' }
+        return deliveryConfirmed
+          ? { icon: BadgeCheck, color: 'success', bgColor: 'bg-success/10', textColor: 'text-success', label: 'Delivered' }
+          : { icon: CheckCircle, color: 'warning', bgColor: 'bg-warning/10', textColor: 'text-warning', label: 'Delivered (Awaiting Confirmation)' }
       case 'cancelled':
-        return { icon: AlertCircle, color: 'error', bgColor: 'bg-error/10', textColor: 'text-error', label: 'Cancelled' }
+        return { icon: XCircle, color: 'error', bgColor: 'bg-error/10', textColor: 'text-error', label: 'Cancelled' }
       default:
         return { icon: Clock, color: 'text-secondary', bgColor: 'bg-text-secondary/10', textColor: 'text-text-secondary', label: status }
     }
@@ -737,6 +832,35 @@ const DriverDashboard = () => {
       console.error('Error updating shipment status:', error)
       toast.error('Error updating status')
       return false
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  // Record a granular in-between trip milestone (arrived at pickup, loading started, arrived at POD)
+  const handleMarkMilestone = async (shipmentId, milestone) => {
+    setUpdatingStatus(shipmentId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}/milestone`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ milestone })
+      })
+
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Milestone recorded')
+        fetchAssignedShipments()
+      } else {
+        toast.error(data.message || 'Failed to record milestone')
+      }
+    } catch (error) {
+      console.error('Error recording milestone:', error)
+      toast.error('Error recording milestone')
     } finally {
       setUpdatingStatus(null)
     }
@@ -822,6 +946,14 @@ const DriverDashboard = () => {
           <div className="flex items-center space-x-2">
             <NotificationCenter userId={driverInfo.id} />
             <button
+              onClick={handleGlobalRefresh}
+              disabled={refreshingAll}
+              className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors flex-shrink-0 disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${refreshingAll ? 'animate-spin' : ''}`} />
+            </button>
+            <button
               onClick={handleLogout}
               className="w-9 h-9 sm:w-10 sm:h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors flex-shrink-0"
               title="Logout"
@@ -876,7 +1008,8 @@ const DriverDashboard = () => {
           {[
             { id: "jobs", label: "My Jobs", icon: Package },
             { id: "findwork", label: "Find Work", icon: Search },
-            { id: "wallet", label: "Wallet", icon: Wallet }
+            { id: "wallet", label: "Wallet", icon: Wallet },
+            { id: "profile", label: "Profile", icon: User }
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -929,27 +1062,29 @@ const DriverDashboard = () => {
                         <p className="text-success font-bold">₦{parseFloat(bid.bidAmount).toLocaleString("en-NG")}</p>
                         {bid.status === "pending" && (
                           <div className="flex gap-2 mt-3 pt-3 border-t border-border">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openBidModal(
-                                  {
-                                    id: bid.shipmentId,
-                                    pickupState: bid.pickupState,
-                                    destinationState: bid.destinationState,
-                                    cargoType: bid.cargoType,
-                                    weight: bid.weight,
-                                    truckType: bid.truckType,
-                                    estimatedCost: bid.shipmentEstimatedCost,
-                                  },
-                                  bid
-                                )
-                              }
-                              className="flex-1 bg-primary/10 text-primary py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 hover:bg-primary/20"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                              Edit Bid
-                            </button>
+                            {getBidEditMinutesLeft(bid) > 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openBidModal(
+                                    {
+                                      id: bid.shipmentId,
+                                      pickupState: bid.pickupState,
+                                      destinationState: bid.destinationState,
+                                      cargoType: bid.cargoType,
+                                      weight: bid.weight,
+                                      truckType: bid.truckType,
+                                      estimatedCost: bid.shipmentEstimatedCost,
+                                    },
+                                    bid
+                                  )
+                                }
+                                className="flex-1 bg-primary/10 text-primary py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 hover:bg-primary/20"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                Edit Bid ({getBidEditMinutesLeft(bid)}m)
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleCancelBid(bid.id)}
@@ -1003,7 +1138,7 @@ const DriverDashboard = () => {
                                 {shipment.pickupState} → {shipment.destinationState}
                               </p>
                               <p className="text-text-secondary text-xs mt-0.5">
-                                #{shipment.id} • {shipment.cargoType} • {shipment.weight}t • {shipment.truckType}
+                                {shipment.bookingReference || `#${shipment.id}`} • {shipment.cargoType} • {shipment.weight}t • {shipment.truckType}
                               </p>
                               <p className="text-text-secondary text-xs">
                                 Pickup: {new Date(shipment.pickupDate).toLocaleDateString()}
@@ -1016,13 +1151,15 @@ const DriverDashboard = () => {
                               {existingBid ? (
                                 existingBid.status === "pending" ? (
                                   <div className="flex flex-col gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => openBidModal(shipment, existingBid)}
-                                      className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-lg font-medium"
-                                    >
-                                      Edit
-                                    </button>
+                                    {getBidEditMinutesLeft(existingBid) > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openBidModal(shipment, existingBid)}
+                                        className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-lg font-medium"
+                                      >
+                                        Edit ({getBidEditMinutesLeft(existingBid)}m)
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() => handleCancelBid(existingBid.id)}
@@ -1152,6 +1289,10 @@ const DriverDashboard = () => {
                   </div>
                 )}
               </div>
+
+              <WalletStatement variant="driver" />
+
+              <BonusWallet variant="driver" />
             </div>
           )}
 
@@ -1181,14 +1322,12 @@ const DriverDashboard = () => {
                     <div>
                       <label className="block text-text-primary font-medium mb-2">Withdrawal Amount (NGN)</label>
                       <input
-                        type="number"
-                        min="100"
-                        step="0.01"
-                        max={walletBalance}
-                        value={withdrawAmount}
-                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        type="text"
+                        inputMode="decimal"
+                        value={formatWithCommas(withdrawAmount)}
+                        onChange={(e) => setWithdrawAmount(parseFormattedNumber(e.target.value))}
                         className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                        placeholder="e.g., 5000"
+                        placeholder="e.g., 5,000"
                         disabled={withdrawLoading}
                       />
                       <p className="text-text-secondary text-xs mt-1">Minimum: ₦100 | Maximum: ₦{Number(walletBalance || 0).toLocaleString('en-NG')}</p>
@@ -1278,6 +1417,184 @@ const DriverDashboard = () => {
                 </div>
               </div>
             )}
+
+
+          {/* ========== PROFILE TAB ========== */}
+          {activeTab === "profile" && (
+            <div className="space-y-4 sm:space-y-6">
+              <div className="bg-gradient-to-br from-primary via-primary to-secondary rounded-2xl p-6 shadow-lg">
+                <div className="flex items-center space-x-4">
+                  {driverInfo?.profilePhoto ? (
+                    <img
+                      src={driverInfo.profilePhoto}
+                      alt="Profile"
+                      className="w-20 h-20 rounded-full object-cover border-4 border-white/30 shadow-lg"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center border-4 border-white/30 shadow-lg">
+                      <User className="w-10 h-10 text-white" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-white font-bold text-xl sm:text-2xl truncate">{driverInfo?.driverName || "Driver"}</h2>
+                    <div className="flex items-center space-x-2 text-white/90">
+                      <Phone className="w-4 h-4" />
+                      <p className="text-sm">{driverInfo?.phoneNumber || ""}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`bg-card border-2 rounded-xl p-4 ${
+                driverInfo?.profilePhoto ? 'border-success/30' : 'border-border'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {driverInfo?.profilePhoto ? (
+                      <img
+                        src={driverInfo.profilePhoto}
+                        alt="Profile"
+                        className="w-12 h-12 rounded-lg object-cover"
+                        onClick={() => window.open(driverInfo.profilePhoto, '_blank')}
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">
+                        <Camera className="w-6 h-6 text-warning" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-text-primary font-bold">Profile Photo</p>
+                      <p className="text-text-secondary text-sm">
+                        {driverInfo?.profilePhoto ? 'Uploaded ✓' : 'Required to bid on shipments'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={triggerProfilePhotoUpload}
+                    disabled={uploadingPhoto}
+                    className={`px-4 py-2 rounded-lg font-medium flex items-center space-x-2 ${
+                      driverInfo?.profilePhoto
+                        ? 'bg-secondary/10 text-secondary hover:bg-secondary/20'
+                        : 'bg-primary text-white hover:bg-primary/90'
+                    } disabled:opacity-50`}
+                  >
+                    {uploadingPhoto ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        <span className="text-sm">{driverInfo?.profilePhoto ? 'Update' : 'Upload'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* My Bio */}
+              <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+                <p className="text-text-primary font-bold flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" /> My Bio
+                </p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {driverInfo?.driverCode && (
+                    <div>
+                      <p className="text-text-secondary text-xs">Driver ID</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-text-primary font-mono font-medium">{driverInfo.driverCode}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(driverInfo.driverCode)
+                            setCopiedDriverCode(true)
+                            toast.success('Driver ID copied!')
+                            setTimeout(() => setCopiedDriverCode(false), 2000)
+                          }}
+                          className="text-text-secondary hover:text-primary transition-colors flex-shrink-0"
+                          title="Copy Driver ID"
+                        >
+                          {copiedDriverCode ? <CheckCircle className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {driverInfo?.driverLicense && (
+                    <div>
+                      <p className="text-text-secondary text-xs">License No.</p>
+                      <p className="text-text-primary font-medium">{driverInfo.driverLicense}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-text-secondary text-xs">KYC Status</p>
+                    <p className="text-text-primary font-medium capitalize flex items-center gap-1">
+                      {driverInfo?.kycStatus === 'approved' && <CheckCircle className="w-3.5 h-3.5 text-success" />}
+                      {driverInfo?.kycStatus || 'Not submitted'}
+                    </p>
+                  </div>
+                  {driverInfo?.createdAt && (
+                    <div>
+                      <p className="text-text-secondary text-xs">Member Since</p>
+                      <p className="text-text-primary font-medium">
+                        <Clock className="w-3.5 h-3.5 inline mr-1 text-text-secondary" />
+                        {new Date(driverInfo.createdAt).toLocaleDateString('en-NG', { year: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                  )}
+                  {myRating?.count > 0 && (
+                    <div>
+                      <p className="text-text-secondary text-xs">Rating</p>
+                      <p className="text-text-primary font-medium flex items-center gap-1">
+                        <Star className="w-3.5 h-3.5 text-warning fill-warning" />
+                        {myRating.average?.toFixed(1)} ({myRating.count})
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {fleetManagerInfo ? (
+                <div className="bg-card border border-border rounded-2xl p-4 space-y-2">
+                  <p className="text-text-primary font-bold flex items-center gap-2 mb-1">
+                    <Truck className="w-4 h-4 text-primary" /> My Fleet Company
+                  </p>
+                  <p className="text-text-primary font-semibold text-lg flex items-center gap-1.5">
+                    {fleetManagerInfo.fullName}
+                    {fleetManagerInfo.cacVerified && (
+                      <BadgeCheck className="w-4 h-4 text-success flex-shrink-0" title="CAC verified" />
+                    )}
+                  </p>
+                  {fleetManagerInfo.fleetManagerCode && (
+                    <p className="text-text-secondary text-xs font-mono">ID: {fleetManagerInfo.fleetManagerCode}</p>
+                  )}
+                  {fleetManagerInfo.phone && (
+                    <div className="flex items-center space-x-2 text-text-secondary text-sm">
+                      <Phone className="w-4 h-4" />
+                      <p>{fleetManagerInfo.phone}</p>
+                    </div>
+                  )}
+                  {fleetManagerInfo.email && (
+                    <div className="flex items-center space-x-2 text-text-secondary text-sm">
+                      <Mail className="w-4 h-4" />
+                      <p>{fleetManagerInfo.email}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-card border border-border rounded-2xl p-4 space-y-2">
+                  <p className="text-text-primary font-bold flex items-center gap-2 mb-1">
+                    <Truck className="w-4 h-4 text-primary" /> My Fleet Company
+                  </p>
+                  <p className="text-text-secondary text-sm">
+                    You're not enrolled with a fleet manager yet — you can still bid and operate independently.
+                    Share your Driver ID{driverInfo?.driverCode ? ` (${driverInfo.driverCode})` : ""} with a fleet
+                    manager so they can enroll you.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ========== MY JOBS TAB (existing vehicle + shipment content) ========== */}
           {activeTab === "jobs" && (
@@ -1385,7 +1702,7 @@ const DriverDashboard = () => {
           ) : assignedShipments.length > 0 ? (
             <div className="space-y-3 sm:space-y-4">
               {assignedShipments.map((shipment) => {
-                const statusInfo = getStatusInfo(shipment.status)
+                const statusInfo = getStatusInfo(shipment.status, shipment.deliveryConfirmed)
                 const StatusIcon = statusInfo.icon
                 const isExpanded = selectedShipment?.id === shipment.id
                 
@@ -1401,7 +1718,7 @@ const DriverDashboard = () => {
                             {shipment.pickupState} → {shipment.destinationState}
                           </p>
                           <p className="text-text-secondary text-xs sm:text-sm truncate">
-                            #{shipment.id} • {shipment.cargoType} • {shipment.weight}t
+                            {shipment.bookingReference || `#${shipment.id}`} • {shipment.cargoType} • {shipment.weight}t
                           </p>
                         </div>
                       </div>
@@ -1415,6 +1732,10 @@ const DriverDashboard = () => {
 
                     {isExpanded && (
                       <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border space-y-3 sm:space-y-4">
+                        <div>
+                          <p className="text-text-secondary text-xs sm:text-sm mb-3 font-medium">Progress Tracker</p>
+                          <ShipmentProgressTracker shipment={shipment} />
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
                           <div>
                             <p className="text-text-secondary text-xs">Pickup Location</p>
@@ -1516,7 +1837,29 @@ const DriverDashboard = () => {
                             </button>
                           )}
 
-                          {shipment.status === 'picking_up' && (
+                          {shipment.status === 'picking_up' && !shipment.arrivedAtPickupAt && (
+                            <button
+                              onClick={() => handleMarkMilestone(shipment.id, 'arrived_pickup')}
+                              disabled={updatingStatus === shipment.id}
+                              className="w-full bg-primary text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
+                            >
+                              <MapPin className="w-4 h-4 sm:w-5 sm:h-5" />
+                              <span>Arrived at Pickup</span>
+                            </button>
+                          )}
+
+                          {shipment.status === 'picking_up' && shipment.arrivedAtPickupAt && !shipment.loadingStartedAt && (
+                            <button
+                              onClick={() => handleMarkMilestone(shipment.id, 'loading')}
+                              disabled={updatingStatus === shipment.id}
+                              className="w-full bg-primary text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
+                            >
+                              <Package className="w-4 h-4 sm:w-5 sm:h-5" />
+                              <span>Start Loading</span>
+                            </button>
+                          )}
+
+                          {shipment.status === 'picking_up' && shipment.loadingStartedAt && (
                             <button
                               onClick={() => {
                                 setSelectedShipmentForPOD(shipment.id)
@@ -1527,7 +1870,7 @@ const DriverDashboard = () => {
                               className="w-full bg-warning text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-warning/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
                             >
                               <Package className="w-4 h-4 sm:w-5 sm:h-5" />
-                              <span>Capture Pickup POD</span>
+                              <span>Confirm Loading & Capture Pickup POD</span>
                             </button>
                           )}
 
@@ -1557,7 +1900,28 @@ const DriverDashboard = () => {
                             </div>
                           )}
 
-                          {shipment.status === 'in_transit' && (
+                          {Boolean(shipment.pickupConfirmed) && (
+                            <button
+                              onClick={() => setEwaybillShipmentId(shipment.id)}
+                              className="w-full bg-muted text-text-primary py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold flex items-center justify-center space-x-2 text-sm sm:text-base hover:bg-muted/80"
+                            >
+                              <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
+                              <span>View E-Waybill</span>
+                            </button>
+                          )}
+
+                          {shipment.status === 'in_transit' && !shipment.arrivedAtPodAt && (
+                            <button
+                              onClick={() => handleMarkMilestone(shipment.id, 'arrived_pod')}
+                              disabled={updatingStatus === shipment.id}
+                              className="w-full bg-primary text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
+                            >
+                              <MapPin className="w-4 h-4 sm:w-5 sm:h-5" />
+                              <span>Arrived at Destination (POD)</span>
+                            </button>
+                          )}
+
+                          {shipment.status === 'in_transit' && shipment.arrivedAtPodAt && (
                             <button
                               onClick={() => {
                                 setSelectedShipmentForPOD(shipment.id)
@@ -1568,7 +1932,7 @@ const DriverDashboard = () => {
                               className="w-full bg-success text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
                             >
                               <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                              <span>Capture Delivery POD</span>
+                              <span>Confirm Offloading & Capture Delivery POD</span>
                             </button>
                           )}
 
@@ -1671,8 +2035,12 @@ const DriverDashboard = () => {
                         <span className="text-text-secondary">Delivery (30%)</span>
                         <span className="font-medium">₦{invoiceData.amounts?.delivery?.toLocaleString("en-NG")}</span>
                       </div>
+                      <div className="flex justify-between px-4 py-2 text-text-secondary">
+                        <span>Holage Platform Commission (5%, charged at pickup) — retained by Holage</span>
+                        <span className="font-medium">₦{invoiceData.amounts?.platformFee?.toLocaleString("en-NG")}</span>
+                      </div>
                       <div className="flex justify-between px-4 py-3 bg-primary/5 font-bold text-primary">
-                        <span>Total</span>
+                        <span>Total Shipment Value</span>
                         <span>₦{invoiceData.amounts?.total?.toLocaleString("en-NG")}</span>
                       </div>
                     </div>
@@ -1718,15 +2086,20 @@ const DriverDashboard = () => {
                 <p className="text-primary font-semibold text-sm mt-1">
                   Estimated: ₦{parseFloat(selectedBidShipment.estimatedCost || 0).toLocaleString('en-NG')}
                 </p>
+                {editingBid && (
+                  <p className="text-warning text-xs mt-2 font-medium">
+                    You can edit this bid for {getBidEditMinutesLeft(editingBid)} more minute{getBidEditMinutesLeft(editingBid) === 1 ? '' : 's'}.
+                  </p>
+                )}
               </div>
               <form onSubmit={handleSubmitBid} className="space-y-4">
                 <div>
                   <label className="block text-text-secondary text-sm mb-1">Bid Amount (₦)</label>
                   <input
-                    type="number"
-                    value={bidAmount}
-                    onChange={e => setBidAmount(e.target.value)}
-                    min={selectedBidShipment.estimatedCost}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatWithCommas(bidAmount)}
+                    onChange={e => setBidAmount(e.target.value.replace(/\D/g, ""))}
                     className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-text-primary focus:outline-none focus:border-primary"
                     placeholder="Enter your bid amount"
                     required
@@ -1776,6 +2149,11 @@ const DriverDashboard = () => {
             setSelectedPODType(null)
           }}
         />
+      )}
+
+      {/* E-Waybill Modal */}
+      {ewaybillShipmentId && (
+        <EwaybillModal shipmentId={ewaybillShipmentId} onClose={() => setEwaybillShipmentId(null)} />
       )}
     </div>
   )

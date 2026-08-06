@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { 
-  Truck, 
+import {
+  Truck,
   Wallet,
   Package,
   User,
   Eye,
   EyeOff,
+  RefreshCw,
   ArrowUp,
   ArrowDown,
   CheckCircle,
@@ -27,7 +28,8 @@ import {
   ChevronDown,
   Search,
   X,
-  Star
+  Star,
+  Gift
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -36,6 +38,12 @@ import NotificationCenter from "../components/NotificationCenter"
 import PODCapture from "../components/PODCapture"
 import SelectModal from "../components/SelectModal"
 import SingleShipmentMap from "../components/SingleShipmentMap"
+import ShipmentProgressTracker from "../components/ShipmentProgressTracker"
+import ReferralPanel from "../components/ReferralPanel"
+import BonusWallet from "../components/BonusWallet"
+import WalletStatement from "../components/WalletStatement"
+import EwaybillModal from "../components/EwaybillModal"
+import { formatWithCommas, parseFormattedNumber } from "../utils/currencyFormat"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -44,12 +52,16 @@ const TruckerDashboard = () => {
   const toast = useToast()
   const [activeView, setActiveView] = useState("home")
   const [showBalance, setShowBalance] = useState(true)
+  const [refreshingAll, setRefreshingAll] = useState(false)
+  const [ewaybillShipmentId, setEwaybillShipmentId] = useState(null)
   const [wallet, setWallet] = useState(null)
   const [kycCheckDone, setKycCheckDone] = useState(false)
   
   // Wallet state
   const [walletBalance, setWalletBalance] = useState(0)
   const [transactions, setTransactions] = useState([])
+  const [transactionsPage, setTransactionsPage] = useState(1)
+  const transactionsPerPage = 5
   
   // Documents state
   const [documents, setDocuments] = useState(null)
@@ -102,6 +114,7 @@ const TruckerDashboard = () => {
     message: ''
   })
   const [submittingBid, setSubmittingBid] = useState(false)
+  const [editingBid, setEditingBid] = useState(null)
   const [myBids, setMyBids] = useState([])
   const [loadingMyBids, setLoadingMyBids] = useState(false)
   
@@ -331,23 +344,34 @@ const TruckerDashboard = () => {
     try {
       const formData = new FormData()
       formData.append(documentType, file)
-      
-      // Add required fields from existing documents
-      if (documents?.phone) formData.append('phone', documents.phone)
-      if (documents?.address) formData.append('address', documents.address)
-      if (documents?.nin) formData.append('nin', documents.nin)
-      if (documents?.plateNumber) formData.append('plateNumber', documents.plateNumber)
-      if (documents?.vehicleType) formData.append('vehicleType', documents.vehicleType)
-      
+
       const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/kyc/submit`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      })
-      
+      // Profile photo isn't an identity document, so it uses its own endpoint that
+      // stays editable even after KYC has been approved (unlike /kyc/submit, which locks).
+      let response
+      if (documentType === 'profilePhoto') {
+        response = await fetch(`${API_BASE_URL}/kyc/profile-photo`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        })
+      } else {
+        // Add required fields from existing documents
+        if (documents?.phone) formData.append('phone', documents.phone)
+        if (documents?.address) formData.append('address', documents.address)
+        if (documents?.nin) formData.append('nin', documents.nin)
+        if (documents?.plateNumber) formData.append('plateNumber', documents.plateNumber)
+        if (documents?.vehicleType) formData.append('vehicleType', documents.vehicleType)
+
+        response = await fetch(`${API_BASE_URL}/kyc/submit`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        })
+      }
+
       const data = await response.json()
       if (response.ok) {
         toast.success('Document uploaded successfully!')
@@ -887,36 +911,40 @@ const TruckerDashboard = () => {
   }
 
   // Accept shipment
-  const handleOpenBidModal = (shipment) => {
+  const handleOpenBidModal = (shipment, existingBid = null) => {
     setSelectedShipment(shipment)
-    const estimatedCost = shipment.estimatedCost || 0
+    setEditingBid(existingBid)
+    const prefillAmount = existingBid ? existingBid.bidAmount : (shipment.estimatedCost || 0)
     setBidForm({
-      bidAmount: estimatedCost ? formatNumberWithCommas(estimatedCost.toString()) : '',
-      message: ''
+      bidAmount: prefillAmount ? formatNumberWithCommas(prefillAmount.toString()) : '',
+      message: existingBid?.message || ''
     })
     setShowBidModal(true)
   }
 
+  // A pending bid can be revised within 10 minutes of its original submission (server-enforced too)
+  const BID_EDIT_WINDOW_MS = 10 * 60 * 1000
+  const getBidEditMinutesLeft = (bid) => {
+    if (!bid || bid.status !== 'pending' || !bid.createdAt) return 0
+    const remainingMs = BID_EDIT_WINDOW_MS - (Date.now() - new Date(bid.createdAt).getTime())
+    return Math.max(0, Math.ceil(remainingMs / 60000))
+  }
+
   const handleSubmitBid = async (e) => {
     e.preventDefault()
-    
+
     if (!selectedShipment) return
-    
+
     // Remove commas before parsing
     const bidAmount = parseFloat(removeCommas(bidForm.bidAmount))
     const estimatedCost = parseFloat(selectedShipment.estimatedCost || 0)
     const maxBidAmount = estimatedCost + 200000
-    
+
     if (isNaN(bidAmount) || bidAmount <= 0) {
       toast.error('Please enter a valid bid amount')
       return
     }
-    
-    if (bidAmount < estimatedCost) {
-      toast.error(`Bid amount cannot be less than the estimated cost of ₦${estimatedCost.toLocaleString('en-NG')}`)
-      return
-    }
-    
+
     if (bidAmount > maxBidAmount) {
       toast.error(`Bid amount cannot exceed ₦${maxBidAmount.toLocaleString('en-NG')} (Base: ₦${estimatedCost.toLocaleString('en-NG')} + Max addition: ₦200,000)`)
       return
@@ -925,26 +953,30 @@ const TruckerDashboard = () => {
     setSubmittingBid(true)
     try {
       const token = localStorage.getItem('authToken')
-      
-      const response = await fetch(`${API_BASE_URL}/bids`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          shipmentId: selectedShipment.id,
-          bidAmount: bidAmount,
-          message: bidForm.message || null
-        })
-      })
-      
+
+      const response = await fetch(
+        editingBid ? `${API_BASE_URL}/bids/${editingBid.id}` : `${API_BASE_URL}/bids`,
+        {
+          method: editingBid ? 'PUT' : 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(
+            editingBid
+              ? { bidAmount: bidAmount, message: bidForm.message || null }
+              : { shipmentId: selectedShipment.id, bidAmount: bidAmount, message: bidForm.message || null }
+          )
+        }
+      )
+
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success('Bid submitted successfully!')
+        toast.success(editingBid ? 'Bid updated successfully!' : 'Bid submitted successfully!')
         setShowBidModal(false)
         setBidForm({ bidAmount: '', message: '' })
         setSelectedShipment(null)
+        setEditingBid(null)
         fetchAvailableShipments()
         fetchMyBids()
       } else {
@@ -1054,6 +1086,20 @@ const TruckerDashboard = () => {
     }
   }
 
+  // Systemic refresh — always visible in the header, reloads active loads, available
+  // shipments, bids, and wallet regardless of which tab is active.
+  const handleGlobalRefresh = async () => {
+    setRefreshingAll(true)
+    try {
+      await Promise.all([fetchActiveLoads(true), fetchAvailableShipments(), fetchMyBids()])
+      toast.success('Refreshed')
+    } catch (error) {
+      console.error('Error during global refresh:', error)
+    } finally {
+      setRefreshingAll(false)
+    }
+  }
+
   // Calculate monthly earnings from transactions
   const monthlyEarnings = useMemo(() => {
     const currentMonth = new Date().getMonth()
@@ -1089,6 +1135,13 @@ const TruckerDashboard = () => {
     )
   }
 
+  // Pagination for transactions (wallet view)
+  const totalTransactionsPages = Math.ceil(transactions.length / transactionsPerPage)
+  const paginatedTransactions = transactions.slice(
+    (transactionsPage - 1) * transactionsPerPage,
+    transactionsPage * transactionsPerPage
+  )
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Wallet Card - Always visible at top */}
@@ -1113,7 +1166,15 @@ const TruckerDashboard = () => {
           </div>
           <div className="flex items-center space-x-2">
             <NotificationCenter userId={user?.id} />
-            <button 
+            <button
+              onClick={handleGlobalRefresh}
+              disabled={refreshingAll}
+              className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-5 h-5 text-white ${refreshingAll ? 'animate-spin' : ''}`} />
+            </button>
+            <button
               onClick={() => setShowBalance(!showBalance)}
               className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
             >
@@ -1152,15 +1213,14 @@ const TruckerDashboard = () => {
             <div className="p-4 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-text-primary font-medium mb-2">Amount (NGN)</label>
-                <input 
-                  type="number" 
-                  min="100" 
-                  step="1" 
-                  value={fundAmount} 
-                  onChange={(e) => setFundAmount(e.target.value)} 
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary" 
-                  placeholder="e.g., 5000" 
-                  disabled={fundLoading} 
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formatWithCommas(fundAmount)}
+                  onChange={(e) => setFundAmount(parseFormattedNumber(e.target.value))}
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                  placeholder="e.g., 5,000"
+                  disabled={fundLoading}
                 />
                 <p className="text-text-secondary text-xs mt-1">Minimum amount: ₦100</p>
               </div>
@@ -1212,16 +1272,14 @@ const TruckerDashboard = () => {
 
               <div>
                 <label className="block text-text-primary font-medium mb-2">Withdrawal Amount (NGN)</label>
-                <input 
-                  type="number" 
-                  min="100" 
-                  step="0.01" 
-                  max={walletBalance}
-                  value={withdrawAmount} 
-                  onChange={(e) => setWithdrawAmount(e.target.value)} 
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary" 
-                  placeholder="e.g., 5000" 
-                  disabled={withdrawLoading} 
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formatWithCommas(withdrawAmount)}
+                  onChange={(e) => setWithdrawAmount(parseFormattedNumber(e.target.value))}
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                  placeholder="e.g., 5,000"
+                  disabled={withdrawLoading}
                 />
                 <p className="text-text-secondary text-xs mt-1">Minimum: ₦100 | Maximum: ₦{Number(walletBalance || 0).toLocaleString('en-NG')}</p>
               </div>
@@ -1316,7 +1374,7 @@ const TruckerDashboard = () => {
                               {formatLocation(load.pickupState, load.pickupLga)} → {formatLocation(load.destinationState, load.destinationLga)}
                             </p>
                             <p className="text-text-secondary text-sm">
-                              #{filterZeroZero(load.id)} • {filterZeroZero(load.weight)} tons
+                              {load.bookingReference || `#${filterZeroZero(load.id)}`} • {filterZeroZero(load.weight)} tons
                             </p>
                           </div>
                         </div>
@@ -1367,7 +1425,7 @@ const TruckerDashboard = () => {
                           </button>
                         )}
                         {load.status === 'picked_up' && Boolean(load.pickupConfirmed) && (
-                          <button 
+                          <button
                             onClick={() => handleStartDeliveryTrip(load.id)}
                             disabled={updatingStatus === load.id}
                             className="w-full bg-success text-white py-2 rounded-xl font-medium text-sm disabled:opacity-50 flex items-center justify-center space-x-2"
@@ -1380,6 +1438,15 @@ const TruckerDashboard = () => {
                                 <span>Start Trip to Destination</span>
                               </>
                             )}
+                          </button>
+                        )}
+                        {Boolean(load.pickupConfirmed) && (
+                          <button
+                            onClick={() => setEwaybillShipmentId(load.id)}
+                            className="w-full bg-muted text-text-primary py-2 rounded-xl font-medium text-sm flex items-center justify-center space-x-2 hover:bg-muted/80"
+                          >
+                            <FileText className="w-4 h-4" />
+                            <span>View E-Waybill</span>
                           </button>
                         )}
                         {load.status === 'picked_up' && !Boolean(load.pickupConfirmed) && (
@@ -1443,6 +1510,11 @@ const TruckerDashboard = () => {
               setSelectedPODType(null)
             }}
           />
+        )}
+
+        {/* E-Waybill Modal */}
+        {ewaybillShipmentId && (
+          <EwaybillModal shipmentId={ewaybillShipmentId} onClose={() => setEwaybillShipmentId(null)} />
         )}
 
         {activeView === "jobs" && (
@@ -1523,7 +1595,7 @@ const TruckerDashboard = () => {
                         <p className="text-text-primary font-bold text-lg">
                           {selectedShipment.pickupState} → {selectedShipment.destinationState}
                         </p>
-                        <p className="text-text-secondary text-sm">Shipment #{selectedShipment.id}</p>
+                        <p className="text-text-secondary text-sm">Shipment {selectedShipment.bookingReference || `#${selectedShipment.id}`}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -1531,6 +1603,13 @@ const TruckerDashboard = () => {
                       <p className="text-text-secondary text-xs">{selectedShipment.distance ? `${selectedShipment.distance}km` : 'N/A'}</p>
                     </div>
                   </div>
+
+                  {selectedShipment.status && (
+                    <div className="mb-6 pt-6 border-t border-border">
+                      <p className="text-text-secondary text-sm mb-3 font-medium">Progress Tracker</p>
+                      <ShipmentProgressTracker shipment={selectedShipment} />
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div>
@@ -1609,16 +1688,29 @@ const TruckerDashboard = () => {
 
                   {/* Check if user has already bid */}
                   {myBids.find(b => b.shipmentId === selectedShipment.id) ? (
-                    <div className="w-full bg-muted text-text-primary py-3 rounded-xl font-bold text-center">
+                    <div className="w-full bg-muted text-text-primary py-3 px-4 rounded-xl font-bold flex items-center justify-between gap-2">
                       {(() => {
                         const existingBid = myBids.find(b => b.shipmentId === selectedShipment.id)
                         if (existingBid.status === 'accepted') {
                           return <span className="text-success">✓ Bid Accepted</span>
                         } else if (existingBid.status === 'rejected') {
                           return <span className="text-error">✗ Bid Rejected</span>
-                        } else {
-                          return <span>Bid Submitted: ₦{parseFloat(existingBid.bidAmount || 0).toLocaleString('en-NG')}</span>
                         }
+                        const minutesLeft = getBidEditMinutesLeft(existingBid)
+                        return (
+                          <>
+                            <span>Bid Submitted: ₦{parseFloat(existingBid.bidAmount || 0).toLocaleString('en-NG')}</span>
+                            {minutesLeft > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenBidModal(selectedShipment, existingBid)}
+                                className="text-primary text-sm font-semibold underline flex-shrink-0"
+                              >
+                                Edit ({minutesLeft}m left)
+                              </button>
+                            )}
+                          </>
+                        )
                       })()}
                     </div>
                   ) : (
@@ -1654,7 +1746,7 @@ const TruckerDashboard = () => {
                           <p className="text-text-primary font-bold text-lg">
                             {shipment.pickupState} → {shipment.destinationState}
                           </p>
-                          <p className="text-text-secondary text-sm">#{shipment.id}</p>
+                          <p className="text-text-secondary text-sm">{shipment.bookingReference || `#${shipment.id}`}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -1697,16 +1789,29 @@ const TruckerDashboard = () => {
                         View Details
                   </button>
                   {myBids.find(b => b.shipmentId === shipment.id) ? (
-                    <div className="bg-muted text-text-primary py-3 rounded-xl font-medium text-center flex items-center justify-center">
+                    <div className="bg-muted text-text-primary py-3 px-3 rounded-xl font-medium flex items-center justify-center gap-2">
                       {(() => {
                         const existingBid = myBids.find(b => b.shipmentId === shipment.id)
                         if (existingBid.status === 'accepted') {
                           return <span className="text-success text-sm">✓ Accepted</span>
                         } else if (existingBid.status === 'rejected') {
                           return <span className="text-error text-sm">✗ Rejected</span>
-                        } else {
-                          return <span className="text-sm">Bid: ₦{parseFloat(existingBid.bidAmount || 0).toLocaleString('en-NG')}</span>
                         }
+                        const minutesLeft = getBidEditMinutesLeft(existingBid)
+                        return (
+                          <>
+                            <span className="text-sm">Bid: ₦{parseFloat(existingBid.bidAmount || 0).toLocaleString('en-NG')}</span>
+                            {minutesLeft > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenBidModal(shipment, existingBid)}
+                                className="text-primary text-xs font-semibold underline flex-shrink-0"
+                              >
+                                Edit ({minutesLeft}m)
+                              </button>
+                            )}
+                          </>
+                        )
                       })()}
                     </div>
                   ) : (
@@ -1772,26 +1877,48 @@ const TruckerDashboard = () => {
               {transactions.length === 0 ? (
                 <div className="bg-muted/30 rounded-2xl p-6 text-center text-text-secondary">No transactions yet</div>
               ) : (
-              <div className="space-y-2">
-                  {transactions.map((t) => (
-                    <div key={t.id || t.reference} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                        <div className={`w-10 h-10 ${t.type === 'credit' ? 'bg-success/10' : 'bg-error/10'} rounded-full flex items-center justify-center`}>
-                          {t.type === 'credit' ? <ArrowDown className="w-5 h-5 text-success" /> : <ArrowUp className="w-5 h-5 text-error" />}
-                    </div>
-                    <div>
-                          <p className="text-text-primary font-medium">{t.description || (t.type === 'credit' ? 'Wallet Funding' : 'Wallet Debit')}</p>
-                          <p className="text-text-secondary text-xs">Ref: {t.reference}</p>
-                    </div>
+                <>
+                  <div className="space-y-2">
+                    {paginatedTransactions.map((t) => (
+                      <div key={t.id || t.reference} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-10 h-10 ${t.type === 'credit' ? 'bg-success/10' : 'bg-error/10'} rounded-full flex items-center justify-center`}>
+                            {t.type === 'credit' ? <ArrowDown className="w-5 h-5 text-success" /> : <ArrowUp className="w-5 h-5 text-error" />}
+                          </div>
+                          <div>
+                            <p className="text-text-primary font-medium">{t.description || (t.type === 'credit' ? 'Wallet Funding' : 'Wallet Debit')}</p>
+                            <p className="text-text-secondary text-xs">Ref: {t.reference}</p>
+                          </div>
+                        </div>
+                        <p className={`${t.type === 'credit' ? 'text-success' : 'text-error'} font-bold`}>
+                          {t.type === 'credit' ? '+' : '-'}₦{Number(t.amount || 0).toLocaleString('en-NG')}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                      <p className={`${t.type === 'credit' ? 'text-success' : 'text-error'} font-bold`}>
-                        {t.type === 'credit' ? '+' : '-'}₦{Number(t.amount || 0).toLocaleString('en-NG')}
-                      </p>
-                </div>
-                  ))}
+                  {totalTransactionsPages > 1 && (
+                    <div className="flex items-center justify-center space-x-2 mt-4">
+                      <button onClick={() => setTransactionsPage(p => Math.max(1, p - 1))} disabled={transactionsPage === 1} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Prev</button>
+                      <span className="text-text-secondary text-sm">Page {transactionsPage} of {totalTransactionsPages}</span>
+                      <button onClick={() => setTransactionsPage(p => Math.min(totalTransactionsPages, p + 1))} disabled={transactionsPage === totalTransactionsPages} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Next</button>
                     </div>
+                  )}
+                </>
               )}
             </div>
+
+            <WalletStatement variant="user" />
+          </div>
+        )}
+
+        {activeView === "referrals" && (
+          <div className="space-y-4">
+            <h2 className="text-text-primary font-bold text-2xl">Refer & Earn</h2>
+            <p className="text-text-secondary text-sm">
+              Invite other shippers, truckers, fleet managers, or agents to Holage and earn a reward once they complete their first shipment.
+            </p>
+            <ReferralPanel />
+            <BonusWallet variant="user" />
           </div>
         )}
 
@@ -1890,7 +2017,7 @@ const TruckerDashboard = () => {
                   <CreditCard className="w-5 h-5 text-primary" />
                   <span>Identity Verification</span>
                 </h3>
-                {!editingIdentity && (
+                {!editingIdentity && documents?.kycStatus !== 'approved' && (
                   <button
                     onClick={() => {
                       setEditingIdentity(true)
@@ -1900,6 +2027,11 @@ const TruckerDashboard = () => {
                   >
                     {documents?.nin || documents?.bvn ? 'Edit' : 'Add'}
                   </button>
+                )}
+                {documents?.kycStatus === 'approved' && (
+                  <span className="flex items-center gap-1 px-3 py-1 bg-success/10 text-success text-xs font-medium rounded-full">
+                    <CheckCircle className="w-3.5 h-3.5" /> Approved
+                  </span>
                 )}
               </div>
 
@@ -2012,6 +2144,23 @@ const TruckerDashboard = () => {
                 </div>
               )}
             </div>
+
+            {/* Safety net: lets an existing user reach the full KYC flow even after their
+                basic info (phone/address/nin) is already complete, so newly-added
+                verification requirements are never permanently unreachable. Locked once
+                approved — approved KYC can no longer be edited. */}
+            {documents?.kycStatus === 'approved' ? (
+              <div className="w-full px-4 py-3 bg-success/10 border border-success/20 rounded-xl text-success font-medium text-sm text-center flex items-center justify-center gap-2">
+                <CheckCircle className="w-4 h-4" /> KYC Approved
+              </div>
+            ) : (
+              <button
+                onClick={() => navigateTo('kyc')}
+                className="w-full px-4 py-3 bg-muted/50 border border-border rounded-xl text-text-primary font-medium hover:bg-muted transition-colors text-sm"
+              >
+                {documents?.kycStatus === 'rejected' ? 'Fix & Resubmit Verification (KYC)' : 'Update Full Verification (KYC)'}
+              </button>
+            )}
 
             {/* Bank Account Details (For Withdrawals) */}
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
@@ -2512,7 +2661,7 @@ const TruckerDashboard = () => {
 
       {/* Bottom Navigation - BIG ICONS */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
-        <div className="grid grid-cols-5 gap-1 px-2 py-3">
+        <div className="grid grid-cols-6 gap-1 px-2 py-3">
           <button
             onClick={() => setActiveView("home")}
             className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
@@ -2550,6 +2699,18 @@ const TruckerDashboard = () => {
           </button>
 
           <button
+            onClick={() => setActiveView("referrals")}
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+              activeView === "referrals" ? "bg-primary/10" : ""
+            }`}
+          >
+            <Gift className={`w-7 h-7 ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`} />
+            <span className={`text-xs font-medium ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
+              Refer
+            </span>
+          </button>
+
+          <button
             onClick={() => navigateTo("complaint")}
             className="flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors hover:bg-primary/10"
           >
@@ -2579,11 +2740,12 @@ const TruckerDashboard = () => {
           <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h3 className="text-text-primary font-bold text-lg">Place Bid</h3>
+              <h3 className="text-text-primary font-bold text-lg">{editingBid ? 'Edit Bid' : 'Place Bid'}</h3>
               <button
                 onClick={() => {
                   setShowBidModal(false)
                   setBidForm({ bidAmount: '', message: '' })
+                  setEditingBid(null)
                 }}
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
               >
@@ -2598,13 +2760,18 @@ const TruckerDashboard = () => {
                 <p className="text-text-primary font-bold">
                   {selectedShipment.pickupState} → {selectedShipment.destinationState}
                 </p>
-                <p className="text-text-secondary text-sm">#{selectedShipment.id}</p>
+                <p className="text-text-secondary text-sm">{selectedShipment.bookingReference || `#${selectedShipment.id}`}</p>
                 <p className="text-text-secondary text-sm mt-2">
                   Base Cost: <span className="font-bold text-primary">₦{parseFloat(selectedShipment.estimatedCost || 0).toLocaleString('en-NG')}</span>
                 </p>
                 <p className="text-text-secondary text-xs mt-1">
                   Maximum Bid: ₦{(parseFloat(selectedShipment.estimatedCost || 0) + 200000).toLocaleString('en-NG')}
                 </p>
+                {editingBid && (
+                  <p className="text-warning text-xs mt-2 font-medium">
+                    You can edit this bid for {getBidEditMinutesLeft(editingBid)} more minute{getBidEditMinutesLeft(editingBid) === 1 ? '' : 's'}.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -2618,12 +2785,12 @@ const TruckerDashboard = () => {
                     const formatted = formatNumberWithCommas(e.target.value)
                     setBidForm({ ...bidForm, bidAmount: formatted })
                   }}
-                  placeholder={`Minimum: ₦${parseFloat(selectedShipment.estimatedCost || 0).toLocaleString('en-NG')}`}
+                  placeholder={`e.g. ₦${parseFloat(selectedShipment.estimatedCost || 0).toLocaleString('en-NG')}`}
                   required
                   className="w-full px-4 py-3 bg-input border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-text-primary"
                 />
                 <p className="text-text-secondary text-xs mt-1">
-                  You can add up to ₦200,000 to the base cost
+                  You can bid below the base cost, or add up to ₦200,000 above it
                 </p>
               </div>
 
@@ -2646,6 +2813,7 @@ const TruckerDashboard = () => {
                   onClick={() => {
                     setShowBidModal(false)
                     setBidForm({ bidAmount: '', message: '' })
+                    setEditingBid(null)
                   }}
                   className="flex-1 bg-muted text-text-secondary py-3 rounded-xl font-medium hover:bg-muted/80 transition-colors"
                 >
@@ -2659,12 +2827,12 @@ const TruckerDashboard = () => {
                   {submittingBid ? (
                     <>
                       <Loader className="w-5 h-5 animate-spin" />
-                      <span>Submitting...</span>
+                      <span>{editingBid ? 'Updating...' : 'Submitting...'}</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle className="w-5 h-5" />
-                      <span>Submit Bid</span>
+                      <span>{editingBid ? 'Update Bid' : 'Submit Bid'}</span>
                     </>
                   )}
                 </button>

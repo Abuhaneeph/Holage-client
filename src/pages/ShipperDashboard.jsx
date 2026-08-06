@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { 
-  Package, 
+import {
+  Package,
   Wallet,
   Send,
   History,
   User,
   Eye,
+  RefreshCw,
   EyeOff,
   ArrowUp,
   ArrowDown,
@@ -28,7 +29,13 @@ import {
   MapPin,
   CreditCard,
   Search,
-  Star
+  Star,
+  Gift,
+  UserCheck,
+  PackageCheck,
+  Navigation,
+  BadgeCheck,
+  XCircle
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -36,9 +43,14 @@ import StateSelect from "../components/StateSelect"
 import SelectModal from "../components/SelectModal"
 import { calculateDistance, estimateShippingCost } from "../utils/distanceCalculator"
 import LgaSelect from "../components/LgaSelect"
-import nigeriaStatesLgasData from "../utils/nigeria-states-lgas.json"
 import NotificationCenter from "../components/NotificationCenter"
 import SingleShipmentMap from "../components/SingleShipmentMap"
+import ShipmentProgressTracker from "../components/ShipmentProgressTracker"
+import ReferralPanel from "../components/ReferralPanel"
+import BonusWallet from "../components/BonusWallet"
+import WalletStatement from "../components/WalletStatement"
+import EwaybillModal from "../components/EwaybillModal"
+import { formatWithCommas, parseFormattedNumber } from "../utils/currencyFormat"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -48,7 +60,7 @@ const calculateStageAmount = (totalAmount, percentage) =>
 const calculateBidAcceptUpfrontDue = (bidAmount, estimatedCost) => {
   const bidUpfront = calculateStageAmount(bidAmount, 5)
   const estimateUpfront = calculateStageAmount(estimatedCost, 5)
-  return Math.max(0, bidUpfront - estimateUpfront)
+  return Math.max(0, Math.round((bidUpfront - estimateUpfront) * 100) / 100)
 }
 
 const ShipperDashboard = () => {
@@ -56,6 +68,8 @@ const ShipperDashboard = () => {
   const toast = useToast()
   const [activeView, setActiveView] = useState("home")
   const [showBalance, setShowBalance] = useState(true)
+  const [refreshingAll, setRefreshingAll] = useState(false)
+  const [ewaybillShipmentId, setEwaybillShipmentId] = useState(null)
   const [wallet, setWallet] = useState(null)
   const [kycCheckDone, setKycCheckDone] = useState(false)
   const [showCreateShipment, setShowCreateShipment] = useState(false)
@@ -100,6 +114,7 @@ const ShipperDashboard = () => {
   // Modal states
   const [showCargoModal, setShowCargoModal] = useState(false)
   const [showTruckModal, setShowTruckModal] = useState(false)
+  const [showWeightModal, setShowWeightModal] = useState(false)
   
   // Shipments state
   const [shipments, setShipments] = useState([])
@@ -137,13 +152,14 @@ const ShipperDashboard = () => {
     destinationLga: '',
     destinationWard: '',
     cargoType: '',
+    cargoTypeOther: '',
     weight: '',
     truckType: '',
     pickupDate: '',
-    fragileItems: false,
-    insurance: false
+    insurance: false,
+    declaredValue: ''
   })
-  
+
   const [distanceInfo, setDistanceInfo] = useState(null)
   const [costEstimate, setCostEstimate] = useState(null)
   const [calculating, setCalculating] = useState(false)
@@ -227,11 +243,15 @@ const ShipperDashboard = () => {
   }
 
   useEffect(() => {
-    const loadLocations = () => {
+    const loadLocations = async () => {
       try {
         setLocationsLoading(true)
         setLocationsError("")
-        
+
+        // Loaded as its own chunk (1.3MB+ of ward/LGA data) instead of bundled into the
+        // dashboard's main JS, so it downloads in parallel and caches independently.
+        const { default: nigeriaStatesLgasData } = await import("../utils/nigeria-states-lgas.json")
+
         // Transform nigeria-states-lgas.json into states structure with wards
         if (nigeriaStatesLgasData && Array.isArray(nigeriaStatesLgasData) && nigeriaStatesLgasData.length > 0) {
           const statesArray = nigeriaStatesLgasData.map((stateData) => {
@@ -615,7 +635,6 @@ const ShipperDashboard = () => {
               truckType,
               pickupCoords,
               destinationCoords,
-              shipmentForm.fragileItems,
               shipmentForm.insurance,
               hasPickupWard ? pickupWard : null,
               hasDestinationWard ? destinationWard : null
@@ -639,7 +658,7 @@ const ShipperDashboard = () => {
     }
 
     calculateShipmentDetails()
-  }, [shipmentForm.pickupState, shipmentForm.pickupLga, shipmentForm.pickupWard, shipmentForm.destinationState, shipmentForm.destinationLga, shipmentForm.destinationWard, shipmentForm.truckType, shipmentForm.fragileItems, shipmentForm.insurance, states])
+  }, [shipmentForm.pickupState, shipmentForm.pickupLga, shipmentForm.pickupWard, shipmentForm.destinationState, shipmentForm.destinationLga, shipmentForm.destinationWard, shipmentForm.truckType, shipmentForm.insurance, states])
   
   const handleFormChange = (field, value) => {
     setShipmentForm((prev) => {
@@ -699,6 +718,16 @@ const ShipperDashboard = () => {
       return
     }
 
+    if (shipmentForm.insurance && (!shipmentForm.declaredValue || parseFloat(shipmentForm.declaredValue) <= 0)) {
+      toast.error("Please enter a declared cargo value to add insurance to this shipment.")
+      return
+    }
+
+    if (shipmentForm.cargoType === 'other' && !shipmentForm.cargoTypeOther.trim()) {
+      toast.error("Please specify the cargo type.")
+      return
+    }
+
     const estimatedTotal = costEstimate?.cost?.totalCost || 0
     const upfrontRequired = calculateStageAmount(estimatedTotal, 5)
     if (estimatedTotal > 0 && walletBalance < upfrontRequired) {
@@ -726,13 +755,14 @@ const ShipperDashboard = () => {
         },
         body: JSON.stringify({
           ...shipmentForm,
+          cargoType: shipmentForm.cargoType === 'other' ? shipmentForm.cargoTypeOther.trim() : shipmentForm.cargoType,
           pickupLga: cleanPickupLga,
           destinationLga: cleanDestinationLga
         })
       })
-      
+
       const data = await response.json()
-      
+
       if (!response.ok) {
         throw new Error(data.message || 'Failed to create shipment')
       }
@@ -779,11 +809,12 @@ const ShipperDashboard = () => {
         destinationState: '',
         destinationLga: '',
         cargoType: '',
+        cargoTypeOther: '',
         weight: '',
         truckType: '',
         pickupDate: '',
-        fragileItems: false,
-        insurance: false
+        insurance: false,
+        declaredValue: ''
       })
       setPickupLgaOptions([])
       setDestinationLgaOptions([])
@@ -805,21 +836,32 @@ const ShipperDashboard = () => {
     try {
       const formData = new FormData()
       formData.append(documentType, file)
-      
-      // Add required fields from existing documents
-      if (documents?.phone) formData.append('phone', documents.phone)
-      if (documents?.address) formData.append('address', documents.address)
-      if (documents?.nin) formData.append('nin', documents.nin)
-      
+
       const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/kyc/submit`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      })
-      
+      // Profile photo isn't an identity document, so it uses its own endpoint that
+      // stays editable even after KYC has been approved (unlike /kyc/submit, which locks).
+      let response
+      if (documentType === 'profilePhoto') {
+        response = await fetch(`${API_BASE_URL}/kyc/profile-photo`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        })
+      } else {
+        // Add required fields from existing documents
+        if (documents?.phone) formData.append('phone', documents.phone)
+        if (documents?.address) formData.append('address', documents.address)
+        if (documents?.nin) formData.append('nin', documents.nin)
+
+        response = await fetch(`${API_BASE_URL}/kyc/submit`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        })
+      }
+
       const data = await response.json()
       if (response.ok) {
         toast.success('Document uploaded successfully!')
@@ -1082,7 +1124,9 @@ const ShipperDashboard = () => {
         body: JSON.stringify({ amount: amountNum, currency: 'NGN' })
       })
       const data = await resp.json()
-      if (!resp.ok) throw new Error(data.message || 'Failed to initialize payment')
+      if (!resp.ok) {
+        throw new Error(data.message || 'Failed to initialize payment')
+      }
 
       // Check if Paystack script is loaded
       if (!window.PaystackPop) {
@@ -1269,8 +1313,18 @@ const ShipperDashboard = () => {
     { label: "Textiles", value: "textiles" },
     { label: "Agricultural Products", value: "agricultural" },
     { label: "Building Materials", value: "building_materials" },
-    { label: "Other", value: "other" }
+    { label: "Machinery & Equipment", value: "machinery_equipment" },
+    { label: "Chemicals", value: "chemicals" },
+    { label: "Furniture", value: "furniture" },
+    { label: "Automotive Parts", value: "automotive_parts" },
+    { label: "Livestock", value: "livestock" },
+    { label: "Fuel/Petroleum Products", value: "fuel_petroleum" },
+    { label: "Consumer Goods", value: "consumer_goods" },
+    { label: "Pharmaceuticals", value: "pharmaceuticals" },
+    { label: "Other (Specify)", value: "other" }
   ]
+
+  const weightOptions = [5, 10, 15, 20, 30, 40, 50].map((w) => ({ label: `${w} tons`, value: String(w) }))
 
   const truckOptions = [
     { label: "Flatbed trucks", value: "Flatbed trucks" },
@@ -1288,19 +1342,58 @@ const ShipperDashboard = () => {
   const formatStateName = (stateSlug) => toTitleCase(stateSlug)
 
   // Helper function to get status info
+  // Each status gets its own distinct icon (not a shared checkmark/truck) so the trip's
+  // stage reads at a glance from the icon alone, without needing to check the color/label.
   const getStatusInfo = (status, deliveryConfirmed = false) => {
     const statusMap = {
       'pending': { icon: Clock, color: 'warning', label: 'Pending' },
-      'assigned': { icon: CheckCircle, color: 'info', label: 'Assigned' },
+      'assigned': { icon: UserCheck, color: 'info', label: 'Assigned' },
       'picking_up': { icon: Truck, color: 'primary', label: 'Going to Pick Up' },
-      'picked_up': { icon: Package, color: 'warning', label: 'Picked Up (Awaiting Your Confirmation)' },
-      'in_transit': { icon: Truck, color: 'primary', label: 'In Transit to Destination' },
+      'picked_up': { icon: PackageCheck, color: 'warning', label: 'Picked Up (Awaiting Your Confirmation)' },
+      'in_transit': { icon: Navigation, color: 'primary', label: 'In Transit to Destination' },
       'delivered': deliveryConfirmed
-        ? { icon: CheckCircle, color: 'success', label: 'Delivered' }
+        ? { icon: BadgeCheck, color: 'success', label: 'Delivered' }
         : { icon: CheckCircle, color: 'warning', label: 'Delivered (Awaiting Your Confirmation)' },
-      'cancelled': { icon: X, color: 'error', label: 'Cancelled' }
+      'cancelled': { icon: XCircle, color: 'error', label: 'Cancelled' }
     }
     return statusMap[status] || statusMap['pending']
+  }
+
+  // Refresh wallet balance + transaction list (used after actions that move money)
+  const refreshWalletAndTransactions = async () => {
+    try {
+      const token = localStorage.getItem('authToken')
+      const [wr, tr] = await Promise.all([
+        fetch(`${API_BASE_URL}/wallet`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/wallet/transactions`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ])
+      const wd = await wr.json()
+      const td = await tr.json()
+
+      if (wr.ok && wd.wallet) {
+        setWallet(wd.wallet)
+        setWalletBalance(parseFloat(wd.wallet.balance || 0))
+      }
+      if (tr.ok && td.transactions) {
+        setTransactions(td.transactions)
+      }
+    } catch (error) {
+      console.error('Error refreshing wallet/transactions:', error)
+    }
+  }
+
+  // Systemic refresh — always visible in the header, reloads shipments + wallet regardless
+  // of which tab is active (previously only the driver dashboard had any refresh affordance).
+  const handleGlobalRefresh = async () => {
+    setRefreshingAll(true)
+    try {
+      await Promise.all([fetchMyShipments(), refreshWalletAndTransactions()])
+      toast.success('Refreshed')
+    } catch (error) {
+      console.error('Error during global refresh:', error)
+    } finally {
+      setRefreshingAll(false)
+    }
   }
 
   // Confirm pickup
@@ -1323,8 +1416,7 @@ const ShipperDashboard = () => {
         toast.success(data.message || 'Pickup confirmed! 60% payment has been released.')
         // Refresh shipments and wallet
         fetchMyShipments()
-        fetchWallet()
-        fetchTransactions()
+        refreshWalletAndTransactions()
       } else {
         toast.error(data.message || 'Failed to confirm pickup')
       }
@@ -1336,7 +1428,7 @@ const ShipperDashboard = () => {
 
   // Confirm delivery
   const handleConfirmDelivery = async (shipmentId) => {
-    if (!window.confirm('Confirm that the shipment has been delivered? This will charge the remaining 30% (+ 5% platform fee) from your wallet.')) {
+    if (!window.confirm('Confirm that the shipment has been delivered? This will charge the remaining 30% from your wallet.')) {
       return
     }
 
@@ -1354,8 +1446,7 @@ const ShipperDashboard = () => {
         toast.success(data.message || 'Delivery confirmed! 30% has been released to the carrier.')
         // Refresh shipments and wallet
         fetchMyShipments()
-        fetchWallet()
-        fetchTransactions()
+        refreshWalletAndTransactions()
         // Load rating section for this shipment so it appears without re-expanding
         fetchShipmentDetail(shipmentId)
       } else {
@@ -1421,7 +1512,15 @@ const ShipperDashboard = () => {
           </div>
           <div className="flex items-center space-x-2">
             <NotificationCenter userId={user?.id} />
-            <button 
+            <button
+              onClick={handleGlobalRefresh}
+              disabled={refreshingAll}
+              className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-5 h-5 text-white ${refreshingAll ? 'animate-spin' : ''}`} />
+            </button>
+            <button
               onClick={() => setShowBalance(!showBalance)}
               className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
             >
@@ -1494,7 +1593,7 @@ const ShipperDashboard = () => {
                                 {formatLocation(shipment.pickupState, shipment.pickupLga)} → {formatLocation(shipment.destinationState, shipment.destinationLga)}
                               </p>
                           <p className="text-text-secondary text-sm">
-                            #{filterZeroZero(shipment.id)} • {filterZeroZero(shipment.weight)}t • {filterZeroZero(shipment.distance)}km
+                            {shipment.bookingReference || `#${filterZeroZero(shipment.id)}`} • {filterZeroZero(shipment.weight)}t • {filterZeroZero(shipment.distance)}km
                           </p>
                           <div className="flex items-center justify-between pt-2">
                             <p className="text-success font-bold text-lg">₦{parseFloat(shipment.estimatedCost || 0).toLocaleString('en-NG')}</p>
@@ -1588,7 +1687,7 @@ const ShipperDashboard = () => {
                             {formatLocation(shipment.pickupState, shipment.pickupLga)} → {formatLocation(shipment.destinationState, shipment.destinationLga)}
                           </p>
                           <p className="text-text-secondary text-sm">
-                            #{filterZeroZero(shipment.id)} • {shipment.cargoType} • {filterZeroZero(shipment.weight)}t
+                            {shipment.bookingReference || `#${filterZeroZero(shipment.id)}`} • {shipment.cargoType} • {filterZeroZero(shipment.weight)}t
                           </p>
                         </div>
                       </div>
@@ -1599,7 +1698,7 @@ const ShipperDashboard = () => {
                             setExpandedShipmentId(newExpandedId)
                             if (newExpandedId) {
                               if (shipment.status === 'pending') fetchShipmentBids(shipment.id)
-                              if (shipment.status === 'delivered' && shipment.deliveryConfirmed) fetchShipmentDetail(shipment.id)
+                              if (['picked_up', 'delivered'].includes(shipment.status)) fetchShipmentDetail(shipment.id)
                             }
                           }}
                           className="bg-primary text-white px-6 py-3 rounded-xl font-medium text-base"
@@ -1620,6 +1719,10 @@ const ShipperDashboard = () => {
                     
                     {isExpanded && (
                       <>
+                        <div className="mt-4 pt-4 border-t border-border">
+                          <p className="text-text-secondary text-sm mb-3 font-medium">Progress Tracker</p>
+                          <ShipmentProgressTracker shipment={shipment} />
+                        </div>
                         <div className="mt-4 pt-4 border-t border-border">
                     <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
                       <div>
@@ -1661,6 +1764,16 @@ const ShipperDashboard = () => {
                         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
                           <p className="text-warning font-medium mb-2">Driver has marked shipment as picked up</p>
                           <p className="text-text-secondary text-sm">Please confirm pickup to charge and release 60% payment, then allow the driver to start the trip to destination.</p>
+                          {(() => {
+                            const bidAmt = parseFloat(shipmentDetails[shipment.id]?.acceptedBidWithRating?.bidAmount || shipment.estimatedCost || 0)
+                            if (bidAmt <= 0) return null
+                            return (
+                              <div className="flex items-center justify-between pt-2 mt-2 border-t border-warning/20 text-sm">
+                                <span className="text-text-secondary">Amount to be charged (60%)</span>
+                                <span className="text-text-primary font-semibold">₦{calculateStageAmount(bidAmt, 60).toLocaleString('en-NG')}</span>
+                              </div>
+                            )
+                          })()}
                         </div>
                         <button
                           onClick={() => handleConfirmPickup(shipment.id)}
@@ -1676,7 +1789,29 @@ const ShipperDashboard = () => {
                       <div className="mt-4 pt-4 border-t border-border">
                         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
                           <p className="text-warning font-medium mb-2">Driver has marked shipment as delivered</p>
-                          <p className="text-text-secondary text-sm">Please confirm delivery to charge and release the remaining 30% (+ 5% platform fee).</p>
+                          <p className="text-text-secondary text-sm">Please confirm delivery to charge and release the remaining 30%.</p>
+                          {(() => {
+                            const bidAmt = parseFloat(shipmentDetails[shipment.id]?.acceptedBidWithRating?.bidAmount || shipment.estimatedCost || 0)
+                            if (bidAmt <= 0) return null
+                            const carrierAmt = calculateStageAmount(bidAmt, 30)
+                            const platformAmt = calculateStageAmount(bidAmt, 5)
+                            return (
+                              <div className="space-y-1 pt-2 mt-2 border-t border-warning/20 text-sm">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-text-secondary">Carrier payment (30%)</span>
+                                  <span className="text-text-primary font-medium">₦{carrierAmt.toLocaleString('en-NG')}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-text-secondary">Platform fee (5%)</span>
+                                  <span className="text-text-primary font-medium">₦{platformAmt.toLocaleString('en-NG')}</span>
+                                </div>
+                                <div className="flex items-center justify-between pt-1 border-t border-warning/30">
+                                  <span className="text-text-secondary font-medium">Total to be charged</span>
+                                  <span className="text-text-primary font-bold">₦{(carrierAmt + platformAmt).toLocaleString('en-NG')}</span>
+                                </div>
+                              </div>
+                            )
+                          })()}
                         </div>
                         <button
                           onClick={() => handleConfirmDelivery(shipment.id)}
@@ -1693,6 +1828,12 @@ const ShipperDashboard = () => {
                         <div className="bg-success/10 text-success p-3 rounded-lg text-sm">
                           ✓ Pickup confirmed on {shipment.pickupConfirmedAt ? new Date(shipment.pickupConfirmedAt).toLocaleString() : 'N/A'}
                         </div>
+                        <button
+                          onClick={() => setEwaybillShipmentId(shipment.id)}
+                          className="mt-2 w-full bg-muted text-text-primary py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-muted/80"
+                        >
+                          <FileText className="w-4 h-4" /> View E-Waybill
+                        </button>
                       </div>
                     )}
 
@@ -2060,6 +2201,19 @@ const ShipperDashboard = () => {
                 </>
               )}
             </div>
+
+            <WalletStatement variant="user" />
+          </div>
+        )}
+
+        {activeView === "referrals" && (
+          <div className="space-y-4">
+            <h2 className="text-text-primary font-bold text-2xl">Refer & Earn</h2>
+            <p className="text-text-secondary text-sm">
+              Invite other shippers, truckers, fleet managers, or agents to Holage and earn a reward once they complete their first shipment.
+            </p>
+            <ReferralPanel />
+            <BonusWallet variant="user" />
           </div>
         )}
 
@@ -2127,7 +2281,7 @@ const ShipperDashboard = () => {
                   <CreditCard className="w-5 h-5 text-primary" />
                   <span>Identity Verification</span>
                 </h3>
-                {!editingIdentity && (
+                {!editingIdentity && documents?.kycStatus !== 'approved' && (
                   <button
                     onClick={() => {
                       setEditingIdentity(true)
@@ -2137,6 +2291,11 @@ const ShipperDashboard = () => {
                   >
                     {documents?.nin || documents?.bvn ? 'Edit' : 'Add'}
                   </button>
+                )}
+                {documents?.kycStatus === 'approved' && (
+                  <span className="flex items-center gap-1 px-3 py-1 bg-success/10 text-success text-xs font-medium rounded-full">
+                    <CheckCircle className="w-3.5 h-3.5" /> Approved
+                  </span>
                 )}
               </div>
 
@@ -2249,6 +2408,23 @@ const ShipperDashboard = () => {
                 </div>
               )}
             </div>
+
+            {/* Safety net: lets an existing user reach the full KYC flow even after their
+                basic info (phone/address/nin) is already complete, so newly-added
+                verification requirements are never permanently unreachable. Locked once
+                approved — approved KYC can no longer be edited. */}
+            {documents?.kycStatus === 'approved' ? (
+              <div className="w-full px-4 py-3 bg-success/10 border border-success/20 rounded-xl text-success font-medium text-sm text-center flex items-center justify-center gap-2">
+                <CheckCircle className="w-4 h-4" /> KYC Approved
+              </div>
+            ) : (
+              <button
+                onClick={() => navigateTo('kyc')}
+                className="w-full px-4 py-3 bg-muted/50 border border-border rounded-xl text-text-primary font-medium hover:bg-muted transition-colors text-sm"
+              >
+                {documents?.kycStatus === 'rejected' ? 'Fix & Resubmit Verification (KYC)' : 'Update Full Verification (KYC)'}
+              </button>
+            )}
 
             {/* Bank Account Details (For Withdrawals) */}
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
@@ -2730,15 +2906,17 @@ const ShipperDashboard = () => {
 
               <div>
                 <label className="block text-text-primary font-medium mb-2">Weight (tons)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={shipmentForm.weight}
-                  onChange={(e) => handleFormChange('weight', e.target.value)}
-                  className="w-full px-4 py-4 bg-input border border-border rounded-xl text-text-primary text-lg"
-                  placeholder="e.g., 2.5"
-                  required
-                />
+                <input type="hidden" name="weight" value={shipmentForm.weight} required />
+                <button
+                  type="button"
+                  onClick={() => setShowWeightModal(true)}
+                  className="w-full px-4 py-4 bg-input border border-border rounded-xl text-left flex items-center justify-between text-lg hover:bg-muted/50 transition-colors"
+                >
+                  <span className={shipmentForm.weight ? 'text-text-primary' : 'text-text-secondary'}>
+                    {shipmentForm.weight ? `${shipmentForm.weight} tons` : 'Select weight'}
+                  </span>
+                  <ChevronDown className="w-5 h-5 text-text-secondary" />
+                </button>
               </div>
 
               <div>
@@ -2754,6 +2932,16 @@ const ShipperDashboard = () => {
                   </span>
                   <ChevronDown className="w-5 h-5 text-text-secondary" />
                 </button>
+                {shipmentForm.cargoType === 'other' && (
+                  <input
+                    type="text"
+                    value={shipmentForm.cargoTypeOther}
+                    onChange={(e) => handleFormChange('cargoTypeOther', e.target.value)}
+                    className="w-full mt-2 px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                    placeholder="Please specify the cargo type"
+                    required
+                  />
+                )}
               </div>
 
               <div>
@@ -2783,19 +2971,6 @@ const ShipperDashboard = () => {
               </div>
 
               <div className="space-y-3">
-              <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-xl">
-                <input
-                  type="checkbox"
-                  id="fragileItems"
-                  checked={shipmentForm.fragileItems}
-                  onChange={(e) => handleFormChange('fragileItems', e.target.checked)}
-                  className="w-6 h-6 rounded border-border text-primary"
-                />
-                <label htmlFor="fragileItems" className="text-text-primary font-medium">
-                    Fragile/Perishable Items (+₦300,000)
-                </label>
-                </div>
-
                 <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-xl">
                   <input
                     type="checkbox"
@@ -2808,6 +2983,26 @@ const ShipperDashboard = () => {
                     Insurance (+₦200,000)
                   </label>
                 </div>
+
+                {shipmentForm.insurance && (
+                  <div className="p-4 bg-muted/30 rounded-xl">
+                    <label className="block text-text-primary font-medium mb-2">
+                      Declared Cargo Value (₦) <span className="text-error">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formatWithCommas(shipmentForm.declaredValue)}
+                      onChange={(e) => handleFormChange('declaredValue', parseFormattedNumber(e.target.value))}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="e.g., 1,500,000"
+                      required
+                    />
+                    <p className="text-text-secondary text-xs mt-1">
+                      Required for insured shipments — this is the value the cargo would be covered for.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Distance and Cost Estimate */}
@@ -2851,23 +3046,19 @@ const ShipperDashboard = () => {
                     5% upfront required now: ₦{calculateStageAmount(costEstimate.cost.totalCost, 5).toLocaleString('en-NG')}
                   </p>
                   <p className="text-text-secondary text-xs mt-1">
-                    60% charged at pickup • 30% + 5% platform fee at delivery
+                    60% + 5% commission charged at pickup • 30% at delivery
+                  </p>
+                  <p className="text-text-secondary text-xs mt-1">
+                    Total you'll pay: ₦{parseFloat(costEstimate.cost.totalCost || 0).toLocaleString('en-NG')} (no extra platform fee on top)
                   </p>
                   <p className="text-text-secondary text-xs mt-2">
                     {shipmentForm.truckType ? `${truckOptions.find(opt => opt.value === shipmentForm.truckType)?.label || shipmentForm.truckType}` : 'Truck type not selected'} • {distanceInfo?.distance} km
                   </p>
-                  {(costEstimate.cost.fragileFee > 0 || costEstimate.cost.insuranceFee > 0) && (
+                  {costEstimate.cost.insuranceFee > 0 && (
                     <div className="mt-3 pt-3 border-t border-success/20 space-y-1">
-                      {costEstimate.cost.fragileFee > 0 && (
-                        <p className="text-text-secondary text-xs">
-                          Fragile/Perishable Fee: +₦{costEstimate.cost.fragileFee.toLocaleString('en-NG')}
-                        </p>
-                      )}
-                      {costEstimate.cost.insuranceFee > 0 && (
-                        <p className="text-text-secondary text-xs">
-                          Insurance Fee: +₦{costEstimate.cost.insuranceFee.toLocaleString('en-NG')}
-                        </p>
-                      )}
+                      <p className="text-text-secondary text-xs">
+                        Insurance Fee: +₦{costEstimate.cost.insuranceFee.toLocaleString('en-NG')}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -2907,15 +3098,14 @@ const ShipperDashboard = () => {
             <div className="p-4 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-text-primary font-medium mb-2">Amount (NGN)</label>
-                <input 
-                  type="number" 
-                  min="100" 
-                  step="1" 
-                  value={fundAmount} 
-                  onChange={(e) => setFundAmount(e.target.value)} 
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary" 
-                  placeholder="e.g., 5000" 
-                  disabled={fundLoading} 
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formatWithCommas(fundAmount)}
+                  onChange={(e) => setFundAmount(parseFormattedNumber(e.target.value))}
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                  placeholder="e.g., 5,000"
+                  disabled={fundLoading}
                 />
                 <p className="text-text-secondary text-xs mt-1">Minimum amount: ₦100</p>
               </div>
@@ -2931,6 +3121,22 @@ const ShipperDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* E-Waybill Modal */}
+      {ewaybillShipmentId && (
+        <EwaybillModal shipmentId={ewaybillShipmentId} onClose={() => setEwaybillShipmentId(null)} />
+      )}
+
+      {/* Weight Modal */}
+      <SelectModal
+        isOpen={showWeightModal}
+        onClose={() => setShowWeightModal(false)}
+        title="Select Weight"
+        options={weightOptions}
+        value={shipmentForm.weight}
+        onChange={(value) => handleFormChange('weight', value)}
+        searchable={false}
+      />
 
       {/* Cargo Type Modal */}
       <SelectModal
@@ -2990,6 +3196,8 @@ const ShipperDashboard = () => {
                   const bidAmount = parseFloat(selectedBidForAccept.bidAmount || 0)
                   const estimatedCost = parseFloat(selectedShipmentForBid.estimatedCost || 0)
                   const upfrontAdjustmentDue = calculateBidAcceptUpfrontDue(bidAmount, estimatedCost)
+                  const alreadyPaidUpfront = calculateStageAmount(estimatedCost, 5)
+                  const totalUpfrontOnBid = calculateStageAmount(bidAmount, 5)
                   return (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between py-2 border-b border-border">
@@ -3005,13 +3213,37 @@ const ShipperDashboard = () => {
                     </span>
                   </div>
                   {upfrontAdjustmentDue > 0 && (
+                    <>
+                      <div className="flex items-center justify-between py-1 px-3 text-xs text-text-secondary">
+                        <span>Already paid at order creation (5% of estimate)</span>
+                        <span>₦{alreadyPaidUpfront.toLocaleString('en-NG')}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-1 px-3 text-xs text-text-secondary">
+                        <span>Full 5% of the accepted bid amount</span>
+                        <span>₦{totalUpfrontOnBid.toLocaleString('en-NG')}</span>
+                      </div>
+                    </>
+                  )}
+                  {upfrontAdjustmentDue > 0 && (
                     <div className="flex items-center justify-between py-2 border-b border-error/30 bg-error/5 rounded-lg px-3">
-                      <span className="text-error text-sm font-medium">5% Upfront Adjustment Due Now</span>
+                      <span className="text-error text-sm font-medium">Top-up due now (bid was higher than the estimate)</span>
                       <span className="text-error font-bold">
                         ₦{upfrontAdjustmentDue.toLocaleString('en-NG')}
                       </span>
                     </div>
                   )}
+                  <div className="flex items-center justify-between py-2 border-b border-border">
+                    <span className="text-text-secondary text-sm">Includes Platform Commission (5%, charged at pickup)</span>
+                    <span className="text-text-primary font-medium">
+                      ₦{calculateStageAmount(bidAmount, 5).toLocaleString('en-NG')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-text-primary text-sm font-semibold">Total Cost (Bid Amount)</span>
+                    <span className="text-primary font-bold">
+                      ₦{bidAmount.toLocaleString('en-NG')}
+                    </span>
+                  </div>
                 </div>
                   )
                 })()}
@@ -3057,15 +3289,15 @@ const ShipperDashboard = () => {
                     </li>
                     <li className="flex items-start">
                       <Clock className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">60%</strong> charged from your wallet and credited at pickup confirmation</span>
+                      <span><strong className="text-text-primary">60%</strong> charged from your wallet and credited to the carrier at pickup confirmation</span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">30%</strong> charged to carrier at delivery confirmation</span>
+                      <span><strong className="text-text-primary">5%</strong> platform commission charged from your wallet at pickup confirmation (same charge as the 60% above)</span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">5%</strong> platform fee charged at delivery confirmation</span>
+                      <span><strong className="text-text-primary">30%</strong> charged from your wallet and credited to the carrier at delivery confirmation</span>
                     </li>
                   </ul>
                 </div>
@@ -3168,11 +3400,11 @@ const ShipperDashboard = () => {
                   </li>
                   <li className="flex items-start gap-2">
                     <Clock className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>When you <strong className="text-text-primary">confirm pickup</strong>, <strong className="text-text-primary">60%</strong> is charged from your wallet and paid to the driver.</span>
+                    <span>When you <strong className="text-text-primary">confirm pickup</strong>, <strong className="text-text-primary">60%</strong> is charged from your wallet and paid to the driver, plus a <strong className="text-text-primary">5%</strong> platform commission.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>When you <strong className="text-text-primary">confirm delivery</strong>, the remaining <strong className="text-text-primary">30%</strong> is paid to the driver and <strong className="text-text-primary">5%</strong> platform fee is charged.</span>
+                    <span>When you <strong className="text-text-primary">confirm delivery</strong>, the remaining <strong className="text-text-primary">30%</strong> is charged from your wallet and paid to the driver.</span>
                   </li>
                 </ul>
               </div>
@@ -3194,7 +3426,7 @@ const ShipperDashboard = () => {
 
       {/* Bottom Navigation - BIG ICONS */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
-        <div className="grid grid-cols-5 gap-1 px-2 py-3">
+        <div className="grid grid-cols-6 gap-1 px-2 py-3">
           <button
             onClick={() => setActiveView("home")}
             className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
@@ -3228,6 +3460,18 @@ const ShipperDashboard = () => {
             <Wallet className={`w-7 h-7 ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`} />
             <span className={`text-xs font-medium ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`}>
               Wallet
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveView("referrals")}
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+              activeView === "referrals" ? "bg-primary/10" : ""
+            }`}
+          >
+            <Gift className={`w-7 h-7 ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`} />
+            <span className={`text-xs font-medium ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
+              Refer
             </span>
           </button>
 

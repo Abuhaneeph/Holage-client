@@ -30,6 +30,10 @@ export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  // True when an already-onboarded user is revisiting KYC to update/add info, as opposed to
+  // completing it for the first time right after registration — lets SuccessPage show the
+  // right message instead of always saying "Welcome to HOLAGE! Your account has been created."
+  const [isKycResubmission, setIsKycResubmission] = useState(false)
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -37,6 +41,7 @@ export const AppProvider = ({ children }) => {
     password: "",
     confirmPassword: "",
     agentReferralCode: "",
+    inviteCode: "",
     verificationCode: "",
     resetCode: "", // Added for forgot password flow
     newPassword: "", // Added for forgot password flow
@@ -102,6 +107,7 @@ export const AppProvider = ({ children }) => {
       password: "",
       confirmPassword: "",
       agentReferralCode: "",
+      inviteCode: "",
       verificationCode: "",
       resetCode: "",
       newPassword: "",
@@ -120,8 +126,12 @@ export const AppProvider = ({ children }) => {
       bankAccountNumber: "",
       bankCode: "",
       bankName: "",
+      cacNumber: "",
+      tin: "",
+      cacCertificate: null,
     })
     setUserRole("")
+    setIsKycResubmission(false)
   }
 
   // API caller for JSON requests
@@ -288,7 +298,7 @@ export const AppProvider = ({ children }) => {
   }
 
   // Auth functions
-  const registerUser = async (fullName, email, password, role, nin, bvn, agentReferralCode) => {
+  const registerUser = async (fullName, email, password, role, nin, bvn, agentReferralCode, inviteCode) => {
     try {
       const payload = { fullName, email, password, role }
 
@@ -313,6 +323,11 @@ export const AppProvider = ({ children }) => {
         payload.agentReferralCode = normalizedAgentCode
       }
 
+      const normalizedInviteCode = normalizeOptional(inviteCode)
+      if (normalizedInviteCode) {
+        payload.inviteCode = normalizedInviteCode
+      }
+
       const data = await callApi("/auth/register", "POST", payload)
       if (data.email) {
         handleInputChange("email", data.email)
@@ -323,6 +338,9 @@ export const AppProvider = ({ children }) => {
       toast.success(data.message)
       if (data.referralCode) {
         toast.success(`Your referral code: ${data.referralCode} — you will see it again after email verification.`)
+      }
+      if (data.inviteCode) {
+        toast.success(`Your invite code: ${data.inviteCode} — share it to earn ₦500 when your invitee completes their first shipment.`)
       }
       return data
     } catch (err) {
@@ -468,21 +486,36 @@ export const AppProvider = ({ children }) => {
         // Bank account details are optional - can be added later via profile
       }
 
+      if (userRole === "fleet_manager") {
+        if (!formData.cacNumber) {
+          throw new Error("CAC registration number is required for Fleet Manager accounts.")
+        }
+        // The certificate file itself is only force-required the first time (checked in
+        // KYCPage before this is called) — later edits don't need to re-upload it every time,
+        // matching how every other KYC document works here.
+      }
+
       // Create FormData object for file uploads
       const kycFormData = new FormData()
-      
+
       // Add text fields
       kycFormData.append('phone', formData.phone)
       kycFormData.append('address', formData.address)
       kycFormData.append('nin', formData.nin)
       if (formData.bvn) kycFormData.append('bvn', formData.bvn)
-      
+
       // Add trucker-specific fields if applicable
       if (userRole === "trucker") {
         kycFormData.append('plateNumber', formData.plateNumber)
         kycFormData.append('vehicleType', formData.vehicleType)
       }
-      
+
+      // Add fleet-manager compliance fields (company registration) if applicable
+      if (userRole === "fleet_manager") {
+        if (formData.cacNumber) kycFormData.append('cacNumber', formData.cacNumber)
+        if (formData.tin) kycFormData.append('tin', formData.tin)
+      }
+
       // Add bank account details for all roles (optional)
       if (formData.bankAccountNumber && formData.bankCode) {
         kycFormData.append('bankAccountNumber', formData.bankAccountNumber)
@@ -493,8 +526,8 @@ export const AppProvider = ({ children }) => {
       }
 
       // Add files if they exist
-      const fileFields = ['profilePhoto', 'driverLicense', 'vehicleReg', 'utilityBill']
-      
+      const fileFields = ['profilePhoto', 'driverLicense', 'vehicleReg', 'utilityBill', 'cacCertificate']
+
       fileFields.forEach(field => {
         if (formData[field] && formData[field] instanceof File) {
           kycFormData.append(field, formData[field])
@@ -528,7 +561,7 @@ export const AppProvider = ({ children }) => {
   const validateKycStep = (step) => {
     switch (step) {
       case 1:
-        return formData.phone && formData.address && formData.nin
+        return formData.phone && formData.address && (formData.nin || '').length === 11
       case 2:
         // Files are optional, so just return true
         return true
@@ -684,6 +717,8 @@ export const AppProvider = ({ children }) => {
     loading,
     error,
     formData,
+    isKycResubmission,
+    setIsKycResubmission,
     navigateTo,
     navigateToSignupWithRole,
     setUserRole,

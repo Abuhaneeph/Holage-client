@@ -7,6 +7,7 @@ import {
   Users,
   FileText,
   LogOut,
+  RefreshCw,
   CheckCircle,
   Clock,
   X,
@@ -28,6 +29,10 @@ import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+
+// CAC Certificate, Utility Bill, Driver's License, and Vehicle Registration all accept PDF
+// uploads (not just images) — an <img> tag can't render a PDF, so those need a distinct preview.
+const isPdfUrl = (url) => typeof url === 'string' && /\.pdf(\?|$)/i.test(url)
 
 const AdminDashboard = () => {
   const { user, logoutUser, navigateTo } = useAppContext()
@@ -61,6 +66,7 @@ const AdminDashboard = () => {
   const [fetchingBvn, setFetchingBvn] = useState(false)
   const [confirmingNin, setConfirmingNin] = useState(false)
   const [confirmingBvn, setConfirmingBvn] = useState(false)
+  const [confirmingCac, setConfirmingCac] = useState(false)
   const [ninFetchedData, setNinFetchedData] = useState(null)
   const [bvnFetchedData, setBvnFetchedData] = useState(null)
   const [shipmentTranscript, setShipmentTranscript] = useState(null)
@@ -79,6 +85,22 @@ const AdminDashboard = () => {
   const [truckPricingInputs, setTruckPricingInputs] = useState(defaultTruckPricing)
   const [loadingTruckPricing, setLoadingTruckPricing] = useState(false)
   const [updatingTruckPricing, setUpdatingTruckPricing] = useState({})
+
+  // Data Archive state
+  const [archiveTab, setArchiveTab] = useState('shipments')
+  const [archiveFilters, setArchiveFilters] = useState({ dateFrom: '', dateTo: '' })
+  const [archiveSummary, setArchiveSummary] = useState(null)
+  const [archiveShipments, setArchiveShipments] = useState([])
+  const [archiveShipmentsPagination, setArchiveShipmentsPagination] = useState(null)
+  const [archiveShipmentsPage, setArchiveShipmentsPage] = useState(1)
+  const [archiveTransactions, setArchiveTransactions] = useState([])
+  const [archiveTransactionsPagination, setArchiveTransactionsPagination] = useState(null)
+  const [archiveTransactionsPage, setArchiveTransactionsPage] = useState(1)
+  const [loadingArchive, setLoadingArchive] = useState(false)
+  const [agents, setAgents] = useState([])
+  const [loadingAgents, setLoadingAgents] = useState(false)
+  const [agentSearchQuery, setAgentSearchQuery] = useState("")
+  const [refreshingAll, setRefreshingAll] = useState(false)
 
   // Fetch all complaints for stats on component mount
   useEffect(() => {
@@ -102,6 +124,78 @@ const AdminDashboard = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, staffRequestStatus])
+
+  // Fetch archive data when the archive view is active, or its page/filters change
+  useEffect(() => {
+    if (activeView === "archive") {
+      fetchArchiveData(archiveShipmentsPage, archiveTransactionsPage)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, archiveShipmentsPage, archiveTransactionsPage])
+
+  // Fetch the agent directory when the agents view is active
+  useEffect(() => {
+    if (activeView === "agents") {
+      fetchAgentDirectory()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView])
+
+  const fetchAgentDirectory = async () => {
+    setLoadingAgents(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/agents/admin/directory`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (response.ok && data.agents) {
+        setAgents(data.agents)
+      } else {
+        toast.error(data.message || 'Failed to load agent directory')
+      }
+    } catch (error) {
+      console.error('Error fetching agent directory:', error)
+      toast.error('Error loading agent directory')
+    } finally {
+      setLoadingAgents(false)
+    }
+  }
+
+  const fetchArchiveData = async (shipmentsPage = archiveShipmentsPage, transactionsPage = archiveTransactionsPage) => {
+    setLoadingArchive(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const dateParams = new URLSearchParams()
+      if (archiveFilters.dateFrom) dateParams.append('dateFrom', archiveFilters.dateFrom)
+      if (archiveFilters.dateTo) dateParams.append('dateTo', archiveFilters.dateTo)
+
+      const [summaryRes, shipmentsRes, transactionsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/archive/summary?${dateParams.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/archive/shipments?${dateParams.toString()}&page=${shipmentsPage}&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/archive/transactions?${dateParams.toString()}&page=${transactionsPage}&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
+      ])
+
+      const summaryData = await summaryRes.json()
+      const shipmentsData = await shipmentsRes.json()
+      const transactionsData = await transactionsRes.json()
+
+      if (summaryRes.ok && summaryData.success) setArchiveSummary(summaryData.summary)
+      if (shipmentsRes.ok && shipmentsData.success) {
+        setArchiveShipments(shipmentsData.shipments)
+        setArchiveShipmentsPagination(shipmentsData.pagination)
+      }
+      if (transactionsRes.ok && transactionsData.success) {
+        setArchiveTransactions(transactionsData.transactions)
+        setArchiveTransactionsPagination(transactionsData.pagination)
+      }
+    } catch (error) {
+      console.error('Error fetching archive data:', error)
+      toast.error('Failed to load archive data')
+    } finally {
+      setLoadingArchive(false)
+    }
+  }
 
   // Fetch diesel rate
   const fetchDieselRate = async () => {
@@ -553,6 +647,29 @@ const AdminDashboard = () => {
     }
   }
 
+  const handleConfirmCac = async (userId) => {
+    setConfirmingCac(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/kyc/admin/submissions/${userId}/confirm-cac`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success('CAC verified successfully')
+        fetchKycSubmissionDetails(userId)
+      } else {
+        toast.error(data.message || 'Failed to confirm CAC')
+      }
+    } catch (error) {
+      console.error('Error confirming CAC:', error)
+      toast.error('Error confirming CAC')
+    } finally {
+      setConfirmingCac(false)
+    }
+  }
+
   const handleFetchBvn = async (userId) => {
     setFetchingBvn(true)
     setBvnFetchedData(null)
@@ -634,6 +751,10 @@ const AdminDashboard = () => {
     if (submission.role === 'trucker') {
       if (!submission.driverLicense) missing.push('Driver License')
       if (!submission.vehicleReg) missing.push('Vehicle Registration')
+    }
+    if (submission.role === 'fleet_manager') {
+      if (!submission.cacNumber) missing.push('CAC Number')
+      if (!submission.cacCertificateUrl) missing.push('CAC Certificate')
     }
     return missing
   }
@@ -768,6 +889,32 @@ const AdminDashboard = () => {
     }
   }
 
+  // Systemic refresh — always visible in the header, reloads whichever view is currently
+  // active (previously no admin view had any refresh affordance at all).
+  const handleGlobalRefresh = async () => {
+    setRefreshingAll(true)
+    try {
+      if (activeView === "complaints") {
+        await Promise.all([fetchComplaints(), fetchAllComplaintsForStats()])
+      } else if (activeView === "kyc") {
+        await fetchKycSubmissions()
+      } else if (activeView === "staff-requests") {
+        await fetchStaffRequests()
+      } else if (activeView === "archive") {
+        await fetchArchiveData(archiveShipmentsPage, archiveTransactionsPage)
+      } else if (activeView === "agents") {
+        await fetchAgentDirectory()
+      } else {
+        await fetchAllComplaintsForStats()
+      }
+      toast.success('Refreshed')
+    } catch (error) {
+      console.error('Error during global refresh:', error)
+    } finally {
+      setRefreshingAll(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -782,6 +929,14 @@ const AdminDashboard = () => {
               <p className="text-white font-bold text-base sm:text-lg truncate">{user?.fullName || "Admin"}</p>
             </div>
           </div>
+          <button
+            onClick={handleGlobalRefresh}
+            disabled={refreshingAll}
+            className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors flex-shrink-0 ml-2 disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${refreshingAll ? 'animate-spin' : ''}`} />
+          </button>
           <button
             onClick={logoutUser}
             className="w-9 h-9 sm:w-10 sm:h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors flex-shrink-0 ml-2"
@@ -842,6 +997,26 @@ const AdminDashboard = () => {
             }`}
           >
             Settings
+          </button>
+          <button
+            onClick={() => setActiveView("archive")}
+            className={`px-3 sm:px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+              activeView === "archive"
+                ? "bg-white text-purple-700"
+                : "bg-white/20 text-white hover:bg-white/30"
+            }`}
+          >
+            Archive
+          </button>
+          <button
+            onClick={() => setActiveView("agents")}
+            className={`px-3 sm:px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+              activeView === "agents"
+                ? "bg-white text-purple-700"
+                : "bg-white/20 text-white hover:bg-white/30"
+            }`}
+          >
+            Agents
           </button>
         </div>
       </div>
@@ -1461,6 +1636,33 @@ const AdminDashboard = () => {
                         </div>
                       </>
                     )}
+                    {selectedKycSubmission.role === 'fleet_manager' && (
+                      <>
+                        <div>
+                          <p className="text-text-secondary text-sm mb-1">CAC Registration Number</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-text-primary font-medium">{selectedKycSubmission.cacNumber || 'N/A'}</p>
+                            {!!selectedKycSubmission.cacVerified ? (
+                              <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
+                                <CheckCircle className="w-3 h-3" /> Verified
+                              </span>
+                            ) : (selectedKycSubmission.cacNumber || selectedKycSubmission.cacCertificateUrl) ? (
+                              <button
+                                onClick={() => handleConfirmCac(selectedKycSubmission.id)}
+                                disabled={confirmingCac}
+                                className="px-3 py-0.5 bg-green-500 text-white text-xs rounded-full hover:bg-green-600 transition-colors disabled:opacity-50"
+                              >
+                                {confirmingCac ? 'Confirming...' : 'Verify CAC'}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-text-secondary text-sm mb-1">TIN</p>
+                          <p className="text-text-primary font-medium">{selectedKycSubmission.tin || 'N/A'}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="border-t border-border pt-4 sm:pt-6">
@@ -1503,10 +1705,17 @@ const AdminDashboard = () => {
                           <div className="border border-border rounded-xl p-4">
                             <p className="text-text-secondary text-sm mb-2">Driver License</p>
                             <a href={selectedKycSubmission.driverLicense} target="_blank" rel="noopener noreferrer" className="block">
-                              <img src={selectedKycSubmission.driverLicense} alt="Driver License" className="w-full h-48 object-cover rounded-lg mb-2" />
+                              {isPdfUrl(selectedKycSubmission.driverLicense) ? (
+                                <div className="w-full h-48 rounded-lg mb-2 bg-muted/50 border border-border flex flex-col items-center justify-center gap-2">
+                                  <FileText className="w-10 h-10 text-text-secondary" />
+                                  <span className="text-text-secondary text-xs">PDF document</span>
+                                </div>
+                              ) : (
+                                <img src={selectedKycSubmission.driverLicense} alt="Driver License" className="w-full h-48 object-cover rounded-lg mb-2" />
+                              )}
                               <button className="flex items-center space-x-2 text-primary hover:text-primary/80">
                                 <Download className="w-4 h-4" />
-                                <span className="text-sm">View Full Size</span>
+                                <span className="text-sm">{isPdfUrl(selectedKycSubmission.driverLicense) ? 'Open PDF' : 'View Full Size'}</span>
                               </button>
                             </a>
                           </div>
@@ -1523,10 +1732,17 @@ const AdminDashboard = () => {
                           <div className="border border-border rounded-xl p-4">
                             <p className="text-text-secondary text-sm mb-2">Vehicle Registration</p>
                             <a href={selectedKycSubmission.vehicleReg} target="_blank" rel="noopener noreferrer" className="block">
-                              <img src={selectedKycSubmission.vehicleReg} alt="Vehicle Registration" className="w-full h-48 object-cover rounded-lg mb-2" />
+                              {isPdfUrl(selectedKycSubmission.vehicleReg) ? (
+                                <div className="w-full h-48 rounded-lg mb-2 bg-muted/50 border border-border flex flex-col items-center justify-center gap-2">
+                                  <FileText className="w-10 h-10 text-text-secondary" />
+                                  <span className="text-text-secondary text-xs">PDF document</span>
+                                </div>
+                              ) : (
+                                <img src={selectedKycSubmission.vehicleReg} alt="Vehicle Registration" className="w-full h-48 object-cover rounded-lg mb-2" />
+                              )}
                               <button className="flex items-center space-x-2 text-primary hover:text-primary/80">
                                 <Download className="w-4 h-4" />
-                                <span className="text-sm">View Full Size</span>
+                                <span className="text-sm">{isPdfUrl(selectedKycSubmission.vehicleReg) ? 'Open PDF' : 'View Full Size'}</span>
                               </button>
                             </a>
                           </div>
@@ -1538,14 +1754,48 @@ const AdminDashboard = () => {
                           </div>
                         )
                       )}
+                      {selectedKycSubmission.role === 'fleet_manager' && (
+                        selectedKycSubmission.cacCertificateUrl ? (
+                          <div className="border border-border rounded-xl p-4">
+                            <p className="text-text-secondary text-sm mb-2">CAC Certificate</p>
+                            <a href={selectedKycSubmission.cacCertificateUrl} target="_blank" rel="noopener noreferrer" className="block">
+                              {isPdfUrl(selectedKycSubmission.cacCertificateUrl) ? (
+                                <div className="w-full h-48 rounded-lg mb-2 bg-muted/50 border border-border flex flex-col items-center justify-center gap-2">
+                                  <FileText className="w-10 h-10 text-text-secondary" />
+                                  <span className="text-text-secondary text-xs">PDF document</span>
+                                </div>
+                              ) : (
+                                <img src={selectedKycSubmission.cacCertificateUrl} alt="CAC Certificate" className="w-full h-48 object-cover rounded-lg mb-2" />
+                              )}
+                              <button className="flex items-center space-x-2 text-primary hover:text-primary/80">
+                                <Download className="w-4 h-4" />
+                                <span className="text-sm">{isPdfUrl(selectedKycSubmission.cacCertificateUrl) ? 'Open PDF' : 'View Full Size'}</span>
+                              </button>
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="border border-dashed border-yellow-300 bg-yellow-50 rounded-xl p-4 flex flex-col items-center justify-center h-32">
+                            <AlertCircle className="w-6 h-6 text-yellow-500 mb-1" />
+                            <p className="text-yellow-700 text-sm font-medium">CAC Certificate</p>
+                            <p className="text-yellow-600 text-xs">Not uploaded</p>
+                          </div>
+                        )
+                      )}
                       {selectedKycSubmission.utilityBill ? (
                         <div className="border border-border rounded-xl p-4">
                           <p className="text-text-secondary text-sm mb-2">Utility Bill</p>
                           <a href={selectedKycSubmission.utilityBill} target="_blank" rel="noopener noreferrer" className="block">
-                            <img src={selectedKycSubmission.utilityBill} alt="Utility Bill" className="w-full h-48 object-cover rounded-lg mb-2" />
+                            {isPdfUrl(selectedKycSubmission.utilityBill) ? (
+                              <div className="w-full h-48 rounded-lg mb-2 bg-muted/50 border border-border flex flex-col items-center justify-center gap-2">
+                                <FileText className="w-10 h-10 text-text-secondary" />
+                                <span className="text-text-secondary text-xs">PDF document</span>
+                              </div>
+                            ) : (
+                              <img src={selectedKycSubmission.utilityBill} alt="Utility Bill" className="w-full h-48 object-cover rounded-lg mb-2" />
+                            )}
                             <button className="flex items-center space-x-2 text-primary hover:text-primary/80">
                               <Download className="w-4 h-4" />
-                              <span className="text-sm">View Full Size</span>
+                              <span className="text-sm">{isPdfUrl(selectedKycSubmission.utilityBill) ? 'Open PDF' : 'View Full Size'}</span>
                             </button>
                           </a>
                         </div>
@@ -1700,7 +1950,7 @@ const AdminDashboard = () => {
                       <strong>Note:</strong> This rate is used in the shipping cost formula:
                     </p>
                     <p className="text-xs text-text-secondary mt-1 break-words">
-                      Total Cost = (Distance × Price per KM) + Base Fee + Additional Fees (Fragile/Insurance)
+                      Total Cost = (Distance × Price per KM) + Base Fee + Insurance Fee (if selected)
                     </p>
                   </div>
                 </form>
@@ -1780,6 +2030,277 @@ const AdminDashboard = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeView === "archive" && (
+          <div className="space-y-4 sm:space-y-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Data Archive</h2>
+            <p className="text-text-secondary text-sm">
+              Historical shipments and wallet activity across shippers, truckers, fleet managers, and drivers — for review and forecasting.
+            </p>
+
+            {/* Summary stats */}
+            {archiveSummary && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
+                  <p className="text-text-secondary text-xs sm:text-sm">Total Shipments</p>
+                  <p className="text-xl sm:text-2xl font-bold text-text-primary mt-1">{archiveSummary.shipments.total}</p>
+                </div>
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
+                  <p className="text-text-secondary text-xs sm:text-sm">Completed</p>
+                  <p className="text-xl sm:text-2xl font-bold text-success mt-1">{archiveSummary.shipments.completed}</p>
+                </div>
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
+                  <p className="text-text-secondary text-xs sm:text-sm">Cancelled</p>
+                  <p className="text-xl sm:text-2xl font-bold text-error mt-1">{archiveSummary.shipments.cancelled}</p>
+                </div>
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
+                  <p className="text-text-secondary text-xs sm:text-sm">Gross Shipment Value</p>
+                  <p className="text-lg sm:text-xl font-bold text-primary mt-1">₦{archiveSummary.shipments.completedRevenue.toLocaleString('en-NG')}</p>
+                </div>
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
+                  <p className="text-text-secondary text-xs sm:text-sm">Platform Earnings (5% Fee)</p>
+                  <p className="text-lg sm:text-xl font-bold text-success mt-1">₦{(archiveSummary.platformEarnings || 0).toLocaleString('en-NG')}</p>
+                </div>
+                {Object.entries(archiveSummary.usersByRole).map(([role, count]) => (
+                  <div key={role} className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
+                    <p className="text-text-secondary text-xs sm:text-sm capitalize">{role.replace('_', ' ')}s</p>
+                    <p className="text-xl sm:text-2xl font-bold text-text-primary mt-1">{count}</p>
+                  </div>
+                ))}
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
+                  <p className="text-text-secondary text-xs sm:text-sm">Drivers</p>
+                  <p className="text-xl sm:text-2xl font-bold text-text-primary mt-1">{archiveSummary.driverCount}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Filters */}
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">From</label>
+                <input
+                  type="date"
+                  value={archiveFilters.dateFrom}
+                  onChange={(e) => setArchiveFilters({ ...archiveFilters, dateFrom: e.target.value })}
+                  className="px-3 py-2 border border-border rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">To</label>
+                <input
+                  type="date"
+                  value={archiveFilters.dateTo}
+                  onChange={(e) => setArchiveFilters({ ...archiveFilters, dateTo: e.target.value })}
+                  className="px-3 py-2 border border-border rounded-lg text-sm"
+                />
+              </div>
+              <button
+                onClick={() => { setArchiveShipmentsPage(1); setArchiveTransactionsPage(1); fetchArchiveData(1, 1) }}
+                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
+              >
+                Apply Filters
+              </button>
+              {(archiveFilters.dateFrom || archiveFilters.dateTo) && (
+                <button
+                  onClick={() => { setArchiveFilters({ dateFrom: '', dateTo: '' }); setArchiveShipmentsPage(1); setArchiveTransactionsPage(1) }}
+                  className="px-4 py-2 bg-muted text-text-secondary rounded-lg text-sm font-medium hover:bg-muted/80"
+                >
+                  Clear
+                </button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button
+                  onClick={() => setArchiveTab('shipments')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium ${archiveTab === 'shipments' ? 'bg-primary text-white' : 'bg-muted text-text-secondary'}`}
+                >
+                  Shipments
+                </button>
+                <button
+                  onClick={() => setArchiveTab('transactions')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium ${archiveTab === 'transactions' ? 'bg-primary text-white' : 'bg-muted text-text-secondary'}`}
+                >
+                  Transactions
+                </button>
+              </div>
+            </div>
+
+            {loadingArchive ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              </div>
+            ) : archiveTab === 'shipments' ? (
+              <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-border overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-text-secondary text-xs uppercase">
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Route</th>
+                      <th className="p-3">Shipper</th>
+                      <th className="p-3">Carrier</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3">Cost</th>
+                      <th className="p-3">Declared Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {archiveShipments.map((s) => (
+                      <tr key={s.id} className="border-b border-border/50 last:border-0">
+                        <td className="p-3 whitespace-nowrap">{new Date(s.createdAt).toLocaleDateString()}</td>
+                        <td className="p-3 whitespace-nowrap">{s.pickupState} → {s.destinationState}</td>
+                        <td className="p-3">{s.shipperName || 'N/A'}</td>
+                        <td className="p-3">{s.carrierName ? `${s.carrierName} (${s.carrierRole})` : 'Unassigned'}</td>
+                        <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(s.status)}`}>{s.status}</span></td>
+                        <td className="p-3 whitespace-nowrap">₦{parseFloat(s.estimatedCost || 0).toLocaleString('en-NG')}</td>
+                        <td className="p-3 whitespace-nowrap">{s.declaredValue ? `₦${parseFloat(s.declaredValue).toLocaleString('en-NG')}` : '—'}</td>
+                      </tr>
+                    ))}
+                    {archiveShipments.length === 0 && (
+                      <tr><td colSpan={7} className="p-6 text-center text-text-secondary">No shipments found for this range.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-border overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-text-secondary text-xs uppercase">
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Party</th>
+                      <th className="p-3">Type</th>
+                      <th className="p-3">Amount</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {archiveTransactions.map((t) => (
+                      <tr key={`${t.partyType}-${t.id}`} className="border-b border-border/50 last:border-0">
+                        <td className="p-3 whitespace-nowrap">{new Date(t.createdAt).toLocaleDateString()}</td>
+                        <td className="p-3">{t.partyName || 'N/A'} <span className="text-text-secondary text-xs">({t.partyRole})</span></td>
+                        <td className="p-3 capitalize">{t.type}</td>
+                        <td className={`p-3 whitespace-nowrap font-medium ${t.type === 'credit' ? 'text-success' : 'text-error'}`}>
+                          {t.type === 'credit' ? '+' : '-'}₦{parseFloat(t.amount || 0).toLocaleString('en-NG')}
+                        </td>
+                        <td className="p-3 capitalize">{t.status}</td>
+                        <td className="p-3">{t.description}</td>
+                      </tr>
+                    ))}
+                    {archiveTransactions.length === 0 && (
+                      <tr><td colSpan={6} className="p-6 text-center text-text-secondary">No transactions found for this range.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {(() => {
+              const pagination = archiveTab === 'shipments' ? archiveShipmentsPagination : archiveTransactionsPagination
+              const currentPage = archiveTab === 'shipments' ? archiveShipmentsPage : archiveTransactionsPage
+              const setPage = archiveTab === 'shipments' ? setArchiveShipmentsPage : setArchiveTransactionsPage
+              if (!pagination || pagination.totalPages <= 1) return null
+              return (
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 bg-muted rounded-lg text-sm font-medium disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <p className="text-text-secondary text-sm">Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)</p>
+                  <button
+                    onClick={() => setPage(Math.min(pagination.totalPages, currentPage + 1))}
+                    disabled={currentPage === pagination.totalPages}
+                    className="px-4 py-2 bg-muted rounded-lg text-sm font-medium disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
+        {activeView === "agents" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Agent Directory</h2>
+              <input
+                type="text"
+                value={agentSearchQuery}
+                onChange={(e) => setAgentSearchQuery(e.target.value)}
+                placeholder="Search by name, email, or phone..."
+                className="px-4 py-2 bg-input border border-border rounded-xl text-sm w-full sm:w-72"
+              />
+            </div>
+            <p className="text-text-secondary text-sm">All registered agents, for outreach and case-tracking.</p>
+
+            {loadingAgents ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-border bg-muted/30">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Agent</th>
+                      <th className="px-4 py-3 font-medium">Contact</th>
+                      <th className="px-4 py-3 font-medium">Referral Code</th>
+                      <th className="px-4 py-3 font-medium">KYC</th>
+                      <th className="px-4 py-3 font-medium">Referred Truckers</th>
+                      <th className="px-4 py-3 font-medium">Disputes (resolved/assigned)</th>
+                      <th className="px-4 py-3 font-medium">Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agents
+                      .filter((a) => {
+                        const q = agentSearchQuery.trim().toLowerCase()
+                        if (!q) return true
+                        return (
+                          (a.fullName || '').toLowerCase().includes(q) ||
+                          (a.email || '').toLowerCase().includes(q) ||
+                          (a.phone || '').toLowerCase().includes(q)
+                        )
+                      })
+                      .map((a) => (
+                        <tr key={a.id} className="border-b border-border/60 last:border-0">
+                          <td className="px-4 py-3 font-medium text-text-primary">{a.fullName}</td>
+                          <td className="px-4 py-3">
+                            <p className="text-text-secondary text-xs">{a.email}</p>
+                            <p className="text-text-secondary text-xs">{a.phone || '—'}</p>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs">{a.referralCode || '—'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
+                              a.kycStatus === 'approved' ? 'bg-success/10 text-success' : 'bg-muted text-text-secondary'
+                            }`}>
+                              {a.kycStatus || 'pending'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">{a.referredTruckers}</td>
+                          <td className="px-4 py-3">{a.resolvedDisputes} / {a.assignedDisputes}</td>
+                          <td className="px-4 py-3 text-text-secondary text-xs">
+                            {a.createdAt ? new Date(a.createdAt).toLocaleDateString('en-NG') : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    {agents.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-text-secondary">
+                          No agents registered yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

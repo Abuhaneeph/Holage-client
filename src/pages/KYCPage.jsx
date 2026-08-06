@@ -3,22 +3,26 @@
 import { useState, useEffect } from "react"
 import { Phone, Home, FileText, ArrowRight, ArrowLeft, CheckCircle, AlertCircle, Loader, X, ChevronDown, Search } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
+import { useToast } from "../context/ToastContext"
 import Header from "../components/Header"
 import FileUpload from "../components/FileUpload"
 
 const KYCPage = () => {
-  const { 
-    navigateTo, 
+  const {
+    navigateTo,
     userRole,
     user,
-    formData, 
-    handleInputChange, 
-    handleFileUpload, 
-    submitKyc, 
+    formData,
+    handleInputChange,
+    handleFileUpload,
+    submitKyc,
     validateKycStep,
     loading,
-    error
+    error,
+    isKycResubmission,
+    setIsKycResubmission
   } = useAppContext()
+  const toast = useToast()
   
   const [currentStep, setCurrentStep] = useState(1)
   const [existingData, setExistingData] = useState(null)
@@ -30,7 +34,49 @@ const KYCPage = () => {
   const [resolvedAccountName, setResolvedAccountName] = useState(null)
   const [verifyingAccount, setVerifyingAccount] = useState(false)
   const [accountVerified, setAccountVerified] = useState(false)
+  const [accountVerifyError, setAccountVerifyError] = useState(null)
   const totalSteps = userRole === "trucker" ? 4 : 3
+
+  // Auto-verify the bank account as soon as a 10-digit account number and a bank are both
+  // present, instead of requiring a manual "Verify" click. Debounced so it doesn't fire on
+  // every keystroke, and cancels itself if the account number/bank changes mid-flight.
+  useEffect(() => {
+    setAccountVerified(false)
+    setResolvedAccountName(null)
+    setAccountVerifyError(null)
+
+    if (!formData.bankAccountNumber || formData.bankAccountNumber.length !== 10 || !formData.bankCode) {
+      return
+    }
+
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setVerifyingAccount(true)
+      try {
+        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+        const response = await fetch(
+          `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${formData.bankAccountNumber}&bank_code=${formData.bankCode}`
+        )
+        const data = await response.json()
+        if (cancelled) return
+        if (response.ok && data.success) {
+          setResolvedAccountName(data.account_name)
+          setAccountVerified(true)
+        } else {
+          setAccountVerifyError(data.message || "Failed to verify account. Please check your details.")
+        }
+      } catch (err) {
+        if (!cancelled) setAccountVerifyError("Failed to verify account. Please try again.")
+      } finally {
+        if (!cancelled) setVerifyingAccount(false)
+      }
+    }, 600)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [formData.bankAccountNumber, formData.bankCode])
 
   // Fetch banks from Paystack API (for all roles - bank details are optional)
   useEffect(() => {
@@ -73,7 +119,14 @@ const KYCPage = () => {
         if (data.success) {
           console.log('Fetched KYC data:', data.documents)
           setExistingData(data.documents)
-          
+
+          // Someone already past basic onboarding (has phone/address/nin) revisiting KYC is
+          // updating/adding info, not completing registration for the first time — the
+          // success screen should say something different for them.
+          if (data.documents.phone && data.documents.address && data.documents.nin) {
+            setIsKycResubmission(true)
+          }
+
           // Pre-populate form with existing data - do all at once
           const updates = {}
           if (data.documents.phone) updates.phone = data.documents.phone
@@ -85,6 +138,8 @@ const KYCPage = () => {
           if (data.documents.bankAccountNumber) updates.bankAccountNumber = data.documents.bankAccountNumber
           if (data.documents.bankCode) updates.bankCode = data.documents.bankCode
           if (data.documents.bankName) updates.bankName = data.documents.bankName
+          if (data.documents.cacNumber) updates.cacNumber = data.documents.cacNumber
+          if (data.documents.tin) updates.tin = data.documents.tin
           
           console.log('Applying updates:', updates)
           
@@ -116,6 +171,12 @@ const KYCPage = () => {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1)
     } else {
+      // Fleet managers must have a CAC certificate on file at least once — later edits don't
+      // need to re-upload it every time, but the very first submission does.
+      if (userRole === "fleet_manager" && !formData.cacCertificate && !existingData?.cacCertificateUrl) {
+        toast.error("Please upload your CAC certificate to continue.")
+        return
+      }
       try {
         // Submit KYC when on the last step using context function
         await submitKyc()
@@ -317,6 +378,59 @@ const KYCPage = () => {
         } else {
           return (
             <div className="space-y-6">
+              {userRole === "fleet_manager" && (
+                <div className="space-y-6 pb-6 border-b border-border">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-lg font-semibold text-text-primary">Company Registration</h3>
+                      {!!existingData?.cacVerified && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                          <CheckCircle className="w-3 h-3" /> Verified
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-text-secondary text-sm">
+                      Fleet manager accounts are treated as registered companies — provide your CAC details for verification.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">CAC Registration Number</label>
+                    <input
+                      type="text"
+                      value={formData.cacNumber || ''}
+                      onChange={(e) => handleInputChange("cacNumber", e.target.value)}
+                      className="w-full px-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
+                      placeholder="e.g., RC1234567"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">TIN (Tax Identification Number)</label>
+                    <input
+                      type="text"
+                      value={formData.tin || ''}
+                      onChange={(e) => handleInputChange("tin", e.target.value)}
+                      className="w-full px-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
+                      placeholder="Enter your TIN"
+                    />
+                  </div>
+
+                  <FileUpload
+                    label="CAC Certificate"
+                    field="cacCertificate"
+                    acceptedTypes="image/*,application/pdf"
+                    onFileSelect={handleFileUpload}
+                    currentFile={formData.cacCertificate}
+                  />
+                  {existingData?.cacCertificateUrl && !formData.cacCertificate && (
+                    <p className="text-xs text-text-secondary">
+                      A certificate is already on file. Uploading a new one will replace it.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <h3 className="text-lg font-semibold text-text-primary mb-2">Bank Account Details (Optional)</h3>
                 <p className="text-text-secondary text-sm">Add your bank account details for withdrawals (optional)</p>
@@ -359,87 +473,31 @@ const KYCPage = () => {
                     <input
                       type="text"
                       value={formData.bankAccountNumber || ''}
-                      onChange={(e) => {
-                        handleInputChange("bankAccountNumber", e.target.value.replace(/\D/g, ""))
-                        setResolvedAccountName(null)
-                        setAccountVerified(false)
-                      }}
+                      onChange={(e) => handleInputChange("bankAccountNumber", e.target.value.replace(/\D/g, ""))}
                       className="w-full px-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
                       placeholder="Enter your 10-digit account number (optional)"
                       maxLength="10"
                     />
-                  </div>
-
-                  {/* Account Verification */}
-                  {formData.bankAccountNumber && formData.bankCode && (
-                    <div className="space-y-2">
-                      {!accountVerified ? (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              if (!formData.bankAccountNumber || !formData.bankCode) {
-                                alert("Please fill in account number and select a bank")
-                                return
-                              }
-                              
-                              setVerifyingAccount(true)
-                              const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
-                              
-                              const response = await fetch(
-                                `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${formData.bankAccountNumber}&bank_code=${formData.bankCode}`
-                              )
-                              
-                              const data = await response.json()
-                              
-                              if (response.ok && data.success) {
-                                setResolvedAccountName(data.account_name)
-                                setAccountVerified(true)
-                                alert(`Account verified: ${data.account_name}`)
-                              } else {
-                                // Show user-friendly error message
-                                const errorMsg = data.message || "Failed to verify account. Please check your details."
-                                alert(errorMsg)
-                                setResolvedAccountName(null)
-                                setAccountVerified(false)
-                              }
-                            } catch (error) {
-                              console.error("Error verifying account:", error)
-                              alert("Failed to verify account. Please try again.")
-                              setResolvedAccountName(null)
-                              setAccountVerified(false)
-                            } finally {
-                              setVerifyingAccount(false)
-                            }
-                          }}
-                          disabled={verifyingAccount}
-                          className="w-full px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                          {verifyingAccount ? (
-                            <>
-                              <Loader className="w-4 h-4 animate-spin" />
-                              Verifying...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-4 h-4" />
-                              Verify Account
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <div className="bg-success/10 border border-success/20 rounded-lg p-3">
-                          <div className="flex items-center gap-2 text-success">
-                            <CheckCircle className="w-4 h-4" />
-                            <span className="text-sm font-medium">Account Verified</span>
-                          </div>
-                          <p className="text-sm text-text-primary mt-1">
-                            Account Name: <span className="font-semibold">{resolvedAccountName}</span>
-                          </p>
+                    {verifyingAccount && (
+                      <p className="text-xs text-text-secondary mt-2 flex items-center gap-1.5">
+                        <Loader className="w-3.5 h-3.5 animate-spin" /> Verifying account...
+                      </p>
+                    )}
+                    {accountVerified && resolvedAccountName && (
+                      <div className="bg-success/10 border border-success/20 rounded-lg p-3 mt-2">
+                        <div className="flex items-center gap-2 text-success">
+                          <CheckCircle className="w-4 h-4" />
+                          <span className="text-sm font-medium">Account Verified</span>
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <p className="text-sm text-text-primary mt-1">
+                          Account Name: <span className="font-semibold">{resolvedAccountName}</span>
+                        </p>
+                      </div>
+                    )}
+                    {accountVerifyError && (
+                      <p className="text-xs text-destructive mt-2">{accountVerifyError}</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -448,11 +506,11 @@ const KYCPage = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between py-2 border-b border-border/50">
                     <span className="text-text-secondary">Full Name:</span>
-                    <span className="font-medium text-text-primary">{formData.fullName || 'Not provided'}</span>
+                    <span className="font-medium text-text-primary">{user?.fullName || formData.fullName || 'Not provided'}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-border/50">
                     <span className="text-text-secondary">Email:</span>
-                    <span className="font-medium text-text-primary">{formData.email || 'Not provided'}</span>
+                    <span className="font-medium text-text-primary">{user?.email || formData.email || 'Not provided'}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-border/50">
                     <span className="text-text-secondary">Phone:</span>
@@ -679,6 +737,38 @@ const KYCPage = () => {
     )
   }
 
+  if (existingData?.kycStatus === 'approved') {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-[#070b1d] via-[#10173b] to-[#17224f]">
+        <div className={gradientBackdrop} />
+        <Header transparent={true} />
+        <div className="relative z-10 flex items-center justify-center min-h-screen pt-28 sm:pt-32 lg:pt-36">
+          <div className="relative overflow-hidden rounded-3xl border border-white/25 bg-white/95 shadow-[0_32px_80px_rgba(12,17,36,0.35)] backdrop-blur-xl p-10 text-center max-w-md mx-4">
+            <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at top, rgba(79,70,229,0.18), transparent 55%)" }} />
+            <div className="relative z-10">
+              <CheckCircle className="w-14 h-14 text-success mx-auto mb-4" />
+              <h2 className="text-xl font-bold text-text-primary mb-2">Your KYC is Approved</h2>
+              <p className="text-text-secondary text-sm mb-6">
+                Your verification has already been approved and can no longer be edited here. Contact support if something needs to change.
+              </p>
+              <button
+                onClick={() => navigateTo(
+                  userRole === 'trucker' ? 'trucker-dashboard'
+                    : userRole === 'fleet_manager' ? 'fleet-manager-dashboard'
+                    : userRole === 'agent' ? 'agent-dashboard'
+                    : 'shipper-dashboard'
+                )}
+                className="w-full bg-primary text-white py-3 rounded-xl font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-[#070b1d] via-[#10173b] to-[#17224f]">
       <div className={gradientBackdrop} />
@@ -689,30 +779,34 @@ const KYCPage = () => {
         <div className="max-w-2xl mx-auto">
           <div className="relative overflow-hidden rounded-3xl border border-white/25 bg-white/95 shadow-[0_32px_80px_rgba(12,17,36,0.35)] backdrop-blur-xl">
             <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at top, rgba(79,70,229,0.18), transparent 55%)" }} />
-            
+
             <div className="relative z-10 p-6 sm:p-8 lg:p-10">
-              {/* Back to Dashboard Button */}
-              <div className="mb-6">
-                <button
-                  onClick={() => {
-                    if (userRole === 'shipper') {
-                      navigateTo('shipper-dashboard')
-                    } else if (userRole === 'trucker') {
-                      navigateTo('trucker-dashboard')
-                    } else if (userRole === 'fleet_manager') {
-                      navigateTo('fleet-manager-dashboard')
-                    } else if (userRole === 'agent') {
-                      navigateTo('agent-dashboard')
-                    } else {
-                      navigateTo('landing')
-                    }
-                  }}
-                  className="flex items-center space-x-2 text-text-secondary hover:text-primary transition-colors text-sm sm:text-base"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back to Dashboard</span>
-                </button>
-              </div>
+              {/* Back to Dashboard Button — only for users who already have a dashboard to
+                  return to (i.e. revisiting/updating KYC), not first-time signups still
+                  completing onboarding for the first time */}
+              {isKycResubmission && (
+                <div className="mb-6">
+                  <button
+                    onClick={() => {
+                      if (userRole === 'shipper') {
+                        navigateTo('shipper-dashboard')
+                      } else if (userRole === 'trucker') {
+                        navigateTo('trucker-dashboard')
+                      } else if (userRole === 'fleet_manager') {
+                        navigateTo('fleet-manager-dashboard')
+                      } else if (userRole === 'agent') {
+                        navigateTo('agent-dashboard')
+                      } else {
+                        navigateTo('landing')
+                      }
+                    }}
+                    className="flex items-center space-x-2 text-text-secondary hover:text-primary transition-colors text-sm sm:text-base"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              )}
 
               {/* Progress Bar */}
               <div className="mb-8">

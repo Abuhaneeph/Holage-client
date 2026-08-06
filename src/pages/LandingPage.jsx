@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Package, Shield, Truck, ArrowRight, Globe, Zap, UserPlus } from "lucide-react"
+import { Package, Shield, Truck, ArrowRight, Globe, Zap, UserPlus, LogIn } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import Header from "../components/Header"
 import Reveal from "../components/Reveal"
@@ -266,11 +266,53 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Mid-page account CTA — repeats Login/Sign Up here so returning users don't have to
+          scroll back to the header, which scrolls away with the rest of the page. */}
+      <section className="py-16 bg-white/5 backdrop-blur-sm border-y border-white/10">
+        <div className="container mx-auto px-4 text-center">
+          <h3 className="text-2xl md:text-3xl font-bold text-white mb-3">Already have an account?</h3>
+          <p className="text-gray-300 mb-8">Log in to pick up where you left off, or sign up to get started.</p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              onClick={() => navigateTo("login")}
+              className="flex items-center justify-center space-x-2 border-2 border-white/40 bg-white/10 text-white px-8 py-3.5 rounded-2xl font-bold hover:bg-white/15 hover:border-white/60 transition-all duration-300 backdrop-blur-sm"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Log In</span>
+            </button>
+            <button
+              onClick={() => navigateTo("signup")}
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-secondary to-accent text-white px-8 py-3.5 rounded-2xl font-bold hover:from-secondary/90 hover:to-accent/90 transition-all duration-300"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Sign Up</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="py-16 bg-black/50 backdrop-blur-sm border-t border-white/10">
         <div className="container mx-auto px-4">
-          <div className="text-center">
-            <p className="text-gray-400 text-sm">
+          <div className="flex flex-col items-center gap-6">
+            <div className="flex items-center gap-6">
+              <button
+                onClick={() => navigateTo("login")}
+                className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors text-sm font-medium"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Log In</span>
+              </button>
+              <span className="text-gray-600">|</span>
+              <button
+                onClick={() => navigateTo("signup")}
+                className="flex items-center space-x-2 text-secondary hover:text-accent transition-colors text-sm font-medium"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Sign Up</span>
+              </button>
+            </div>
+            <p className="text-gray-400 text-sm text-center">
               © 2024 HOLAGE. All rights reserved.
               <span className="mx-2">|</span>
               <span className="text-secondary cursor-pointer hover:text-accent transition-colors">

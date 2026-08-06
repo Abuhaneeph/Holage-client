@@ -5,6 +5,7 @@ import {
   Copy,
   Check,
   LogOut,
+  RefreshCw,
   Share2,
   Hash,
   User,
@@ -27,9 +28,14 @@ import {
   Mail,
   Phone,
   ChevronRight,
+  Gift,
+  Camera,
+  Upload,
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
+import ReferralPanel from "../components/ReferralPanel"
+import BonusWallet from "../components/BonusWallet"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api"
 
@@ -45,8 +51,11 @@ const AgentDashboard = () => {
   const [disputes, setDisputes] = useState([])
   const [walletBalance, setWalletBalance] = useState(0)
   const [transactions, setTransactions] = useState([])
+  const [transactionsPage, setTransactionsPage] = useState(1)
+  const transactionsPerPage = 5
   const [walletLoading, setWalletLoading] = useState(false)
   const [documents, setDocuments] = useState(null)
+  const [uploadingDoc, setUploadingDoc] = useState(null)
   const [selectedDispute, setSelectedDispute] = useState(null)
   const [disputeDetail, setDisputeDetail] = useState(null)
   const [disputeDetailLoading, setDisputeDetailLoading] = useState(false)
@@ -54,6 +63,10 @@ const AgentDashboard = () => {
   const [resolving, setResolving] = useState(false)
   const [newMessage, setNewMessage] = useState("")
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [trucks, setTrucks] = useState([])
+  const [trucksLoading, setTrucksLoading] = useState(false)
+  const [bonusBalance, setBonusBalance] = useState(0)
+  const [refreshingAll, setRefreshingAll] = useState(false)
 
   const referralCode = user?.referralCode || ""
   const uniqueCode = user?.uniqueCode || ""
@@ -132,6 +145,35 @@ const AgentDashboard = () => {
     }
   }, [])
 
+  const loadTrucks = useCallback(async () => {
+    setTrucksLoading(true)
+    try {
+      const token = localStorage.getItem("authToken")
+      const res = await fetch(`${API_BASE_URL}/agents/trucks`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const json = await res.json()
+      if (res.ok && json.trucks) setTrucks(json.trucks)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setTrucksLoading(false)
+    }
+  }, [])
+
+  const loadBonusBalance = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("authToken")
+      const res = await fetch(`${API_BASE_URL}/wallet/bonus`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const json = await res.json()
+      if (res.ok && json.wallet) setBonusBalance(parseFloat(json.wallet.balance || 0))
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
   const loadDocuments = useCallback(async () => {
     try {
       const token = localStorage.getItem("authToken")
@@ -149,7 +191,66 @@ const AgentDashboard = () => {
     loadDashboard()
     loadDisputes()
     loadDocuments()
-  }, [loadDashboard, loadDisputes, loadDocuments])
+    loadTrucks()
+    loadBonusBalance()
+  }, [loadDashboard, loadDisputes, loadDocuments, loadTrucks, loadBonusBalance])
+
+  // Systemic refresh — always visible in the header, reloads the dashboard stats, disputes,
+  // trucks, and bonus balance regardless of which tab is active.
+  const handleGlobalRefresh = async () => {
+    setRefreshingAll(true)
+    try {
+      await Promise.all([loadDashboard(), loadDisputes(), loadTrucks(), loadBonusBalance()])
+      toast.success('Refreshed')
+    } catch (error) {
+      console.error('Error during global refresh:', error)
+    } finally {
+      setRefreshingAll(false)
+    }
+  }
+
+  // Upload/update profile photo — its own endpoint, stays editable even after KYC approval
+  const handleProfilePhotoUpload = async (file) => {
+    if (!file) return
+    setUploadingDoc("profilePhoto")
+    try {
+      const formData = new FormData()
+      formData.append("profilePhoto", file)
+
+      const token = localStorage.getItem("authToken")
+      const response = await fetch(`${API_BASE_URL}/kyc/profile-photo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      })
+
+      const data = await response.json()
+      if (response.ok) {
+        toast.success("Profile photo updated!")
+        setDocuments((d) => ({ ...(d || {}), profilePhoto: data.profilePhoto }))
+      } else {
+        toast.error(data.message || "Upload failed")
+      }
+    } catch (error) {
+      console.error("Error uploading profile photo:", error)
+      toast.error("Error uploading profile photo")
+    } finally {
+      setUploadingDoc(null)
+    }
+  }
+
+  const triggerProfilePhotoUpload = () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+    input.onchange = (e) => {
+      const file = e.target.files[0]
+      if (file) {
+        handleProfilePhotoUpload(file)
+      }
+    }
+    input.click()
+  }
 
   useEffect(() => {
     if (activeView === "wallet") loadWallet()
@@ -311,6 +412,13 @@ const AgentDashboard = () => {
     </div>
   )
 
+  // Pagination for transactions (wallet view)
+  const totalTransactionsPages = Math.ceil(transactions.length / transactionsPerPage)
+  const paginatedTransactions = transactions.slice(
+    (transactionsPage - 1) * transactionsPerPage,
+    transactionsPage * transactionsPerPage
+  )
+
   return (
     <div className="min-h-screen bg-background pb-28">
       <div className="bg-gradient-to-br from-primary via-primary to-secondary p-6 rounded-b-3xl shadow-lg">
@@ -327,14 +435,25 @@ const AgentDashboard = () => {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => logoutUser()}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-error/20 hover:bg-error/30"
-            title="Log out"
-          >
-            <LogOut className="h-5 w-5 text-white" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={handleGlobalRefresh}
+              disabled={refreshingAll}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-5 w-5 text-white ${refreshingAll ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => logoutUser()}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-error/20 hover:bg-error/30"
+              title="Log out"
+            >
+              <LogOut className="h-5 w-5 text-white" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -350,6 +469,20 @@ const AgentDashboard = () => {
             ) : (
               <>
                 {renderStatsGrid()}
+                <button
+                  type="button"
+                  onClick={() => setActiveView("referrals")}
+                  className="w-full text-left rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm hover:bg-amber-100/70 transition-colors flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2 text-amber-700">
+                    <span className="text-xl">🎁</span>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide">Bonus Wallet</p>
+                      <p className="text-2xl font-bold text-text-primary">₦{bonusBalance.toLocaleString('en-NG')}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-amber-600" />
+                </button>
                 <div>
                   <h2 className="mb-3 text-lg font-bold text-text-primary">Trips (referred truckers)</h2>
                   <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
@@ -414,33 +547,107 @@ const AgentDashboard = () => {
                     ₦{Number(stats?.agentCommissionTotal || 0).toLocaleString("en-NG", { minimumFractionDigits: 2 })}
                   </p>
                 </div>
+
                 <div>
                   <h3 className="text-text-primary font-bold mb-3">Recent Transactions</h3>
                   {transactions.length === 0 ? (
                     <div className="bg-muted/30 rounded-2xl p-6 text-center text-text-secondary">No transactions yet</div>
                   ) : (
-                    <div className="space-y-2">
-                      {transactions.slice(0, 20).map((t) => (
-                        <div key={t.id || t.reference} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${t.type === "credit" ? "bg-success/10" : "bg-error/10"}`}>
-                              {t.type === "credit" ? <ArrowDown className="w-5 h-5 text-success" /> : <ArrowUp className="w-5 h-5 text-error" />}
+                    <>
+                      <div className="space-y-2">
+                        {paginatedTransactions.map((t) => (
+                          <div key={t.id || t.reference} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${t.type === "credit" ? "bg-success/10" : "bg-error/10"}`}>
+                                {t.type === "credit" ? <ArrowDown className="w-5 h-5 text-success" /> : <ArrowUp className="w-5 h-5 text-error" />}
+                              </div>
+                              <div>
+                                <p className="text-text-primary font-medium text-sm">{t.description || t.type}</p>
+                                <p className="text-text-secondary text-xs">{new Date(t.createdAt).toLocaleString()}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-text-primary font-medium text-sm">{t.description || t.type}</p>
-                              <p className="text-text-secondary text-xs">{new Date(t.createdAt).toLocaleString()}</p>
-                            </div>
+                            <p className={`font-bold ${t.type === "credit" ? "text-success" : "text-error"}`}>
+                              {t.type === "credit" ? "+" : "-"}₦{Number(t.amount || 0).toLocaleString("en-NG")}
+                            </p>
                           </div>
-                          <p className={`font-bold ${t.type === "credit" ? "text-success" : "text-error"}`}>
-                            {t.type === "credit" ? "+" : "-"}₦{Number(t.amount || 0).toLocaleString("en-NG")}
-                          </p>
+                        ))}
+                      </div>
+                      {totalTransactionsPages > 1 && (
+                        <div className="flex items-center justify-center space-x-2 mt-4">
+                          <button onClick={() => setTransactionsPage(p => Math.max(1, p - 1))} disabled={transactionsPage === 1} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Prev</button>
+                          <span className="text-text-secondary text-sm">Page {transactionsPage} of {totalTransactionsPages}</span>
+                          <button onClick={() => setTransactionsPage(p => Math.min(totalTransactionsPages, p + 1))} disabled={transactionsPage === totalTransactionsPages} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Next</button>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
                   )}
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {activeView === "trucks" && (
+          <div className="space-y-4">
+            <h2 className="text-text-primary font-bold text-2xl flex items-center gap-2">
+              <Truck className="w-6 h-6 text-primary" />
+              My Trucks
+            </h2>
+            <p className="text-text-secondary text-sm">
+              Vehicles belonging to truckers you referred — the ones your commission is earned on.
+            </p>
+            <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+              {trucksLoading ? (
+                <div className="flex justify-center py-12"><Loader className="h-6 w-6 animate-spin text-primary" /></div>
+              ) : trucks.length === 0 ? (
+                <div className="px-4 py-12 text-center text-text-secondary">
+                  No trucks yet. Once a trucker signs up with your referral code and adds their vehicle, it'll show up here.
+                </div>
+              ) : (
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-border bg-muted/30">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Trucker</th>
+                      <th className="px-4 py-3 font-medium">Vehicle</th>
+                      <th className="px-4 py-3 font-medium">Plate No.</th>
+                      <th className="px-4 py-3 font-medium">Trips</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trucks.map((t) => (
+                      <tr key={t.truckerId} className="border-b border-border/60 last:border-0">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-text-primary">{t.truckerName}</p>
+                          <p className="text-text-secondary text-xs">{t.phone}</p>
+                        </td>
+                        <td className="px-4 py-3">{t.vehicleType || '—'}</td>
+                        <td className="px-4 py-3 font-mono text-xs">{t.plateNumber || '—'}</td>
+                        <td className="px-4 py-3">{t.completedTrips}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            t.status === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-text-secondary'
+                          }`}>
+                            {t.status === 'active' ? 'Active' : 'Inactive (6mo+)'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeView === "referrals" && (
+          <div className="space-y-4">
+            <h2 className="text-text-primary font-bold text-2xl">Refer & Earn</h2>
+            <p className="text-text-secondary text-sm">
+              Invite other shippers, truckers, fleet managers, or agents to Holage and earn a reward once they complete their first shipment.
+            </p>
+            <ReferralPanel />
+            <BonusWallet variant="user" />
           </div>
         )}
 
@@ -582,6 +789,54 @@ const AgentDashboard = () => {
               Verification / ID
             </h2>
 
+            <div className={`bg-card border-2 rounded-xl p-4 ${
+              documents?.profilePhoto ? "border-success/30" : "border-border"
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  {documents?.profilePhoto ? (
+                    <img
+                      src={documents.profilePhoto}
+                      alt="Profile"
+                      className="w-12 h-12 rounded-lg object-cover"
+                      onClick={() => window.open(documents.profilePhoto, "_blank")}
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">
+                      <Camera className="w-6 h-6 text-warning" />
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-text-primary font-bold">Profile Photo</p>
+                    <p className="text-text-secondary text-sm">
+                      {documents?.profilePhoto ? "Uploaded ✓" : "Not uploaded"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={triggerProfilePhotoUpload}
+                  disabled={uploadingDoc === "profilePhoto"}
+                  className={`px-4 py-2 rounded-lg font-medium flex items-center space-x-2 ${
+                    documents?.profilePhoto
+                      ? "bg-secondary/10 text-secondary hover:bg-secondary/20"
+                      : "bg-primary text-white hover:bg-primary/90"
+                  } disabled:opacity-50`}
+                >
+                  {uploadingDoc === "profilePhoto" ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span className="text-sm">{documents?.profilePhoto ? "Update" : "Upload"}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
             <div className="bg-card border border-border rounded-2xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-text-secondary">Verification Status</p>
@@ -626,13 +881,17 @@ const AgentDashboard = () => {
                 </div>
               )}
 
-              {kycStatus !== "approved" && (
+              {kycStatus === "approved" ? (
+                <div className="w-full mt-6 bg-success/10 border border-success/20 rounded-xl text-success font-medium text-sm text-center py-3 flex items-center justify-center gap-2">
+                  <CheckCircle className="w-4 h-4" /> KYC Approved
+                </div>
+              ) : (
                 <button
                   type="button"
                   onClick={() => navigateTo("kyc")}
                   className="w-full mt-6 bg-primary text-white py-3 rounded-xl font-medium hover:bg-primary/90"
                 >
-                  {kycStatus === "pending" && documents?.nin ? "Update Verification" : "Complete ID Verification"}
+                  {kycStatus === "rejected" ? "Fix & Resubmit Verification" : documents?.nin ? "Update Verification" : "Complete ID Verification"}
                 </button>
               )}
             </div>
@@ -648,10 +907,12 @@ const AgentDashboard = () => {
 
       {/* Bottom navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-40">
-        <div className="max-w-6xl mx-auto grid grid-cols-5 gap-1 px-1 py-2">
+        <div className="max-w-6xl mx-auto grid grid-cols-7 gap-1 px-1 py-2">
           {[
             { id: "home", label: "Home", icon: Home },
             { id: "wallet", label: "Wallet", icon: Wallet },
+            { id: "trucks", label: "Trucks", icon: Truck },
+            { id: "referrals", label: "Refer", icon: Gift },
             { id: "complaints", label: "Complaints", icon: AlertTriangle },
             { id: "progress", label: "Progress", icon: TrendingUp },
             { id: "verification", label: "Verify", icon: ShieldCheck },

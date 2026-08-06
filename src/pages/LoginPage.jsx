@@ -619,7 +619,15 @@ const LoginPage = () => {
                   {loginType === "driver" && (
                     <div className="text-center text-sm text-text-secondary">
                       <p className="text-text-secondary/70">
-                        Drivers are registered by fleet managers. Contact your fleet manager for login credentials.
+                        New driver?{" "}
+                        <button
+                          type="button"
+                          onClick={() => navigateToSignupWithRole("driver")}
+                          className="font-medium text-secondary transition-colors hover:text-accent"
+                        >
+                          Create a driver account
+                        </button>
+                        , then share your driver code with a fleet manager to get enrolled.
                       </p>
                     </div>
                   )}

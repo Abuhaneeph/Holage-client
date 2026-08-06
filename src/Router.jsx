@@ -1,21 +1,32 @@
+import { Suspense, lazy } from "react"
 import { useAppContext } from "./context/AppContext"
 import LandingPage from "./pages/LandingPage"
-import SignupPage from "./pages/SignupPage"
 import LoginPage from "./pages/LoginPage"
-import ForgotPasswordPage from "./pages/ForgotPasswordPage"
-import EmailVerificationPage from "./pages/EmailVerificationPage"
-import KYCPage from "./pages/KYCPage"
-import SuccessPage from "./pages/SuccessPage"
-import TruckerDashboard from "./pages/TruckerDashboard"
-import ShipperDashboard from "./pages/ShipperDashboard"
-import FleetManagerDashboard from "./pages/FleetManagerDashboard"
-import AdminDashboard from "./pages/AdminDashboard"
-import AgentDashboard from "./pages/AgentDashboard"
-import StaffSignupPage from "./pages/StaffSignupPage"
-import StaffDashboard from "./pages/StaffDashboard"
-import ComplaintPage from "./pages/ComplaintPage"
-import DriverLoginPage from "./pages/DriverLoginPage"
-import DriverDashboard from "./pages/DriverDashboard"
+
+// Code-split everything past the landing/login screen — each role only ever loads their own
+// dashboard chunk instead of the whole app (shipper/trucker/fleet-manager/admin/agent/staff/
+// driver dashboards were all previously bundled into one multi-MB chunk downloaded by everyone).
+const SignupPage = lazy(() => import("./pages/SignupPage"))
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"))
+const EmailVerificationPage = lazy(() => import("./pages/EmailVerificationPage"))
+const KYCPage = lazy(() => import("./pages/KYCPage"))
+const SuccessPage = lazy(() => import("./pages/SuccessPage"))
+const TruckerDashboard = lazy(() => import("./pages/TruckerDashboard"))
+const ShipperDashboard = lazy(() => import("./pages/ShipperDashboard"))
+const FleetManagerDashboard = lazy(() => import("./pages/FleetManagerDashboard"))
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"))
+const AgentDashboard = lazy(() => import("./pages/AgentDashboard"))
+const StaffSignupPage = lazy(() => import("./pages/StaffSignupPage"))
+const StaffDashboard = lazy(() => import("./pages/StaffDashboard"))
+const ComplaintPage = lazy(() => import("./pages/ComplaintPage"))
+const DriverDashboard = lazy(() => import("./pages/DriverDashboard"))
+
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+  </div>
+)
+
 const Router = () => {
   const { currentPage } = useAppContext()
 
@@ -61,7 +72,7 @@ const Router = () => {
     }
   }
 
-  return renderPage()
+  return <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
 }
 
 export default Router

@@ -5,7 +5,7 @@ import { useAppContext } from "../context/AppContext"
 import Header from "../components/Header"
 
 const SuccessPage = () => {
-  const { navigateTo, userRole, resetForm } = useAppContext()
+  const { navigateTo, userRole, resetForm, isKycResubmission } = useAppContext()
 
   const handleStartOver = () => {
     resetForm()
@@ -33,11 +33,13 @@ const SuccessPage = () => {
             </div>
 
             <h2 className="text-2xl font-bold text-text-primary mb-4">
-              Welcome to HOLAGE!
+              {isKycResubmission ? "Verification Updated!" : "Welcome to HOLAGE!"}
             </h2>
 
             <p className="text-text-secondary mb-6">
-              {userRole === "trucker"
+              {isKycResubmission
+                ? "Your information has been updated successfully. Any new or changed documents will be reviewed shortly."
+                : userRole === "trucker"
                 ? "Your trucker application has been submitted successfully. You'll receive an email confirmation once your account is approved."
                 : userRole === "fleet_manager"
                 ? "Your KYC information has been submitted successfully. You can now access your dashboard and manage your fleet."
@@ -48,9 +50,11 @@ const SuccessPage = () => {
               <div className="flex items-start">
                 <AlertCircle className="w-5 h-5 text-secondary mt-0.5 mr-3" />
                 <div className="text-left">
-                  <h4 className="font-medium text-text-primary">What's Next?</h4>
+                  <h4 className="font-medium text-text-primary">{isKycResubmission ? "What happens now?" : "What's Next?"}</h4>
                   <p className="text-sm text-text-secondary mt-1">
-                    {userRole === "trucker"
+                    {isKycResubmission
+                      ? "You can keep using your dashboard as normal — there's nothing else you need to do while updated documents are verified."
+                      : userRole === "trucker"
                       ? "Our team will review your application within 24-48 hours. You'll receive notifications via email and SMS."
                       : userRole === "fleet_manager"
                       ? "Your KYC is under review. You can access your dashboard and start managing your fleet while your documents are being verified."

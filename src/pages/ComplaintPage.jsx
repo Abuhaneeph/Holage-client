@@ -344,7 +344,7 @@ const ComplaintPage = () => {
                       <option value="">Select a shipment (optional)</option>
                       {shipments.map((shipment) => (
                         <option key={shipment.id} value={shipment.id}>
-                          Shipment #{shipment.id} - {shipment.pickupState} to {shipment.destinationState} ({shipment.status})
+                          {shipment.bookingReference || `Shipment #${shipment.id}`} - {shipment.pickupState} to {shipment.destinationState} ({shipment.status})
                         </option>
                       ))}
                     </select>

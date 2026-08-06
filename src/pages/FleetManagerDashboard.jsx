@@ -7,6 +7,7 @@ import {
   User,
   Eye,
   EyeOff,
+  RefreshCw,
   Plus,
   Edit,
   Trash2,
@@ -27,11 +28,22 @@ import {
   Search,
   ChevronDown,
   Navigation,
-  Star
+  Star,
+  Gift,
+  FileText,
+  UserCheck,
+  PackageCheck,
+  BadgeCheck,
+  XCircle,
+  Camera,
+  Upload
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import NotificationCenter from "../components/NotificationCenter"
+import ReferralPanel from "../components/ReferralPanel"
+import BonusWallet from "../components/BonusWallet"
+import { formatWithCommas, parseFormattedNumber } from "../utils/currencyFormat"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -43,15 +55,17 @@ const FleetManagerDashboard = () => {
   const [wallet, setWallet] = useState(null)
   const [walletBalance, setWalletBalance] = useState(0)
   const [transactions, setTransactions] = useState([])
+  const [transactionsPage, setTransactionsPage] = useState(1)
+  const transactionsPerPage = 5
   const [kycCheckDone, setKycCheckDone] = useState(false)
   const [documents, setDocuments] = useState(null)
-  
+  const [uploadingDoc, setUploadingDoc] = useState(null)
+
   // Trucks state
   const [trucks, setTrucks] = useState([])
   const [loadingTrucks, setLoadingTrucks] = useState(false)
   const [showAddTruckModal, setShowAddTruckModal] = useState(false)
   const [showEditTruckModal, setShowEditTruckModal] = useState(false)
-  const [showRegisterDriverTruckModal, setShowRegisterDriverTruckModal] = useState(false)
   const [showEnrollDriverModal, setShowEnrollDriverModal] = useState(false)
   const [enrollForm, setEnrollForm] = useState({ driverCodeOrUsername: "" })
   const [submittingEnroll, setSubmittingEnroll] = useState(false)
@@ -78,34 +92,33 @@ const FleetManagerDashboard = () => {
     imageFront: null,
     imageSide: null,
     imageBack: null,
+    capacityTier: "",
+    insuranceCert: null,
+    manufacturer: "",
+    vehicleLicense: null,
   })
-  
-  // Combined driver/truck registration form state
-  const [driverTruckForm, setDriverTruckForm] = useState({
-    // Driver fields
-    driverId: "", // If empty, create new driver
-    driverName: "",
-    phoneNumber: "",
-    driverLicense: "",
-    password: "",
-    confirmPassword: "",
-    // Truck fields
-    plateNumber: "",
-    vehicleType: "",
-    product: "",
-    description: "",
-    type: "",
-    color: "",
-    notes: "",
-    truckImage: null
-  })
-  const [submittingDriverTruck, setSubmittingDriverTruck] = useState(false)
-  const [currentStep, setCurrentStep] = useState(1) // 1: Driver, 2: Truck Details, 3: Image, 4: Review
-  
+
+  const VEHICLE_MANUFACTURERS = [
+    "DAF", "MAN DIESEL", "SINOTRUCK/HOWO", "BENZ", "VOLVO", "HINO",
+    "MITSUBISHI", "UD TRUCKS", "JAC", "SHACMAN", "DONGFEN", "FOTON", "MACK"
+  ]
+
+  // Single source of truth for the carrying-capacity picker — selecting a tier sets both the
+  // verification band (capacityTier) and the numeric tonnage (capacity) used elsewhere for
+  // display/bid matching, so there's only one "carrying capacity" field to fill in.
+  const CAPACITY_TIERS = [
+    { tier: "5-10", tons: 10 },
+    { tier: "5-15", tons: 15 },
+    { tier: "5-20", tons: 20 },
+    { tier: "5-30", tons: 30 },
+    { tier: "5-40", tons: 40 },
+    { tier: "5-50", tons: 50 },
+    { tier: "5-60", tons: 60 },
+  ]
+
   // Drivers state
   const [drivers, setDrivers] = useState([])
   const [loadingDrivers, setLoadingDrivers] = useState(false)
-  const [showAddDriverModal, setShowAddDriverModal] = useState(false)
   const [showEditDriverModal, setShowEditDriverModal] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [submittingDriver, setSubmittingDriver] = useState(false)
@@ -145,10 +158,11 @@ const FleetManagerDashboard = () => {
     { label: "Other", value: "other" }
   ]
 
+  // Driver payment routing setting
+  const [updatingPaymentRouting, setUpdatingPaymentRouting] = useState(false)
+  const [refreshingAll, setRefreshingAll] = useState(false)
+
   // Wallet state
-  const [showFundModal, setShowFundModal] = useState(false)
-  const [fundAmount, setFundAmount] = useState("")
-  const [fundLoading, setFundLoading] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState("")
   const [withdrawLoading, setWithdrawLoading] = useState(false)
@@ -349,6 +363,73 @@ const FleetManagerDashboard = () => {
     }
   }, [activeView])
 
+  // Upload/update profile photo — its own endpoint, stays editable even after KYC approval
+  const handleProfilePhotoUpload = async (file) => {
+    if (!file) return
+    setUploadingDoc('profilePhoto')
+    try {
+      const formData = new FormData()
+      formData.append('profilePhoto', file)
+
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/kyc/profile-photo`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      })
+
+      const data = await response.json()
+      if (response.ok) {
+        toast.success('Profile photo updated!')
+        setDocuments(d => ({ ...(d || {}), profilePhoto: data.profilePhoto }))
+      } else {
+        toast.error(data.message || 'Upload failed')
+      }
+    } catch (error) {
+      console.error('Error uploading profile photo:', error)
+      toast.error('Error uploading profile photo')
+    } finally {
+      setUploadingDoc(null)
+    }
+  }
+
+  const handlePaymentRoutingChange = async (routing) => {
+    setUpdatingPaymentRouting(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/kyc/driver-payment-routing`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ routing })
+      })
+      const data = await response.json()
+      if (response.ok) {
+        toast.success('Driver payment routing updated!')
+        setDocuments(d => ({ ...(d || {}), driverPaymentRouting: routing }))
+      } else {
+        toast.error(data.message || 'Update failed')
+      }
+    } catch (error) {
+      console.error('Error updating payment routing:', error)
+      toast.error('Error updating payment routing')
+    } finally {
+      setUpdatingPaymentRouting(false)
+    }
+  }
+
+  const triggerProfilePhotoUpload = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = (e) => {
+      const file = e.target.files[0]
+      if (file) {
+        handleProfilePhotoUpload(file)
+      }
+    }
+    input.click()
+  }
+
   // Load fleet trips when shipments view is active
   useEffect(() => {
     if (activeView === "shipments") {
@@ -391,6 +472,10 @@ const FleetManagerDashboard = () => {
       imageFront: null,
       imageSide: null,
       imageBack: null,
+      capacityTier: "",
+      insuranceCert: null,
+      manufacturer: "",
+      vehicleLicense: null,
     })
     setAddTruckStep(1)
   }
@@ -404,130 +489,6 @@ const FleetManagerDashboard = () => {
       password: "",
       confirmPassword: ""
     })
-  }
-  
-  // Reset combined driver/truck form
-  const resetDriverTruckForm = () => {
-    setDriverTruckForm({
-      driverId: "",
-      driverName: "",
-      phoneNumber: "",
-      driverLicense: "",
-      password: "",
-      confirmPassword: "",
-      plateNumber: "",
-      vehicleType: "",
-      product: "",
-      description: "",
-      type: "",
-      color: "",
-      notes: "",
-      truckImage: null
-    })
-    setCurrentStep(1)
-  }
-  
-  // Handle combined driver/truck registration
-  const handleRegisterDriverTruck = async (e) => {
-    e.preventDefault()
-    
-    // Validate based on step
-    if (currentStep === 1) {
-      // Step 1: Driver selection/creation
-      if (!driverTruckForm.driverId) {
-        // Creating new driver - validate all fields
-        if (!driverTruckForm.driverName || !driverTruckForm.phoneNumber || 
-            !driverTruckForm.driverLicense || !driverTruckForm.password) {
-          toast.error("All driver fields are required")
-          return
-        }
-        if (driverTruckForm.password !== driverTruckForm.confirmPassword) {
-          toast.error("Passwords do not match")
-          return
-        }
-        if (driverTruckForm.password.length < 6) {
-          toast.error("Password must be at least 6 characters")
-          return
-        }
-      }
-      // If using existing driver, just move to next step
-      setCurrentStep(2)
-      return
-    }
-    
-    if (currentStep === 2) {
-      // Step 2: Truck details
-      if (!driverTruckForm.plateNumber || !driverTruckForm.vehicleType) {
-        toast.error("Plate number and vehicle type are required")
-        return
-      }
-      setCurrentStep(3)
-      return
-    }
-    
-    if (currentStep === 3) {
-      // Step 3: Image (optional, can skip)
-      setCurrentStep(4)
-      return
-    }
-    
-    if (currentStep === 4) {
-      // Step 4: Submit
-      setSubmittingDriverTruck(true)
-      try {
-        const token = localStorage.getItem('authToken')
-        const formData = new FormData()
-        
-        // Add driver fields (only if creating new driver)
-        if (!driverTruckForm.driverId) {
-          formData.append('driverName', driverTruckForm.driverName)
-          formData.append('phoneNumber', driverTruckForm.phoneNumber)
-          formData.append('driverLicense', driverTruckForm.driverLicense)
-          formData.append('password', driverTruckForm.password)
-        } else {
-          formData.append('driverId', driverTruckForm.driverId)
-        }
-        
-        // Add truck fields
-        formData.append('plateNumber', driverTruckForm.plateNumber)
-        formData.append('vehicleType', driverTruckForm.vehicleType)
-        if (driverTruckForm.product) formData.append('product', driverTruckForm.product)
-        if (driverTruckForm.description) formData.append('description', driverTruckForm.description)
-        if (driverTruckForm.type) formData.append('type', driverTruckForm.type)
-        if (driverTruckForm.color) formData.append('color', driverTruckForm.color)
-        if (driverTruckForm.notes) formData.append('notes', driverTruckForm.notes)
-        
-        // Add truck image if provided
-        if (driverTruckForm.truckImage) {
-          formData.append('truckImage', driverTruckForm.truckImage)
-        }
-        
-        const response = await fetch(`${API_BASE_URL}/drivers/register-with-truck`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData
-        })
-        
-        const data = await response.json()
-        
-        if (response.ok && data.success) {
-          toast.success('Driver and truck registered successfully!')
-          setShowRegisterDriverTruckModal(false)
-          resetDriverTruckForm()
-          fetchDrivers()
-          fetchTrucks()
-        } else {
-          toast.error(data.message || 'Failed to register driver and truck')
-        }
-      } catch (error) {
-        console.error('Error registering driver and truck:', error)
-        toast.error('Error registering driver and truck')
-      } finally {
-        setSubmittingDriverTruck(false)
-      }
-    }
   }
   
   // Fetch drivers
@@ -590,6 +551,20 @@ const FleetManagerDashboard = () => {
       console.error('Error fetching fleet trips:', error)
     } finally {
       setLoadingFleetTrips(false)
+    }
+  }
+
+  // Systemic refresh — always visible in the header, reloads trucks, drivers, and fleet
+  // trips regardless of which tab is active.
+  const handleGlobalRefresh = async () => {
+    setRefreshingAll(true)
+    try {
+      await Promise.all([fetchTrucks(), fetchDrivers(), fetchFleetTrips()])
+      toast.success('Refreshed')
+    } catch (error) {
+      console.error('Error during global refresh:', error)
+    } finally {
+      setRefreshingAll(false)
     }
   }
 
@@ -684,18 +659,26 @@ const FleetManagerDashboard = () => {
   }
 
   // Helper function to get status info
-  const getStatusInfo = (status) => {
+  // Each status gets its own distinct icon (not a shared checkmark) so the trip's stage
+  // reads at a glance from the icon alone, without needing to check the color/label.
+  const getStatusInfo = (status, deliveryConfirmed = false) => {
     switch (status) {
       case 'pending':
         return { icon: Clock, color: 'warning', label: 'Pending' }
       case 'assigned':
-        return { icon: CheckCircle, color: 'primary', label: 'Assigned' }
+        return { icon: UserCheck, color: 'primary', label: 'Assigned' }
+      case 'picking_up':
+        return { icon: Truck, color: 'primary', label: 'Going to Pick Up' }
+      case 'picked_up':
+        return { icon: PackageCheck, color: 'warning', label: 'Picked Up' }
       case 'in_transit':
         return { icon: Navigation, color: 'success', label: 'In Transit' }
       case 'delivered':
-        return { icon: CheckCircle, color: 'success', label: 'Delivered' }
+        return deliveryConfirmed
+          ? { icon: BadgeCheck, color: 'success', label: 'Delivered' }
+          : { icon: CheckCircle, color: 'warning', label: 'Delivered (Awaiting Confirmation)' }
       case 'cancelled':
-        return { icon: AlertCircle, color: 'error', label: 'Cancelled' }
+        return { icon: XCircle, color: 'error', label: 'Cancelled' }
       default:
         return { icon: Clock, color: 'text-secondary', label: status }
     }
@@ -757,8 +740,32 @@ const FleetManagerDashboard = () => {
         toast.error("Carrying capacity (tons) is required")
         return
       }
+      if (!truckForm.manufacturer) {
+        toast.error("Vehicle manufacturer is required")
+        return
+      }
+      if (!truckForm.vehicleReg) {
+        toast.error("Vehicle registration is required")
+        return
+      }
       setAddTruckStep(2)
       return
+    }
+
+    if (!truckForm.imageFront || !truckForm.imageSide || !truckForm.imageBack) {
+      toast.error("Front, side, and back vehicle photos are all required")
+      return
+    }
+    if (!truckForm.vehicleLicense) {
+      toast.error("A photo of the vehicle license is required")
+      return
+    }
+
+    if (truckForm.driverId) {
+      const confirmed = window.confirm(
+        "You're about to assign a driver to this vehicle. The driver will be notified and expected to operate this vehicle on future trips — make sure you've selected the right one before continuing."
+      )
+      if (!confirmed) return
     }
 
     setSubmitting(true)
@@ -768,15 +775,19 @@ const FleetManagerDashboard = () => {
       formData.append("plateNumber", truckForm.plateNumber)
       formData.append("vehicleType", truckForm.vehicleType)
       formData.append("capacity", truckForm.capacity)
+      formData.append("manufacturer", truckForm.manufacturer)
+      formData.append("vehicleReg", truckForm.vehicleReg)
       if (truckForm.product) formData.append("product", truckForm.product)
       if (truckForm.description) formData.append("description", truckForm.description)
       if (truckForm.type) formData.append("type", truckForm.type)
       if (truckForm.color) formData.append("color", truckForm.color)
       if (truckForm.notes) formData.append("notes", truckForm.notes)
       if (truckForm.driverId) formData.append("driverId", truckForm.driverId)
+      if (truckForm.capacityTier) formData.append("capacityTier", truckForm.capacityTier)
       if (truckForm.imageFront) formData.append("imageFront", truckForm.imageFront)
       if (truckForm.imageSide) formData.append("imageSide", truckForm.imageSide)
       if (truckForm.imageBack) formData.append("imageBack", truckForm.imageBack)
+      if (truckForm.vehicleLicense) formData.append("vehicleLicense", truckForm.vehicleLicense)
 
       const response = await fetch(`${API_BASE_URL}/trucks/with-images`, {
         method: "POST",
@@ -787,6 +798,21 @@ const FleetManagerDashboard = () => {
       const data = await response.json()
 
       if (response.ok && data.success) {
+        // Insurance cert goes through its own endpoint since it needs the new truck's ID
+        if (truckForm.insuranceCert && data.truck?.id) {
+          const certForm = new FormData()
+          certForm.append("insuranceCert", truckForm.insuranceCert)
+          try {
+            await fetch(`${API_BASE_URL}/trucks/${data.truck.id}/insurance-cert`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: certForm,
+            })
+          } catch (certError) {
+            console.error("Error uploading insurance certificate:", certError)
+            toast.error("Truck added, but the insurance certificate upload failed — you can retry it from Edit Truck.")
+          }
+        }
         toast.success("Truck added successfully!")
         setShowAddTruckModal(false)
         resetTruckForm()
@@ -834,6 +860,37 @@ const FleetManagerDashboard = () => {
     }
   }
 
+  // Upload/replace insurance certificate for truck (Edit Truck modal)
+  const handleTruckInsuranceCertUpload = async (truckId, file) => {
+    if (!file || file.size > 5 * 1024 * 1024) {
+      toast.error("Please select an image or PDF under 5MB")
+      return
+    }
+    setUploadingTruckPhotoId(truckId)
+    try {
+      const token = localStorage.getItem("authToken")
+      const formData = new FormData()
+      formData.append("insuranceCert", file)
+      const res = await fetch(`${API_BASE_URL}/trucks/${truckId}/insurance-cert`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      })
+      const data = await res.json()
+      if (res.ok && data.truck) {
+        toast.success("Insurance certificate updated.")
+        setSelectedTruck((prev) => (prev?.id === truckId ? { ...prev, ...data.truck } : prev))
+        fetchTrucks()
+      } else {
+        toast.error(data.message || "Failed to upload insurance certificate")
+      }
+    } catch (e) {
+      toast.error("Failed to upload insurance certificate")
+    } finally {
+      setUploadingTruckPhotoId(null)
+    }
+  }
+
   // Handle edit truck
   const handleEditTruck = (truck) => {
     setSelectedTruck(truck)
@@ -854,62 +911,12 @@ const FleetManagerDashboard = () => {
       imageFront: null,
       imageSide: null,
       imageBack: null,
+      capacityTier: truck.capacityTier || "",
+      insuranceCert: null,
+      manufacturer: truck.manufacturer || "",
+      vehicleLicense: null,
     })
     setShowEditTruckModal(true)
-  }
-  
-  // Handle add driver
-  const handleAddDriver = async (e) => {
-    e.preventDefault()
-    
-    if (!driverForm.driverName || !driverForm.phoneNumber || !driverForm.driverLicense || !driverForm.password) {
-      toast.error("All fields are required")
-      return
-    }
-    
-    if (driverForm.password !== driverForm.confirmPassword) {
-      toast.error("Passwords do not match")
-      return
-    }
-    
-    if (driverForm.password.length < 6) {
-      toast.error("Password must be at least 6 characters")
-      return
-    }
-    
-    setSubmittingDriver(true)
-    try {
-      const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/drivers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          driverName: driverForm.driverName,
-          phoneNumber: driverForm.phoneNumber,
-          driverLicense: driverForm.driverLicense,
-          password: driverForm.password
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (response.ok && data.success) {
-        toast.success('Driver registered successfully!')
-        setShowAddDriverModal(false)
-        resetDriverForm()
-        fetchDrivers()
-      } else {
-        toast.error(data.message || 'Failed to register driver')
-      }
-    } catch (error) {
-      console.error('Error registering driver:', error)
-      toast.error('Error registering driver')
-    } finally {
-      setSubmittingDriver(false)
-    }
   }
   
   // Handle edit driver
@@ -1007,25 +1014,6 @@ const FleetManagerDashboard = () => {
     }
   }
   
-  // Helper function to format number with commas
-  const formatNumberWithCommas = (value) => {
-    if (!value) return ""
-    // Remove all non-digit characters except decimal point
-    const numericValue = value.toString().replace(/[^\d.]/g, "")
-    // Split by decimal point
-    const parts = numericValue.split(".")
-    // Format the integer part with commas
-    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-    // Join back with decimal if it exists
-    return parts.join(".")
-  }
-
-  // Helper function to remove commas and get numeric value
-  const removeCommas = (value) => {
-    if (!value) return ""
-    return value.toString().replace(/,/g, "")
-  }
-
   // Handle update truck
   const handleUpdateTruck = async (e) => {
     e.preventDefault()
@@ -1034,7 +1022,23 @@ const FleetManagerDashboard = () => {
       toast.error("Plate number and vehicle type are required")
       return
     }
-    
+    if (!truckForm.manufacturer) {
+      toast.error("Vehicle manufacturer is required")
+      return
+    }
+    if (!truckForm.vehicleReg) {
+      toast.error("Vehicle registration is required")
+      return
+    }
+
+    const previousDriverId = selectedTruck?.driverId ? String(selectedTruck.driverId) : ""
+    if (truckForm.driverId && truckForm.driverId !== previousDriverId) {
+      const confirmed = window.confirm(
+        "You're about to (re)assign a driver to this vehicle. The driver will be notified and expected to operate this vehicle on future trips — make sure you've selected the right one before continuing."
+      )
+      if (!confirmed) return
+    }
+
     setSubmitting(true)
     try {
       const token = localStorage.getItem('authToken')
@@ -1106,129 +1110,16 @@ const FleetManagerDashboard = () => {
         return <X className="w-5 h-5 text-error" />
       case 'maintenance':
         return <Clock className="w-5 h-5 text-warning" />
+      case 'out_of_service':
+        return <AlertCircle className="w-5 h-5 text-error" />
       default:
         return <Clock className="w-5 h-5 text-gray-400" />
     }
   }
 
-  // Paystack Payment: initiate
-  const initiatePaystackPayment = async () => {
-    try {
-      const amountNum = parseFloat(fundAmount)
-      if (!amountNum || amountNum < 100) {
-        toast.error('Enter a valid amount (minimum ₦100)')
-        return
-      }
-      setFundLoading(true)
-      const token = localStorage.getItem('authToken')
-      
-      const resp = await fetch(`${API_BASE_URL}/wallet/paystack/initiate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ amount: amountNum, currency: 'NGN' })
-      })
-      const data = await resp.json()
-      if (!resp.ok) throw new Error(data.message || 'Failed to initialize payment')
-
-      if (!window.PaystackPop) {
-        throw new Error('Paystack payment gateway is not loaded. Please refresh the page.')
-      }
-
-      if (!data.publicKey || !data.reference || !data.amount || !data.email) {
-        throw new Error('Invalid payment data received from server')
-      }
-
-      const handler = window.PaystackPop.setup({
-        key: data.publicKey,
-        email: data.email,
-        amount: data.amount,
-        currency: data.currency,
-        ref: data.reference,
-        metadata: {
-          custom_fields: [
-            {
-              display_name: "Customer Name",
-              variable_name: "customer_name",
-              value: data.name || "User"
-            }
-          ]
-        },
-        callback: function (response) {
-          setFundLoading(false)
-          
-          if (response.status === 'success') {
-            const creditToken = token || localStorage.getItem('authToken')
-            const creditApiUrl = API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
-            
-            ;(async () => {
-              try {
-                const creditResp = await fetch(`${creditApiUrl}/wallet/paystack/credit`, {
-                  method: 'POST',
-                  headers: { 
-                    'Authorization': `Bearer ${creditToken}`,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({ reference: response.reference })
-                })
-                
-                if (!creditResp.ok) {
-                  const errorText = await creditResp.text()
-                  throw new Error(`Credit failed: ${creditResp.status} ${errorText}`)
-                }
-                
-                const creditData = await creditResp.json()
-                
-                if (creditData.success) {
-                  toast.success(`Payment successful! ₦${creditData.transaction.amount.toLocaleString('en-NG')} credited to your wallet.`)
-                  
-                  if (creditData.balance !== undefined) {
-                    const newBalance = parseFloat(creditData.balance || 0)
-                    setWalletBalance(newBalance)
-                  }
-                  
-                  const [wr, tr] = await Promise.all([
-                    fetch(`${creditApiUrl}/wallet`, { headers: { 'Authorization': `Bearer ${creditToken}` } }),
-                    fetch(`${creditApiUrl}/wallet/transactions`, { headers: { 'Authorization': `Bearer ${creditToken}` } })
-                  ])
-                  const wd = await wr.json()
-                  const td = await tr.json()
-                  
-                  if (wr.ok && wd.wallet) {
-                    setWallet(wd.wallet)
-                    const refreshedBalance = parseFloat(wd.wallet.balance || 0)
-                    setWalletBalance(refreshedBalance)
-                  }
-                  if (tr.ok && td.transactions) {
-                    setTransactions(td.transactions)
-                  }
-                } else {
-                  toast.error(creditData.message || 'Failed to credit wallet. Please contact support.')
-                }
-              } catch (error) {
-                console.error('Error crediting wallet:', error)
-                toast.error('Error crediting wallet. Please check your balance or contact support.')
-              }
-            })()
-          } else {
-            toast.error('Payment was not successful. Please try again.')
-          }
-          
-          setShowFundModal(false)
-          setFundAmount("")
-        },
-        onClose: function () {
-          setFundLoading(false)
-          toast.info('Payment cancelled')
-        }
-      })
-
-      handler.openIframe()
-    } catch (e) {
-      setFundLoading(false)
-      console.error('Error in initiatePaystackPayment:', e)
-      toast.error(e.message || 'Failed to initialize payment')
-    }
-  }
+  // Note: fleet manager wallets are earnings-only (populated by completed shipments) and
+  // cannot be funded directly — the backend rejects it (paystackInitiatePayment), so there is
+  // intentionally no top-up flow here, unlike the other roles' dashboards.
 
   // Handle withdraw
   const handleWithdraw = async () => {
@@ -1301,6 +1192,13 @@ const FleetManagerDashboard = () => {
     )
   }
 
+  // Pagination for transactions (wallet view)
+  const totalTransactionsPages = Math.ceil(transactions.length / transactionsPerPage)
+  const paginatedTransactions = transactions.slice(
+    (transactionsPage - 1) * transactionsPerPage,
+    transactionsPage * transactionsPerPage
+  )
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header Card */}
@@ -1320,11 +1218,27 @@ const FleetManagerDashboard = () => {
             )}
             <div>
               <p className="text-white/80 text-sm">Fleet Manager</p>
-              <p className="text-white font-bold text-lg">{user?.fullName?.split(' ')[0] || "Manager"}</p>
+              <p className="text-white font-extrabold text-xl leading-tight flex items-center gap-1.5">
+                {user?.fullName || "Fleet Manager"}
+                {documents?.cacVerified && (
+                  <CheckCircle className="w-4 h-4 text-emerald-300 flex-shrink-0" title="CAC verified" />
+                )}
+              </p>
+              {user?.fleetManagerCode && (
+                <p className="text-white/70 text-xs mt-0.5 font-mono tracking-wide">ID: {user.fleetManagerCode}</p>
+              )}
             </div>
           </div>
           <div className="flex items-center space-x-2">
             <NotificationCenter userId={user?.id} />
+            <button
+              onClick={handleGlobalRefresh}
+              disabled={refreshingAll}
+              className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-5 h-5 text-white ${refreshingAll ? 'animate-spin' : ''}`} />
+            </button>
             <button
               onClick={() => navigateTo("complaint")}
               className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
@@ -1446,11 +1360,13 @@ const FleetManagerDashboard = () => {
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                          {getStatusIcon(truck.status)}
-                          <span className="text-text-secondary text-xs capitalize">{truck.status}</span>
+                          {getStatusIcon(truck.isOutOfService ? 'out_of_service' : truck.status)}
+                          <span className={`text-xs capitalize ${truck.isOutOfService ? 'text-error font-medium' : 'text-text-secondary'}`}>
+                            {truck.isOutOfService ? 'Out of Service (Inactive 6mo+)' : truck.status}
+                          </span>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center space-x-2 pt-3 border-t border-border">
                         <button
                           onClick={() => handleEditTruck(truck)}
@@ -1574,41 +1490,32 @@ const FleetManagerDashboard = () => {
             {wallet && (
               <>
                 <div className="bg-card border border-border rounded-2xl p-6">
-                  <p className="text-text-secondary mb-2">Available Balance</p>
+                  <p className="text-text-secondary mb-2">Total Fleet Earnings</p>
                   <p className="text-text-primary font-bold text-4xl">₦{Number(walletBalance || 0).toLocaleString('en-NG')}</p>
+                  <p className="text-text-secondary text-xs mt-2">
+                    Sum of everything your fleet has earned from completed shipments. Fleet managers don't fund this wallet directly — only withdrawals apply.
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => setShowFundModal(true)}
-                    className="bg-primary text-white rounded-2xl p-6 flex flex-col items-center space-y-3"
-                  >
-                    <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
-                      <ArrowDown className="w-7 h-7 text-white" />
-                    </div>
-                    <span className="font-bold">Top Up</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      const hasBankDetails = (user?.bankAccountNumber && user?.bankCode) || 
-                                            (documents?.bankAccountNumber && documents?.bankCode)
-                      
-                      if (!hasBankDetails) {
-                        toast.error('Please add your bank account details in your profile first')
-                        setActiveView('profile')
-                      } else {
-                        setShowWithdrawModal(true)
-                      }
-                    }}
-                    className="bg-secondary text-white rounded-2xl p-6 flex flex-col items-center space-y-3"
-                  >
-                    <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
-                      <ArrowUp className="w-7 h-7 text-white" />
-                    </div>
-                    <span className="font-bold">Withdraw</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    const hasBankDetails = (user?.bankAccountNumber && user?.bankCode) ||
+                                          (documents?.bankAccountNumber && documents?.bankCode)
+
+                    if (!hasBankDetails) {
+                      toast.error('Please add your bank account details in your profile first')
+                      setActiveView('profile')
+                    } else {
+                      setShowWithdrawModal(true)
+                    }
+                  }}
+                  className="w-full bg-secondary text-white rounded-2xl p-6 flex flex-col items-center space-y-3"
+                >
+                  <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
+                    <ArrowUp className="w-7 h-7 text-white" />
+                  </div>
+                  <span className="font-bold">Withdraw</span>
+                </button>
 
                 <div>
                   <h3 className="text-text-primary font-bold mb-3">Recent Transactions</h3>
@@ -1617,41 +1524,61 @@ const FleetManagerDashboard = () => {
                       No transactions yet
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {transactions.map((t) => (
-                        <div
-                          key={t.id || t.reference}
-                          className="bg-card border border-border rounded-xl p-4 flex items-center justify-between"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div
-                              className={`w-10 h-10 ${
-                                t.type === 'credit' ? 'bg-success/10' : 'bg-error/10'
-                              } rounded-full flex items-center justify-center`}
-                            >
-                              {t.type === 'credit' ? (
-                                <ArrowDown className="w-5 h-5 text-success" />
-                              ) : (
-                                <ArrowUp className="w-5 h-5 text-error" />
-                              )}
+                    <>
+                      <div className="space-y-2">
+                        {paginatedTransactions.map((t) => (
+                          <div
+                            key={t.id || t.reference}
+                            className="bg-card border border-border rounded-xl p-4 flex items-center justify-between"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div
+                                className={`w-10 h-10 ${
+                                  t.type === 'credit' ? 'bg-success/10' : 'bg-error/10'
+                                } rounded-full flex items-center justify-center`}
+                              >
+                                {t.type === 'credit' ? (
+                                  <ArrowDown className="w-5 h-5 text-success" />
+                                ) : (
+                                  <ArrowUp className="w-5 h-5 text-error" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-text-primary font-medium">
+                                  {t.description || (t.type === 'credit' ? 'Wallet Funding' : 'Wallet Debit')}
+                                </p>
+                                <p className="text-text-secondary text-xs">Ref: {t.reference}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-text-primary font-medium">
-                                {t.description || (t.type === 'credit' ? 'Wallet Funding' : 'Wallet Debit')}
-                              </p>
-                              <p className="text-text-secondary text-xs">Ref: {t.reference}</p>
-                            </div>
+                            <p className={`${t.type === 'credit' ? 'text-success' : 'text-error'} font-bold`}>
+                              {t.type === 'credit' ? '+' : '-'}₦{Number(t.amount || 0).toLocaleString('en-NG')}
+                            </p>
                           </div>
-                          <p className={`${t.type === 'credit' ? 'text-success' : 'text-error'} font-bold`}>
-                            {t.type === 'credit' ? '+' : '-'}₦{Number(t.amount || 0).toLocaleString('en-NG')}
-                          </p>
+                        ))}
+                      </div>
+                      {totalTransactionsPages > 1 && (
+                        <div className="flex items-center justify-center space-x-2 mt-4">
+                          <button onClick={() => setTransactionsPage(p => Math.max(1, p - 1))} disabled={transactionsPage === 1} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Prev</button>
+                          <span className="text-text-secondary text-sm">Page {transactionsPage} of {totalTransactionsPages}</span>
+                          <button onClick={() => setTransactionsPage(p => Math.min(totalTransactionsPages, p + 1))} disabled={transactionsPage === totalTransactionsPages} className="px-3 py-1 bg-card border border-border rounded-lg text-sm disabled:opacity-50">Next</button>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
                   )}
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {activeView === "referrals" && (
+          <div className="space-y-4">
+            <h2 className="text-text-primary font-bold text-2xl">Refer & Earn</h2>
+            <p className="text-text-secondary text-sm">
+              Invite other shippers, truckers, fleet managers, or agents to Holage and earn a reward once they complete their first shipment.
+            </p>
+            <ReferralPanel />
+            <BonusWallet variant="user" />
           </div>
         )}
 
@@ -1835,7 +1762,7 @@ const FleetManagerDashboard = () => {
             ) : fleetTrips.length > 0 ? (
               <div className="space-y-3">
                 {fleetTrips.map((trip) => {
-                  const statusInfo = getStatusInfo(trip.shipmentStatus)
+                  const statusInfo = getStatusInfo(trip.shipmentStatus, !!trip.deliveryConfirmed)
                   const StatusIcon = statusInfo.icon
                   const statusColorMap = {
                     warning: { bg: 'bg-warning/10', text: 'text-warning' },
@@ -1916,7 +1843,99 @@ const FleetManagerDashboard = () => {
                     <Mail className="w-4 h-4" />
                     <p className="text-sm">{user?.email || ""}</p>
                   </div>
+                  {user?.fleetManagerCode && (
+                    <div className="mt-2 inline-flex items-center bg-white/15 rounded-lg px-3 py-1">
+                      <p className="text-white font-mono font-bold text-sm tracking-wide">Special ID: {user.fleetManagerCode}</p>
+                    </div>
+                  )}
                 </div>
+              </div>
+            </div>
+
+            {/* Driver Payment Routing Setting */}
+            <div className="bg-card border border-border rounded-xl p-4">
+              <p className="text-text-primary font-bold mb-1">Driver Payment Routing</p>
+              <p className="text-text-secondary text-sm mb-3">
+                Choose whether your drivers' trip earnings pay out straight to their own wallet, or come to your fleet wallet instead so you can pay them separately (e.g. a fixed salary).
+              </p>
+              <div className="space-y-2">
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-muted/30">
+                  <input
+                    type="radio"
+                    name="paymentRouting"
+                    checked={(documents?.driverPaymentRouting || 'driver_direct') === 'driver_direct'}
+                    onChange={() => handlePaymentRoutingChange('driver_direct')}
+                    disabled={updatingPaymentRouting}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="block text-text-primary font-medium">Driver-direct (default)</span>
+                    <span className="block text-text-secondary text-xs">Each driver's trip earnings go straight to their own wallet.</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-muted/30">
+                  <input
+                    type="radio"
+                    name="paymentRouting"
+                    checked={documents?.driverPaymentRouting === 'fleet_manager_direct'}
+                    onChange={() => handlePaymentRoutingChange('fleet_manager_direct')}
+                    disabled={updatingPaymentRouting}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="block text-text-primary font-medium">Fleet-manager-direct</span>
+                    <span className="block text-text-secondary text-xs">Trip earnings come to your fleet wallet instead; you pay your drivers separately.</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Profile Photo */}
+            <div className={`bg-card border-2 rounded-xl p-4 ${
+              documents?.profilePhoto ? 'border-success/30' : 'border-border'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  {documents?.profilePhoto ? (
+                    <img
+                      src={documents.profilePhoto}
+                      alt="Profile"
+                      className="w-12 h-12 rounded-lg object-cover"
+                      onClick={() => window.open(documents.profilePhoto, '_blank')}
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">
+                      <Camera className="w-6 h-6 text-warning" />
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-text-primary font-bold">Profile Photo</p>
+                    <p className="text-text-secondary text-sm">
+                      {documents?.profilePhoto ? 'Uploaded ✓' : 'Not uploaded'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={triggerProfilePhotoUpload}
+                  disabled={uploadingDoc === 'profilePhoto'}
+                  className={`px-4 py-2 rounded-lg font-medium flex items-center space-x-2 ${
+                    documents?.profilePhoto
+                      ? 'bg-secondary/10 text-secondary hover:bg-secondary/20'
+                      : 'bg-primary text-white hover:bg-primary/90'
+                  } disabled:opacity-50`}
+                >
+                  {uploadingDoc === 'profilePhoto' ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span className="text-sm">{documents?.profilePhoto ? 'Update' : 'Upload'}</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -1958,7 +1977,7 @@ const FleetManagerDashboard = () => {
                   <CreditCard className="w-5 h-5 text-primary" />
                   <span>Identity Verification</span>
                 </h3>
-                {!editingIdentity && (
+                {!editingIdentity && documents?.kycStatus !== 'approved' && (
                   <button
                     onClick={() => {
                       setEditingIdentity(true)
@@ -1968,6 +1987,11 @@ const FleetManagerDashboard = () => {
                   >
                     {documents?.nin || documents?.bvn ? 'Edit' : 'Add'}
                   </button>
+                )}
+                {documents?.kycStatus === 'approved' && (
+                  <span className="flex items-center gap-1 px-3 py-1 bg-success/10 text-success text-xs font-medium rounded-full">
+                    <CheckCircle className="w-3.5 h-3.5" /> Approved
+                  </span>
                 )}
               </div>
 
@@ -2079,6 +2103,60 @@ const FleetManagerDashboard = () => {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Business Registration (CAC/TIN) */}
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-text-primary font-bold text-lg flex items-center space-x-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  <span>Business Registration</span>
+                </h3>
+                {documents?.kycStatus === 'approved' ? (
+                  <span className="flex items-center gap-1 px-3 py-1 bg-success/10 text-success text-xs font-medium rounded-full">
+                    <CheckCircle className="w-3.5 h-3.5" /> Approved
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => navigateTo('kyc')}
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                  >
+                    {documents?.cacNumber ? 'Update' : 'Add'}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-text-secondary text-sm mb-1">CAC Number</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-text-primary font-medium">{documents?.cacNumber || 'Not provided'}</p>
+                      {!!documents?.cacVerified && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                          <CheckCircle className="w-3 h-3" /> Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-text-secondary text-sm mb-1">TIN</p>
+                    <p className="text-text-primary font-medium">{documents?.tin || 'Not provided'}</p>
+                  </div>
+                </div>
+                {!documents?.cacNumber && (
+                  <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Company registration (CAC/TIN) is required for fleet managers. Tap "Add" to submit it.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Bank Account Details (For Withdrawals) */}
@@ -2433,15 +2511,49 @@ const FleetManagerDashboard = () => {
                   </div>
 
                   <div>
-                    <label className="block text-text-primary font-medium mb-2">Carrying Capacity (tons) *</label>
-                    <input
-                      type="number"
-                      min="0.1"
-                      step="0.1"
-                      value={truckForm.capacity}
-                      onChange={(e) => setTruckForm({ ...truckForm, capacity: e.target.value })}
+                    <label className="block text-text-primary font-medium mb-2">Carrying Capacity *</label>
+                    <select
+                      value={truckForm.capacityTier}
+                      onChange={(e) => {
+                        const tier = e.target.value
+                        const match = CAPACITY_TIERS.find((t) => t.tier === tier)
+                        setTruckForm({ ...truckForm, capacityTier: tier, capacity: match ? String(match.tons) : "" })
+                      }}
                       className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      placeholder="e.g. 30"
+                      required
+                      disabled={submitting}
+                    >
+                      <option value="">Select capacity tier</option>
+                      {CAPACITY_TIERS.map(({ tier, tons }) => (
+                        <option key={tier} value={tier}>{tier} ({tons} tons)</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Manufacturer *</label>
+                    <select
+                      value={truckForm.manufacturer}
+                      onChange={(e) => setTruckForm({ ...truckForm, manufacturer: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      required
+                      disabled={submitting}
+                    >
+                      <option value="">Select manufacturer</option>
+                      {VEHICLE_MANUFACTURERS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Vehicle Registration Number *</label>
+                    <input
+                      type="text"
+                      value={truckForm.vehicleReg}
+                      onChange={(e) => setTruckForm({ ...truckForm, vehicleReg: e.target.value })}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="e.g., registration/particulars number"
                       required
                       disabled={submitting}
                     />
@@ -2466,11 +2578,12 @@ const FleetManagerDashboard = () => {
                 </>
               ) : (
                 <>
-                  <p className="text-text-secondary text-sm">Upload front, side, and back views of the truck (optional but recommended).</p>
+                  <p className="text-text-secondary text-sm">Upload front, side, and back views of the truck, plus a photo of the vehicle license — all required.</p>
                   {[
-                    { key: "imageFront", label: "Front View", field: "imageFront" },
-                    { key: "imageSide", label: "Side View", field: "imageSide" },
-                    { key: "imageBack", label: "Back View", field: "imageBack" },
+                    { key: "imageFront", label: "Front View *", field: "imageFront" },
+                    { key: "imageSide", label: "Side View *", field: "imageSide" },
+                    { key: "imageBack", label: "Back View *", field: "imageBack" },
+                    { key: "vehicleLicense", label: "Vehicle License *", field: "vehicleLicense" },
                   ].map(({ key, label, field }) => (
                     <div key={key}>
                       <label className="block text-text-primary font-medium mb-2">{label}</label>
@@ -2490,6 +2603,24 @@ const FleetManagerDashboard = () => {
                       )}
                     </div>
                   ))}
+
+                  <div>
+                    <label className="block text-text-primary font-medium mb-2">Insurance Certificate (Optional)</label>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      disabled={submitting}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null
+                        setTruckForm({ ...truckForm, insuranceCert: file })
+                        e.target.value = ""
+                      }}
+                      className="w-full text-sm text-text-secondary file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-white file:text-sm"
+                    />
+                    {truckForm.insuranceCert && (
+                      <p className="text-success text-xs mt-1">{truckForm.insuranceCert.name} selected</p>
+                    )}
+                  </div>
                 </>
               )}
 
@@ -2577,18 +2708,81 @@ const FleetManagerDashboard = () => {
               </div>
 
               <div>
-                <label className="block text-text-primary font-medium mb-2">Carrying Capacity (tons) *</label>
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={truckForm.capacity}
-                  onChange={(e) => setTruckForm({ ...truckForm, capacity: e.target.value })}
+                <label className="block text-text-primary font-medium mb-2">Carrying Capacity *</label>
+                <select
+                  value={truckForm.capacityTier}
+                  onChange={(e) => {
+                    const tier = e.target.value
+                    const match = CAPACITY_TIERS.find((t) => t.tier === tier)
+                    setTruckForm({ ...truckForm, capacityTier: tier, capacity: match ? String(match.tons) : "" })
+                  }}
                   className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  placeholder="e.g. 30"
+                  required
+                  disabled={submitting}
+                >
+                  <option value="">Select capacity tier</option>
+                  {CAPACITY_TIERS.map(({ tier, tons }) => (
+                    <option key={tier} value={tier}>{tier} ({tons} tons)</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-text-primary font-medium mb-2">Manufacturer *</label>
+                <select
+                  value={truckForm.manufacturer}
+                  onChange={(e) => setTruckForm({ ...truckForm, manufacturer: e.target.value })}
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                  required
+                  disabled={submitting}
+                >
+                  <option value="">Select manufacturer</option>
+                  {VEHICLE_MANUFACTURERS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-text-primary font-medium mb-2">Vehicle Registration Number *</label>
+                <input
+                  type="text"
+                  value={truckForm.vehicleReg}
+                  onChange={(e) => setTruckForm({ ...truckForm, vehicleReg: e.target.value })}
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                  placeholder="e.g., registration/particulars number"
                   required
                   disabled={submitting}
                 />
+              </div>
+
+              <div>
+                <label className="block text-text-primary font-medium mb-2">Insurance Certificate</label>
+                <div className="flex items-center gap-3">
+                  {selectedTruck?.insuranceCertUrl ? (
+                    <a
+                      href={selectedTruck.insuranceCertUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary text-sm underline flex-shrink-0"
+                    >
+                      View current
+                    </a>
+                  ) : (
+                    <span className="text-text-secondary text-xs flex-shrink-0">Not uploaded</span>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    disabled={uploadingTruckPhotoId === selectedTruck?.id}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file && selectedTruck?.id) handleTruckInsuranceCertUpload(selectedTruck.id, file)
+                      e.target.value = ""
+                    }}
+                    className="flex-1 text-sm text-text-secondary file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-white file:text-sm"
+                  />
+                </div>
               </div>
 
               <div>
@@ -2691,7 +2885,7 @@ const FleetManagerDashboard = () => {
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
-        <div className="grid grid-cols-5 gap-1 px-2 py-3 overflow-x-auto scrollbar-hide">
+        <div className="grid grid-cols-6 gap-1 px-2 py-3 overflow-x-auto scrollbar-hide">
           <button
             onClick={() => setActiveView("home")}
             className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
@@ -2744,6 +2938,18 @@ const FleetManagerDashboard = () => {
           </button>
 
           <button
+            onClick={() => setActiveView("referrals")}
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+              activeView === "referrals" ? "bg-primary/10" : ""
+            }`}
+          >
+            <Gift className={`w-7 h-7 ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`} />
+            <span className={`text-xs font-medium ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
+              Refer
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveView("profile")}
             className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
               activeView === "profile" ? "bg-primary/10" : ""
@@ -2756,111 +2962,6 @@ const FleetManagerDashboard = () => {
           </button>
         </div>
       </div>
-
-      {/* Add Driver Modal - DEPRECATED: Use "Register Driver & Truck" flow instead */}
-      {false && showAddDriverModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[85vh] flex flex-col">
-            <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">
-              <h3 className="text-text-primary font-bold text-xl">Register Driver</h3>
-              <button
-                onClick={() => {
-                  setShowAddDriverModal(false)
-                  resetDriverForm()
-                }}
-                className="w-10 h-10 bg-muted rounded-full flex items-center justify-center"
-              >
-                <X className="w-5 h-5 text-text-secondary" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddDriver} className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Driver Name *</label>
-                <input
-                  type="text"
-                  value={driverForm.driverName}
-                  onChange={(e) => setDriverForm({ ...driverForm, driverName: e.target.value })}
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  placeholder="Enter driver full name"
-                  required
-                  disabled={submittingDriver}
-                />
-              </div>
-
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Phone Number *</label>
-                <input
-                  type="tel"
-                  value={driverForm.phoneNumber}
-                  onChange={(e) => setDriverForm({ ...driverForm, phoneNumber: e.target.value })}
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  placeholder="08012345678"
-                  required
-                  disabled={submittingDriver}
-                />
-                <p className="text-text-secondary text-xs mt-1">This will be used as the driver's login username</p>
-              </div>
-
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Driver's License *</label>
-                <input
-                  type="text"
-                  value={driverForm.driverLicense}
-                  onChange={(e) => setDriverForm({ ...driverForm, driverLicense: e.target.value })}
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  placeholder="Enter license number"
-                  required
-                  disabled={submittingDriver}
-                />
-              </div>
-
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Password *</label>
-                <input
-                  type="password"
-                  value={driverForm.password}
-                  onChange={(e) => setDriverForm({ ...driverForm, password: e.target.value })}
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  placeholder="Minimum 6 characters"
-                  required
-                  disabled={submittingDriver}
-                />
-              </div>
-
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Confirm Password *</label>
-                <input
-                  type="password"
-                  value={driverForm.confirmPassword}
-                  onChange={(e) => setDriverForm({ ...driverForm, confirmPassword: e.target.value })}
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                  placeholder="Confirm password"
-                  required
-                  disabled={submittingDriver}
-                />
-              </div>
-
-              <div className="pt-4">
-                <button
-                  type="submit"
-                  disabled={submittingDriver}
-                  className="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  {submittingDriver ? (
-                    <>
-                      <Loader className="w-5 h-5 animate-spin mr-2" />
-                      Registering...
-                    </>
-                  ) : (
-                    'Register Driver'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Edit Driver Modal */}
       {showEditDriverModal && selectedDriver && (
@@ -2962,44 +3063,6 @@ const FleetManagerDashboard = () => {
         </div>
       )}
 
-      {/* Fund Wallet Modal */}
-      {showFundModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[85vh] flex flex-col">
-            <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">
-              <h3 className="text-text-primary font-bold text-xl">Top Up Wallet</h3>
-              <button onClick={() => { if (!fundLoading) { setShowFundModal(false); setFundAmount("") } }} className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
-                <X className="w-5 h-5 text-text-secondary" />
-              </button>
-            </div>
-            <div className="p-4 space-y-4 overflow-y-auto">
-              <div>
-                <label className="block text-text-primary font-medium mb-2">Amount (NGN)</label>
-                <input 
-                  type="number" 
-                  min="100" 
-                  step="1" 
-                  value={fundAmount} 
-                  onChange={(e) => setFundAmount(e.target.value)} 
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary" 
-                  placeholder="e.g., 5000" 
-                  disabled={fundLoading} 
-                />
-                <p className="text-text-secondary text-xs mt-1">Minimum amount: ₦100</p>
-              </div>
-
-              <button 
-                onClick={initiatePaystackPayment} 
-                disabled={fundLoading || !fundAmount || parseFloat(fundAmount) < 100} 
-                className="w-full bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {fundLoading ? 'Initializing...' : 'Pay with Paystack'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Withdraw Modal */}
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -3035,16 +3098,14 @@ const FleetManagerDashboard = () => {
 
               <div>
                 <label className="block text-text-primary font-medium mb-2">Withdrawal Amount (NGN)</label>
-                <input 
-                  type="number" 
-                  min="100" 
-                  step="0.01" 
-                  max={walletBalance}
-                  value={withdrawAmount} 
-                  onChange={(e) => setWithdrawAmount(e.target.value)} 
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary" 
-                  placeholder="e.g., 5000" 
-                  disabled={withdrawLoading} 
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formatWithCommas(withdrawAmount)}
+                  onChange={(e) => setWithdrawAmount(parseFormattedNumber(e.target.value))}
+                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                  placeholder="e.g., 5,000"
+                  disabled={withdrawLoading}
                 />
                 <p className="text-text-secondary text-xs mt-1">Minimum: ₦100 | Maximum: ₦{Number(walletBalance || 0).toLocaleString('en-NG')}</p>
               </div>
@@ -3064,388 +3125,6 @@ const FleetManagerDashboard = () => {
                 )}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Register Driver & Truck Modal — deprecated; use Enroll Driver + Add Truck */}
-      {false && showRegisterDriverTruckModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col">
-            <div className="flex-shrink-0 bg-card border-b border-border p-4 flex items-center justify-between rounded-t-3xl">
-              <h3 className="text-text-primary font-bold text-xl">Register Driver & Truck</h3>
-              <button
-                onClick={() => {
-                  setShowRegisterDriverTruckModal(false)
-                  resetDriverTruckForm()
-                }}
-                className="w-10 h-10 bg-muted rounded-full flex items-center justify-center"
-                disabled={submittingDriverTruck}
-              >
-                <X className="w-5 h-5 text-text-secondary" />
-              </button>
-            </div>
-
-            <form onSubmit={handleRegisterDriverTruck} className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Progress Steps */}
-              <div className="flex items-center justify-between mb-6">
-                {[1, 2, 3, 4].map((step) => (
-                  <div key={step} className="flex items-center flex-1">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                      currentStep >= step ? 'bg-primary text-white' : 'bg-muted text-text-secondary'
-                    }`}>
-                      {step}
-                    </div>
-                    {step < 4 && (
-                      <div className={`flex-1 h-1 mx-2 ${
-                        currentStep > step ? 'bg-primary' : 'bg-muted'
-                      }`} />
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Step 1: Driver Selection/Creation */}
-              {currentStep === 1 && (
-                <div className="space-y-4">
-                  <h4 className="text-text-primary font-bold text-lg mb-4">Step 1: Driver Information</h4>
-                  
-                  <div>
-                    <label className="block text-text-primary font-medium mb-2">Use Existing Driver</label>
-                    <select
-                      value={driverTruckForm.driverId}
-                      onChange={(e) => {
-                        const selectedId = e.target.value
-                        setDriverTruckForm({ ...driverTruckForm, driverId: selectedId })
-                        if (selectedId) {
-                          // Clear new driver fields when selecting existing
-                          setDriverTruckForm(prev => ({
-                            ...prev,
-                            driverId: selectedId,
-                            driverName: "",
-                            phoneNumber: "",
-                            driverLicense: "",
-                            password: "",
-                            confirmPassword: ""
-                          }))
-                        }
-                      }}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      disabled={submittingDriverTruck}
-                    >
-                      <option value="">Create New Driver</option>
-                      {drivers.map((driver) => (
-                        <option key={driver.id} value={driver.id}>
-                          {driver.driverName} - {driver.phoneNumber}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {!driverTruckForm.driverId && (
-                    <>
-                      <div>
-                        <label className="block text-text-primary font-medium mb-2">Driver Name *</label>
-                        <input
-                          type="text"
-                          value={driverTruckForm.driverName}
-                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, driverName: e.target.value })}
-                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                          placeholder="Enter driver name"
-                          required
-                          disabled={submittingDriverTruck}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-text-primary font-medium mb-2">Phone Number *</label>
-                        <input
-                          type="tel"
-                          value={driverTruckForm.phoneNumber}
-                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, phoneNumber: e.target.value })}
-                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                          placeholder="e.g., 08123456789"
-                          required
-                          disabled={submittingDriverTruck}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-text-primary font-medium mb-2">Driver License *</label>
-                        <input
-                          type="text"
-                          value={driverTruckForm.driverLicense}
-                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, driverLicense: e.target.value })}
-                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                          placeholder="Enter license number"
-                          required
-                          disabled={submittingDriverTruck}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-text-primary font-medium mb-2">Password *</label>
-                        <input
-                          type="password"
-                          value={driverTruckForm.password}
-                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, password: e.target.value })}
-                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                          placeholder="Minimum 6 characters"
-                          required
-                          disabled={submittingDriverTruck}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-text-primary font-medium mb-2">Confirm Password *</label>
-                        <input
-                          type="password"
-                          value={driverTruckForm.confirmPassword}
-                          onChange={(e) => setDriverTruckForm({ ...driverTruckForm, confirmPassword: e.target.value })}
-                          className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                          placeholder="Confirm password"
-                          required
-                          disabled={submittingDriverTruck}
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  <button
-                    type="submit"
-                    className="w-full bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={submittingDriverTruck}
-                  >
-                    Next: Truck Details
-                  </button>
-                </div>
-              )}
-
-              {/* Step 2: Truck Details */}
-              {currentStep === 2 && (
-                <div className="space-y-4">
-                  <h4 className="text-text-primary font-bold text-lg mb-4">Step 2: Truck Details</h4>
-                  
-                  <div>
-                    <label className="block text-text-primary font-medium mb-2">Plate Number *</label>
-                    <input
-                      type="text"
-                      value={driverTruckForm.plateNumber}
-                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, plateNumber: e.target.value.toUpperCase() })}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      placeholder="e.g., ABC 123 XY"
-                      required
-                      disabled={submittingDriverTruck}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-text-primary font-medium mb-2">Vehicle Type *</label>
-                    <select
-                      value={driverTruckForm.vehicleType}
-                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, vehicleType: e.target.value })}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      required
-                      disabled={submittingDriverTruck}
-                    >
-                      <option value="">Select vehicle type</option>
-                      {vehicleTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-text-primary font-medium mb-2">Product (What it usually carries)</label>
-                    <input
-                      type="text"
-                      value={driverTruckForm.product}
-                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, product: e.target.value })}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      placeholder="e.g., Cement, Containers, Fuel, General Cargo"
-                      disabled={submittingDriverTruck}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-text-primary font-medium mb-2">Description</label>
-                    <textarea
-                      value={driverTruckForm.description}
-                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, description: e.target.value })}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      placeholder="Describe the truck..."
-                      rows="3"
-                      disabled={submittingDriverTruck}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-text-primary font-medium mb-2">Type of Truck</label>
-                    <input
-                      type="text"
-                      value={driverTruckForm.type}
-                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, type: e.target.value })}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      placeholder="e.g., Flatbed, Tanker, Trailer, Tipper"
-                      disabled={submittingDriverTruck}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-text-primary font-medium mb-2">Color</label>
-                    <input
-                      type="text"
-                      value={driverTruckForm.color}
-                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, color: e.target.value })}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      placeholder="e.g., Red, Blue, White"
-                      disabled={submittingDriverTruck}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-text-primary font-medium mb-2">Notes</label>
-                    <textarea
-                      value={driverTruckForm.notes}
-                      onChange={(e) => setDriverTruckForm({ ...driverTruckForm, notes: e.target.value })}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      placeholder="Additional notes about the truck..."
-                      rows="3"
-                      disabled={submittingDriverTruck}
-                    />
-                  </div>
-
-                  <div className="flex space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentStep(1)}
-                      className="flex-1 bg-muted text-text-primary py-3 rounded-xl font-semibold"
-                      disabled={submittingDriverTruck}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={submittingDriverTruck}
-                    >
-                      Next: Upload Image
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: Truck Image */}
-              {currentStep === 3 && (
-                <div className="space-y-4">
-                  <h4 className="text-text-primary font-bold text-lg mb-4">Step 3: Truck Picture</h4>
-                  
-                  <div>
-                    <label className="block text-text-primary font-medium mb-2">Truck Picture (Optional)</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) {
-                          if (file.size > 5 * 1024 * 1024) {
-                            toast.error("Image size must be less than 5MB")
-                            return
-                          }
-                          setDriverTruckForm({ ...driverTruckForm, truckImage: file })
-                        }
-                      }}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      disabled={submittingDriverTruck}
-                    />
-                    {driverTruckForm.truckImage && (
-                      <div className="mt-2">
-                        <p className="text-text-secondary text-sm">Selected: {driverTruckForm.truckImage.name}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentStep(2)}
-                      className="flex-1 bg-muted text-text-primary py-3 rounded-xl font-semibold"
-                      disabled={submittingDriverTruck}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={submittingDriverTruck}
-                    >
-                      Next: Review
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 4: Review */}
-              {currentStep === 4 && (
-                <div className="space-y-4">
-                  <h4 className="text-text-primary font-bold text-lg mb-4">Step 4: Review & Submit</h4>
-                  
-                  <div className="bg-muted/30 rounded-xl p-4 space-y-3">
-                    <h5 className="font-bold text-text-primary">Driver Information</h5>
-                    {driverTruckForm.driverId ? (
-                      <p className="text-text-secondary">
-                        Using existing driver: {drivers.find(d => d.id === parseInt(driverTruckForm.driverId))?.driverName || 'N/A'}
-                      </p>
-                    ) : (
-                      <>
-                        <p className="text-text-secondary">Name: {driverTruckForm.driverName}</p>
-                        <p className="text-text-secondary">Phone: {driverTruckForm.phoneNumber}</p>
-                        <p className="text-text-secondary">License: {driverTruckForm.driverLicense}</p>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="bg-muted/30 rounded-xl p-4 space-y-3">
-                    <h5 className="font-bold text-text-primary">Truck Information</h5>
-                    <p className="text-text-secondary">Plate Number: {driverTruckForm.plateNumber}</p>
-                    <p className="text-text-secondary">Vehicle Type: {driverTruckForm.vehicleType}</p>
-                    {driverTruckForm.product && <p className="text-text-secondary">Product: {driverTruckForm.product}</p>}
-                    {driverTruckForm.type && <p className="text-text-secondary">Type: {driverTruckForm.type}</p>}
-                    {driverTruckForm.color && <p className="text-text-secondary">Color: {driverTruckForm.color}</p>}
-                    {driverTruckForm.description && <p className="text-text-secondary">Description: {driverTruckForm.description}</p>}
-                    {driverTruckForm.notes && <p className="text-text-secondary">Notes: {driverTruckForm.notes}</p>}
-                    {driverTruckForm.truckImage && <p className="text-text-secondary">Image: {driverTruckForm.truckImage.name}</p>}
-                  </div>
-
-                  <div className="flex space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentStep(3)}
-                      className="flex-1 bg-muted text-text-primary py-3 rounded-xl font-semibold"
-                      disabled={submittingDriverTruck}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                      disabled={submittingDriverTruck}
-                    >
-                      {submittingDriverTruck ? (
-                        <>
-                          <Loader className="w-5 h-5 animate-spin" />
-                          <span>Registering...</span>
-                        </>
-                      ) : (
-                        <span>Register Driver & Truck</span>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </form>
           </div>
         </div>
       )}
