@@ -24,6 +24,7 @@ import {
   MapPin,
   CreditCard,
   Calendar,
+  Search,
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -72,6 +73,7 @@ const AdminDashboard = () => {
   const [shipmentTranscript, setShipmentTranscript] = useState(null)
   const [loadingTranscript, setLoadingTranscript] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
+  const [bookingRefSearch, setBookingRefSearch] = useState("")
   const defaultTruckPricing = {
     '10 ton truck': 1285,
     '15 ton truck': 1428,
@@ -810,7 +812,7 @@ const AdminDashboard = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await response.json()
-      
+
       if (response.ok && data.success) {
         setShipmentTranscript(data)
         setShowTranscript(true)
@@ -823,6 +825,16 @@ const AdminDashboard = () => {
     } finally {
       setLoadingTranscript(false)
     }
+  }
+
+  const handleBookingRefSearch = (e) => {
+    e.preventDefault()
+    const ref = bookingRefSearch.trim()
+    if (!ref) {
+      toast.error('Enter a booking reference to search')
+      return
+    }
+    fetchShipmentTranscript(ref)
   }
 
   const fetchStaffRequests = async () => {
@@ -1026,6 +1038,39 @@ const AdminDashboard = () => {
         {activeView === "home" && (
           <div className="space-y-4 sm:space-y-6">
             <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Dashboard Overview</h2>
+
+            {/* Shipment Lookup by Booking Reference */}
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+              <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-1">Shipment Lookup</h3>
+              <p className="text-sm text-text-secondary mb-3 sm:mb-4">
+                Look up a shipment by its booking reference to see the full trip — bids, driver, payments, PODs, and timeline.
+              </p>
+              <form onSubmit={handleBookingRefSearch} className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={bookingRefSearch}
+                    onChange={(e) => setBookingRefSearch(e.target.value.toUpperCase())}
+                    placeholder="e.g. A1B2C"
+                    className="w-full pl-9 pr-4 py-2.5 border border-border rounded-xl text-text-primary uppercase tracking-wide"
+                    disabled={loadingTranscript}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loadingTranscript}
+                  className="px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loadingTranscript ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <Search className="w-4 h-4" />
+                  )}
+                  <span>Search</span>
+                </button>
+              </form>
+            </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -2312,7 +2357,9 @@ const AdminDashboard = () => {
             <div className="sticky top-0 bg-white border-b border-border p-4 sm:p-6 flex items-center justify-between">
               <div>
                 <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Shipment Journey Transcript</h2>
-                <p className="text-sm text-text-secondary mt-1">Shipment #{shipmentTranscript.shipment.id}</p>
+                <p className="text-sm text-text-secondary mt-1">
+                  {shipmentTranscript.shipment.bookingReference || `Shipment #${shipmentTranscript.shipment.id}`}
+                </p>
               </div>
               <button
                 onClick={() => {
@@ -2470,13 +2517,18 @@ const AdminDashboard = () => {
                         </div>
                         {event.details && Object.keys(event.details).length > 0 && (
                           <div className="mt-2 text-xs text-text-secondary space-y-1">
-                            {Object.entries(event.details).map(([key, value]) => (
-                              value && (
+                            {Object.entries(event.details).map(([key, value]) => {
+                              if (!value) return null
+                              const isAmountField = ['estimatedCost', 'amount', 'bidAmount', 'totalBidAmount'].includes(key)
+                              const displayValue = isAmountField && !isNaN(Number(value))
+                                ? Number(value).toLocaleString('en-NG')
+                                : String(value)
+                              return (
                                 <p key={key}>
-                                  <span className="font-medium">{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</span> {String(value)}
+                                  <span className="font-medium">{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</span> {displayValue}
                                 </p>
                               )
-                            ))}
+                            })}
                           </div>
                         )}
                       </div>
