@@ -1662,16 +1662,6 @@ const TruckerDashboard = () => {
                     )}
                   </div>
 
-                  {/* Route Map for this shipment */}
-                  <div className="mb-6 pt-6 border-t border-border">
-                    <h4 className="text-text-primary font-bold mb-3">Route Map</h4>
-                    <SingleShipmentMap
-                      shipment={selectedShipment}
-                      height="400px"
-                      statesData={states}
-                    />
-                  </div>
-
                   {(Boolean(selectedShipment.fragileItems) || Boolean(selectedShipment.insurance)) && (
                     <div className="mb-6 p-4 bg-warning/10 border border-warning/30 rounded-xl">
                       <p className="text-warning font-semibold text-sm mb-2">Special Requirements:</p>
@@ -1917,8 +1907,8 @@ const TruckerDashboard = () => {
             <p className="text-text-secondary text-sm">
               Invite other shippers, truckers, fleet managers, or agents to Holage and earn a reward once they complete their first shipment.
             </p>
-            <ReferralPanel />
             <BonusWallet variant="user" />
+            <ReferralPanel />
           </div>
         )}
 

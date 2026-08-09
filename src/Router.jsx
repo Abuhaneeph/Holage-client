@@ -22,8 +22,9 @@ const ComplaintPage = lazy(() => import("./pages/ComplaintPage"))
 const DriverDashboard = lazy(() => import("./pages/DriverDashboard"))
 
 const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center bg-background">
-    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+  <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
+    <div className="animate-spin rounded-full h-14 w-14 border-4 border-primary/20 border-t-primary"></div>
+    <p className="text-text-secondary text-sm font-medium">Loading...</p>
   </div>
 )
 

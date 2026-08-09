@@ -646,8 +646,8 @@ const AgentDashboard = () => {
             <p className="text-text-secondary text-sm">
               Invite other shippers, truckers, fleet managers, or agents to Holage and earn a reward once they complete their first shipment.
             </p>
-            <ReferralPanel />
             <BonusWallet variant="user" />
+            <ReferralPanel />
           </div>
         )}
 

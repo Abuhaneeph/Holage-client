@@ -36,7 +36,8 @@ import {
   BadgeCheck,
   XCircle,
   Camera,
-  Upload
+  Upload,
+  ChevronRight
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -54,6 +55,7 @@ const FleetManagerDashboard = () => {
   const [showBalance, setShowBalance] = useState(true)
   const [wallet, setWallet] = useState(null)
   const [walletBalance, setWalletBalance] = useState(0)
+  const [bonusBalance, setBonusBalance] = useState(0)
   const [transactions, setTransactions] = useState([])
   const [transactionsPage, setTransactionsPage] = useState(1)
   const transactionsPerPage = 5
@@ -282,6 +284,15 @@ const FleetManagerDashboard = () => {
           if (tr.ok && td.transactions) setTransactions(td.transactions)
         } catch (e) {
           console.error('Error fetching wallet:', e)
+        }
+
+        // Fetch bonus wallet balance
+        try {
+          const br = await fetch(`${API_BASE_URL}/wallet/bonus`, { headers: { 'Authorization': `Bearer ${token}` } })
+          const bd = await br.json()
+          if (br.ok && bd.wallet) setBonusBalance(parseFloat(bd.wallet.balance || 0))
+        } catch (e) {
+          // ignore — card just shows the last known balance
         }
       } catch (error) {
         console.error('Error checking KYC status:', error)
@@ -1322,6 +1333,22 @@ const FleetManagerDashboard = () => {
               </button>
             </div>
 
+            {/* Bonus Wallet */}
+            <button
+              type="button"
+              onClick={() => setActiveView("referrals")}
+              className="w-full text-left rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm hover:bg-amber-100/70 transition-colors flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2 text-amber-700">
+                <span className="text-xl">🎁</span>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide">Bonus Wallet</p>
+                  <p className="text-2xl font-bold text-text-primary">₦{bonusBalance.toLocaleString('en-NG')}</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-amber-600" />
+            </button>
+
             {/* Trucks List */}
             <div>
               <h3 className="text-text-primary font-bold text-lg mb-4">My Fleet</h3>
@@ -1577,8 +1604,8 @@ const FleetManagerDashboard = () => {
             <p className="text-text-secondary text-sm">
               Invite other shippers, truckers, fleet managers, or agents to Holage and earn a reward once they complete their first shipment.
             </p>
-            <ReferralPanel />
             <BonusWallet variant="user" />
+            <ReferralPanel />
           </div>
         )}
 
@@ -2568,12 +2595,13 @@ const FleetManagerDashboard = () => {
                       disabled={submitting}
                     >
                       <option value="">No driver assigned</option>
-                      {drivers.filter(d => d.isActive).map((driver) => (
+                      {drivers.filter(d => d.isActive && !trucks.some(t => String(t.driverId) === String(d.id))).map((driver) => (
                         <option key={driver.id} value={driver.id}>
                           {driver.driverName} - {driver.phoneNumber}
                         </option>
                       ))}
                     </select>
+                    <p className="text-text-secondary text-xs mt-1">Drivers already assigned to a truck aren't listed — a driver can only have one truck at a time.</p>
                   </div>
                 </>
               ) : (
@@ -2794,13 +2822,15 @@ const FleetManagerDashboard = () => {
                   disabled={submitting}
                 >
                   <option value="">No driver assigned</option>
-                  {drivers.filter(d => d.isActive).map((driver) => (
-                    <option key={driver.id} value={driver.id}>
-                      {driver.driverName} - {driver.phoneNumber}
-                    </option>
-                  ))}
+                  {drivers
+                    .filter(d => d.isActive && !trucks.some(t => String(t.driverId) === String(d.id) && String(t.id) !== String(selectedTruck?.id)))
+                    .map((driver) => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.driverName} - {driver.phoneNumber}
+                      </option>
+                    ))}
                 </select>
-                <p className="text-text-secondary text-xs mt-1">Select a driver to assign to this truck</p>
+                <p className="text-text-secondary text-xs mt-1">Select a driver to assign to this truck. Drivers already assigned elsewhere aren't listed.</p>
               </div>
 
               <div>

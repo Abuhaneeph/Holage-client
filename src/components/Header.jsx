@@ -23,9 +23,9 @@ const Header = ({ transparent = false }) => {
             onClick={() => navigateTo("landing")}
             className="flex items-center space-x-3 cursor-pointer"
           >
-            <div className="w-20 h-20 rounded-xl flex items-center justify-center overflow-hidden">
+            <div className="w-28 h-28 rounded-xl flex items-center justify-center overflow-hidden">
               <img
-                src="/assets/holage-logo.png"
+                src={transparent ? "/assets/logo-blue.png" : "/assets/logo-white.png"}
                 alt="Holage Logo"
                 className="w-full h-full object-contain"
               />

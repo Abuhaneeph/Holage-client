@@ -35,7 +35,8 @@ import {
   PackageCheck,
   Navigation,
   BadgeCheck,
-  XCircle
+  XCircle,
+  ChevronRight
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -83,6 +84,7 @@ const ShipperDashboard = () => {
   
   // Wallet state
   const [walletBalance, setWalletBalance] = useState(0)
+  const [bonusBalance, setBonusBalance] = useState(0)
   const [transactions, setTransactions] = useState([])
   
   // Documents state
@@ -509,6 +511,14 @@ const ShipperDashboard = () => {
           if (tr.ok && td.transactions) setTransactions(td.transactions)
         } catch (e) {
           setWallet(null)
+        }
+        // Load bonus wallet balance
+        try {
+          const br = await fetch(`${API_BASE_URL}/wallet/bonus`, { headers: { 'Authorization': `Bearer ${token}` } })
+          const bd = await br.json()
+          if (br.ok && bd.wallet) setBonusBalance(parseFloat(bd.wallet.balance || 0))
+        } catch (e) {
+          // ignore — card just shows the last known balance
         }
       } catch (error) {
         console.error('Error checking KYC status:', error)
@@ -1324,7 +1334,7 @@ const ShipperDashboard = () => {
     { label: "Other (Specify)", value: "other" }
   ]
 
-  const weightOptions = [5, 10, 15, 20, 30, 40, 50].map((w) => ({ label: `${w} tons`, value: String(w) }))
+  const weightOptions = [5, 10, 15, 20, 30, 40, 50, 60].map((w) => ({ label: `${w} tons`, value: String(w) }))
 
   const truckOptions = [
     { label: "Flatbed trucks", value: "Flatbed trucks" },
@@ -1567,6 +1577,22 @@ const ShipperDashboard = () => {
               <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
                 <Send className="w-6 h-6 text-white" />
               </div>
+            </button>
+
+            {/* Bonus Wallet */}
+            <button
+              type="button"
+              onClick={() => setActiveView("referrals")}
+              className="w-full text-left rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm hover:bg-amber-100/70 transition-colors flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2 text-amber-700">
+                <span className="text-xl">🎁</span>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide">Bonus Wallet</p>
+                  <p className="text-2xl font-bold text-text-primary">₦{bonusBalance.toLocaleString('en-NG')}</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-amber-600" />
             </button>
 
             {/* Active Shipments */}
@@ -2212,8 +2238,8 @@ const ShipperDashboard = () => {
             <p className="text-text-secondary text-sm">
               Invite other shippers, truckers, fleet managers, or agents to Holage and earn a reward once they complete their first shipment.
             </p>
-            <ReferralPanel />
             <BonusWallet variant="user" />
+            <ReferralPanel />
           </div>
         )}
 
@@ -2905,7 +2931,7 @@ const ShipperDashboard = () => {
               )}
 
               <div>
-                <label className="block text-text-primary font-medium mb-2">Weight (tons)</label>
+                <label className="block text-text-primary font-medium mb-2">Estimated Tons</label>
                 <input type="hidden" name="weight" value={shipmentForm.weight} required />
                 <button
                   type="button"
@@ -2913,7 +2939,7 @@ const ShipperDashboard = () => {
                   className="w-full px-4 py-4 bg-input border border-border rounded-xl text-left flex items-center justify-between text-lg hover:bg-muted/50 transition-colors"
                 >
                   <span className={shipmentForm.weight ? 'text-text-primary' : 'text-text-secondary'}>
-                    {shipmentForm.weight ? `${shipmentForm.weight} tons` : 'Select weight'}
+                    {shipmentForm.weight ? `${shipmentForm.weight} tons` : 'Select estimated tons'}
                   </span>
                   <ChevronDown className="w-5 h-5 text-text-secondary" />
                 </button>
@@ -3131,7 +3157,7 @@ const ShipperDashboard = () => {
       <SelectModal
         isOpen={showWeightModal}
         onClose={() => setShowWeightModal(false)}
-        title="Select Weight"
+        title="Select Estimated Tons"
         options={weightOptions}
         value={shipmentForm.weight}
         onChange={(value) => handleFormChange('weight', value)}
