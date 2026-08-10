@@ -667,11 +667,11 @@ const KYCPage = () => {
               <div className="space-y-3">
                 <div className="flex justify-between py-2 border-b border-border/50">
                   <span className="text-text-secondary">Full Name:</span>
-                  <span className="font-medium text-text-primary">{formData.fullName || 'Not provided'}</span>
+                  <span className="font-medium text-text-primary">{user?.fullName || formData.fullName || 'Not provided'}</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-border/50">
                   <span className="text-text-secondary">Email:</span>
-                  <span className="font-medium text-text-primary">{formData.email || 'Not provided'}</span>
+                  <span className="font-medium text-text-primary">{user?.email || formData.email || 'Not provided'}</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-border/50">
                   <span className="text-text-secondary">Phone:</span>

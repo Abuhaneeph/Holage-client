@@ -720,7 +720,7 @@ const SignupPage = () => {
                         <>
                           <span className="text-sm sm:text-base">
                             {userRole === "fleet_manager"
-                              ? "Next"
+                              ? "Create fleet manager account"
                               : userRole === "agent"
                                 ? "Create agent account"
                                 : userRole === "driver"
