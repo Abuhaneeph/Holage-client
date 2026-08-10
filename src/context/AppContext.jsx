@@ -80,6 +80,7 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem("userRole")
     localStorage.removeItem("rememberedEmail")
     localStorage.removeItem("rememberedPhone")
+    localStorage.removeItem("driverBankDetails")
     
     // Clear user state
     setUser(null)
@@ -244,11 +245,9 @@ export const AppProvider = ({ children }) => {
 
       if (authRequired) {
         const token = localStorage.getItem("authToken")
-        console.log("Token from localStorage:", token) // Debug log
-        
+
         if (token) {
           headers["Authorization"] = `Bearer ${token}`
-          console.log("Authorization header set:", headers["Authorization"]) // Debug log
         } else {
           throw new Error("No authentication token found.")
         }
@@ -375,6 +374,7 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem("userInfo")
     localStorage.removeItem("driverInfo")
     localStorage.removeItem("userRole")
+    localStorage.removeItem("driverBankDetails")
     setUser(null)
     setUserRole("")
     resetForm()
@@ -389,6 +389,7 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem("userRole")
     localStorage.removeItem("rememberedEmail")
     localStorage.removeItem("rememberedPhone")
+    localStorage.removeItem("driverBankDetails")
     setUser(null)
     setUserRole("")
     navigateTo("login")

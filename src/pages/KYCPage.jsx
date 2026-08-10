@@ -54,8 +54,10 @@ const KYCPage = () => {
       setVerifyingAccount(true)
       try {
         const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+        const token = localStorage.getItem('authToken')
         const response = await fetch(
-          `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${formData.bankAccountNumber}&bank_code=${formData.bankCode}`
+          `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${formData.bankAccountNumber}&bank_code=${formData.bankCode}`,
+          { headers: { Authorization: `Bearer ${token}` } }
         )
         const data = await response.json()
         if (cancelled) return

@@ -29,7 +29,8 @@ import {
   Search,
   X,
   Star,
-  Gift
+  Gift,
+  ChevronRight
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
@@ -59,6 +60,7 @@ const TruckerDashboard = () => {
   
   // Wallet state
   const [walletBalance, setWalletBalance] = useState(0)
+  const [bonusBalance, setBonusBalance] = useState(0)
   const [transactions, setTransactions] = useState([])
   const [transactionsPage, setTransactionsPage] = useState(1)
   const transactionsPerPage = 5
@@ -235,6 +237,14 @@ const TruckerDashboard = () => {
           if (tr.ok && td.transactions) setTransactions(td.transactions)
         } catch (e) {
           setWallet(null)
+        }
+        // Load bonus wallet balance
+        try {
+          const br = await fetch(`${API_BASE_URL}/wallet/bonus`, { headers: { 'Authorization': `Bearer ${token}` } })
+          const bd = await br.json()
+          if (br.ok && bd.wallet) setBonusBalance(parseFloat(bd.wallet.balance || 0))
+        } catch (e) {
+          // ignore — card just shows the last known balance
         }
         // Fetch active loads
         fetchActiveLoads()
@@ -1336,6 +1346,22 @@ const TruckerDashboard = () => {
                 <span>{myRating.average} ({myRating.count} {myRating.count === 1 ? 'review' : 'reviews'})</span>
               </div>
             )}
+
+            {/* Bonus Wallet */}
+            <button
+              type="button"
+              onClick={() => setActiveView("referrals")}
+              className="w-full text-left rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm hover:bg-amber-100/70 transition-colors flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2 text-amber-700">
+                <span className="text-xl">🎁</span>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide">Bonus Wallet</p>
+                  <p className="text-2xl font-bold text-text-primary">₦{bonusBalance.toLocaleString('en-NG')}</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-amber-600" />
+            </button>
 
             {/* Active Loads */}
             <div>

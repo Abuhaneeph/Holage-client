@@ -400,8 +400,10 @@ const DriverDashboard = () => {
     setAccountVerified(false)
 
     try {
+      const token = localStorage.getItem('authToken')
       const response = await fetch(
-        `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${withdrawBankAccountNumber}&bank_code=${withdrawBankCode}`
+        `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${withdrawBankAccountNumber}&bank_code=${withdrawBankCode}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       )
       const data = await response.json()
       if (response.ok && data.success && data.account_name) {
@@ -1401,7 +1403,7 @@ const DriverDashboard = () => {
 
                     <button
                       onClick={handleWithdraw}
-                      disabled={withdrawLoading || !withdrawAmount || parseFloat(withdrawAmount) < 100 || parseFloat(withdrawAmount) > walletBalance}
+                      disabled={withdrawLoading || !accountVerified || !withdrawAmount || parseFloat(withdrawAmount) < 100 || parseFloat(withdrawAmount) > walletBalance}
                       className="w-full bg-secondary text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                     >
                       {withdrawLoading ? (

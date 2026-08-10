@@ -35,6 +35,21 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 // uploads (not just images) — an <img> tag can't render a PDF, so those need a distinct preview.
 const isPdfUrl = (url) => typeof url === 'string' && /\.pdf(\?|$)/i.test(url)
 
+// Human-readable labels for the party roles that can appear in a shipment's financial ledger.
+// "platform" is synthetic (Holage's commission account, not a literal user role).
+const PARTY_ROLE_LABELS = {
+  shipper: 'Shipper',
+  trucker: 'Trucker',
+  fleet_manager: 'Fleet Manager',
+  driver: 'Driver',
+  agent: 'Agent',
+  platform: 'Platform Commission',
+  admin: 'Admin',
+  staff: 'Staff',
+  unknown: 'Unknown',
+}
+const partyRoleLabel = (role) => PARTY_ROLE_LABELS[role] || (role ? role.replace('_', ' ') : 'Unknown')
+
 const AdminDashboard = () => {
   const { user, logoutUser, navigateTo } = useAppContext()
   const toast = useToast()
@@ -90,7 +105,7 @@ const AdminDashboard = () => {
 
   // Data Archive state
   const [archiveTab, setArchiveTab] = useState('shipments')
-  const [archiveFilters, setArchiveFilters] = useState({ dateFrom: '', dateTo: '' })
+  const [archiveFilters, setArchiveFilters] = useState({ dateFrom: '', dateTo: '', partyRole: '' })
   const [archiveSummary, setArchiveSummary] = useState(null)
   const [archiveShipments, setArchiveShipments] = useState([])
   const [archiveShipmentsPagination, setArchiveShipmentsPagination] = useState(null)
@@ -171,11 +186,13 @@ const AdminDashboard = () => {
       const dateParams = new URLSearchParams()
       if (archiveFilters.dateFrom) dateParams.append('dateFrom', archiveFilters.dateFrom)
       if (archiveFilters.dateTo) dateParams.append('dateTo', archiveFilters.dateTo)
+      const transactionParams = new URLSearchParams(dateParams)
+      if (archiveFilters.partyRole) transactionParams.append('partyRole', archiveFilters.partyRole)
 
       const [summaryRes, shipmentsRes, transactionsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/archive/summary?${dateParams.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_BASE_URL}/archive/shipments?${dateParams.toString()}&page=${shipmentsPage}&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_BASE_URL}/archive/transactions?${dateParams.toString()}&page=${transactionsPage}&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/archive/transactions?${transactionParams.toString()}&page=${transactionsPage}&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
       ])
 
       const summaryData = await summaryRes.json()
@@ -2141,15 +2158,30 @@ const AdminDashboard = () => {
                   className="px-3 py-2 border border-border rounded-lg text-sm"
                 />
               </div>
+              {archiveTab === 'transactions' && (
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">Party</label>
+                  <select
+                    value={archiveFilters.partyRole}
+                    onChange={(e) => setArchiveFilters({ ...archiveFilters, partyRole: e.target.value })}
+                    className="px-3 py-2 border border-border rounded-lg text-sm"
+                  >
+                    <option value="">All parties</option>
+                    {Object.entries(PARTY_ROLE_LABELS).filter(([role]) => role !== 'unknown').map(([role, label]) => (
+                      <option key={role} value={role}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <button
                 onClick={() => { setArchiveShipmentsPage(1); setArchiveTransactionsPage(1); fetchArchiveData(1, 1) }}
                 className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
               >
                 Apply Filters
               </button>
-              {(archiveFilters.dateFrom || archiveFilters.dateTo) && (
+              {(archiveFilters.dateFrom || archiveFilters.dateTo || archiveFilters.partyRole) && (
                 <button
-                  onClick={() => { setArchiveFilters({ dateFrom: '', dateTo: '' }); setArchiveShipmentsPage(1); setArchiveTransactionsPage(1) }}
+                  onClick={() => { setArchiveFilters({ dateFrom: '', dateTo: '', partyRole: '' }); setArchiveShipmentsPage(1); setArchiveTransactionsPage(1) }}
                   className="px-4 py-2 bg-muted text-text-secondary rounded-lg text-sm font-medium hover:bg-muted/80"
                 >
                   Clear
@@ -2187,6 +2219,7 @@ const AdminDashboard = () => {
                       <th className="p-3">Status</th>
                       <th className="p-3">Cost</th>
                       <th className="p-3">Declared Value</th>
+                      <th className="p-3"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2199,10 +2232,20 @@ const AdminDashboard = () => {
                         <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(s.status)}`}>{s.status}</span></td>
                         <td className="p-3 whitespace-nowrap">₦{parseFloat(s.estimatedCost || 0).toLocaleString('en-NG')}</td>
                         <td className="p-3 whitespace-nowrap">{s.declaredValue ? `₦${parseFloat(s.declaredValue).toLocaleString('en-NG')}` : '—'}</td>
+                        <td className="p-3 whitespace-nowrap">
+                          <button
+                            onClick={() => fetchShipmentTranscript(s.id)}
+                            disabled={loadingTranscript}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 disabled:opacity-50"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Audit
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {archiveShipments.length === 0 && (
-                      <tr><td colSpan={7} className="p-6 text-center text-text-secondary">No shipments found for this range.</td></tr>
+                      <tr><td colSpan={8} className="p-6 text-center text-text-secondary">No shipments found for this range.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -2214,6 +2257,8 @@ const AdminDashboard = () => {
                     <tr className="border-b border-border text-left text-text-secondary text-xs uppercase">
                       <th className="p-3">Date</th>
                       <th className="p-3">Party</th>
+                      <th className="p-3">Wallet</th>
+                      <th className="p-3">Stage</th>
                       <th className="p-3">Type</th>
                       <th className="p-3">Amount</th>
                       <th className="p-3">Status</th>
@@ -2222,9 +2267,11 @@ const AdminDashboard = () => {
                   </thead>
                   <tbody>
                     {archiveTransactions.map((t) => (
-                      <tr key={`${t.partyType}-${t.id}`} className="border-b border-border/50 last:border-0">
+                      <tr key={`${t.walletKind}-${t.id}`} className="border-b border-border/50 last:border-0">
                         <td className="p-3 whitespace-nowrap">{new Date(t.createdAt).toLocaleDateString()}</td>
-                        <td className="p-3">{t.partyName || 'N/A'} <span className="text-text-secondary text-xs">({t.partyRole})</span></td>
+                        <td className="p-3">{t.partyName || 'N/A'} <span className="text-text-secondary text-xs">({partyRoleLabel(t.partyRole)})</span></td>
+                        <td className="p-3 capitalize text-xs">{t.walletKind}</td>
+                        <td className="p-3 text-xs whitespace-nowrap">{t.paymentStage || '—'}</td>
                         <td className="p-3 capitalize">{t.type}</td>
                         <td className={`p-3 whitespace-nowrap font-medium ${t.type === 'credit' ? 'text-success' : 'text-error'}`}>
                           {t.type === 'credit' ? '+' : '-'}₦{parseFloat(t.amount || 0).toLocaleString('en-NG')}
@@ -2234,7 +2281,7 @@ const AdminDashboard = () => {
                       </tr>
                     ))}
                     {archiveTransactions.length === 0 && (
-                      <tr><td colSpan={6} className="p-6 text-center text-text-secondary">No transactions found for this range.</td></tr>
+                      <tr><td colSpan={8} className="p-6 text-center text-text-secondary">No transactions found for this range.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -2431,6 +2478,78 @@ const AdminDashboard = () => {
                   <p className="text-lg font-bold text-blue-700">{shipmentTranscript.summary.podDocumentsCount}</p>
                 </div>
               </div>
+
+              {/* Financial Audit: who was debited/credited, and whether it balances */}
+              {shipmentTranscript.financialSummary && (
+                <div>
+                  <h3 className="text-lg font-semibold text-text-primary mb-3">Financial Audit</h3>
+
+                  {shipmentTranscript.financialSummary.reconciliation.balanced ? (
+                    <div className="flex items-center gap-2 bg-green-100 text-green-800 rounded-xl p-3 mb-4 text-sm font-medium">
+                      <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                      Ledger balanced — shipper debits match total payouts.
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 bg-red-100 text-red-800 rounded-xl p-3 mb-4 text-sm font-medium">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      Discrepancy of ₦{Math.abs(shipmentTranscript.financialSummary.reconciliation.difference).toLocaleString('en-NG')} — needs review.
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-2">
+                    {Object.entries(shipmentTranscript.financialSummary.byRole).map(([role, v]) => (
+                      <div key={role} className="bg-muted/30 rounded-xl p-3 sm:p-4 border border-border">
+                        <p className="text-xs text-text-secondary mb-1">{partyRoleLabel(role)}</p>
+                        <p className={`text-base font-bold ${v.net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                          {v.net >= 0 ? '+' : '-'}₦{Math.abs(v.net).toLocaleString('en-NG')}
+                        </p>
+                        <p className="text-[11px] text-text-secondary mt-1">
+                          +₦{v.credited.toLocaleString('en-NG')} / -₦{v.debited.toLocaleString('en-NG')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Money Trail: every debit/credit across main, driver, and bonus wallets */}
+              {shipmentTranscript.financialLedger && shipmentTranscript.financialLedger.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-text-primary mb-3">Money Trail</h3>
+                  <div className="overflow-x-auto border border-border rounded-xl">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left text-text-secondary text-xs uppercase bg-muted/30">
+                          <th className="p-2.5">Date</th>
+                          <th className="p-2.5">Party</th>
+                          <th className="p-2.5">Wallet</th>
+                          <th className="p-2.5">Stage</th>
+                          <th className="p-2.5">Amount</th>
+                          <th className="p-2.5">Status</th>
+                          <th className="p-2.5">Reference</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shipmentTranscript.financialLedger.map((tx) => (
+                          <tr key={`${tx.walletKind}-${tx.id}`} className="border-b border-border/50 last:border-0">
+                            <td className="p-2.5 whitespace-nowrap text-xs">{new Date(tx.createdAt).toLocaleString()}</td>
+                            <td className="p-2.5 whitespace-nowrap">
+                              {tx.partyName} <span className="text-text-secondary text-xs">({partyRoleLabel(tx.partyRole)})</span>
+                            </td>
+                            <td className="p-2.5 capitalize text-xs">{tx.walletKind}</td>
+                            <td className="p-2.5 text-xs whitespace-nowrap">{tx.paymentStage || '—'}</td>
+                            <td className={`p-2.5 whitespace-nowrap font-medium ${tx.type === 'credit' ? 'text-success' : 'text-error'}`}>
+                              {tx.type === 'credit' ? '+' : '-'}₦{tx.amount.toLocaleString('en-NG')}
+                            </td>
+                            <td className="p-2.5 capitalize text-xs">{tx.status}</td>
+                            <td className="p-2.5 text-xs text-text-secondary whitespace-nowrap">{tx.reference}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* POD Documents */}
               {shipmentTranscript.podDocuments && shipmentTranscript.podDocuments.length > 0 && (

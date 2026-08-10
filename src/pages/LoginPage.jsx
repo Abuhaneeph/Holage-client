@@ -241,8 +241,10 @@ const LoginPage = () => {
           console.log("Navigating to admin dashboard")
           navigateTo("admin-dashboard")
         } else {
-          console.log("Role not recognized, using fallback. Role was:", response.user?.role)
-          navigateTo("dashboard") // fallback
+          console.error("Role not recognized, no matching dashboard. Role was:", response.user?.role)
+          setErrors({
+            general: "Your account role isn't recognized by this app version. Please contact support."
+          })
         }
       }
       

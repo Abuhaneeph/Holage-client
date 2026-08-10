@@ -728,6 +728,24 @@ const ShipperDashboard = () => {
       return
     }
 
+    // The weight/cargo-type/truck-type pickers are custom buttons backed by hidden inputs, so
+    // the browser's own `required` validation never fires for them (hidden inputs are excluded
+    // from constraint validation by spec) — has to be checked explicitly here.
+    if (!shipmentForm.weight) {
+      toast.error("Please select the estimated tons for this shipment.")
+      return
+    }
+
+    if (!shipmentForm.cargoType) {
+      toast.error("Please select a cargo type.")
+      return
+    }
+
+    if (!shipmentForm.truckType) {
+      toast.error("Please select a truck type.")
+      return
+    }
+
     if (shipmentForm.insurance && (!shipmentForm.declaredValue || parseFloat(shipmentForm.declaredValue) <= 0)) {
       toast.error("Please enter a declared cargo value to add insurance to this shipment.")
       return

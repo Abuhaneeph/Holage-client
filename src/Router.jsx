@@ -28,10 +28,29 @@ const PageLoader = () => (
   </div>
 )
 
+// Each dashboard page requires the matching role. Client-side only — the backend
+// independently re-checks role on every API call, but this stops a stale/mismatched
+// userRole (or a page name reached the "wrong" way) from ever rendering a dashboard whose
+// data fetches would then fail against a token that isn't actually that role.
+const DASHBOARD_ROLE = {
+  "trucker-dashboard": "trucker",
+  "shipper-dashboard": "shipper",
+  "fleet-manager-dashboard": "fleet_manager",
+  "admin-dashboard": "admin",
+  "agent-dashboard": "agent",
+  "staff-dashboard": "staff",
+  "driver-dashboard": "driver",
+}
+
 const Router = () => {
-  const { currentPage } = useAppContext()
+  const { currentPage, userRole } = useAppContext()
 
   const renderPage = () => {
+    const requiredRole = DASHBOARD_ROLE[currentPage]
+    if (requiredRole && userRole !== requiredRole) {
+      return <LandingPage />
+    }
+
     switch (currentPage) {
       case "landing":
         return <LandingPage />
