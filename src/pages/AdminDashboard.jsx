@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
+import ShipmentProgressTracker from "../components/ShipmentProgressTracker"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -2122,8 +2123,13 @@ const AdminDashboard = () => {
                   <p className="text-lg sm:text-xl font-bold text-primary mt-1">₦{archiveSummary.shipments.completedRevenue.toLocaleString('en-NG')}</p>
                 </div>
                 <div className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
-                  <p className="text-text-secondary text-xs sm:text-sm">Platform Earnings (5% Fee)</p>
+                  <p className="text-text-secondary text-xs sm:text-sm">Platform Earnings (Net, after agent payouts)</p>
                   <p className="text-lg sm:text-xl font-bold text-success mt-1">₦{(archiveSummary.platformEarnings || 0).toLocaleString('en-NG')}</p>
+                  <p className="text-[11px] text-text-secondary mt-1">Gross 5% fee: ₦{(archiveSummary.grossPlatformEarnings || 0).toLocaleString('en-NG')}</p>
+                </div>
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
+                  <p className="text-text-secondary text-xs sm:text-sm">Agent Earnings (4% of platform fee)</p>
+                  <p className="text-lg sm:text-xl font-bold text-amber-600 mt-1">₦{(archiveSummary.agentEarnings || 0).toLocaleString('en-NG')}</p>
                 </div>
                 {Object.entries(archiveSummary.usersByRole).map(([role, count]) => (
                   <div key={role} className="bg-white rounded-xl sm:rounded-2xl p-4 shadow-sm border border-border">
@@ -2434,6 +2440,15 @@ const AdminDashboard = () => {
                       <p className="text-sm font-medium text-text-primary">{shipmentTranscript.shipment.trucker.name}</p>
                     </div>
                   )}
+                  {shipmentTranscript.shipment.agent && (
+                    <div>
+                      <p className="text-xs text-text-secondary mb-1">Referring Agent</p>
+                      <p className="text-sm font-medium text-text-primary">
+                        {shipmentTranscript.shipment.agent.name}
+                        <span className="text-amber-600 font-normal"> — earned ₦{shipmentTranscript.shipment.agent.earnings.toLocaleString('en-NG')}</span>
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-text-secondary mb-1">Pickup Location</p>
                     <p className="text-sm font-medium text-text-primary">
@@ -2459,6 +2474,12 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
+              {/* Progress Tracker */}
+              <div className="bg-muted/30 rounded-xl p-4 sm:p-6">
+                <h3 className="text-lg font-semibold text-text-primary mb-4">Progress Tracker</h3>
+                <ShipmentProgressTracker shipment={shipmentTranscript.shipment} />
+              </div>
+
               {/* Summary Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-primary/10 rounded-xl p-3 sm:p-4">
@@ -2477,6 +2498,12 @@ const AdminDashboard = () => {
                   <p className="text-xs text-text-secondary mb-1">POD Documents</p>
                   <p className="text-lg font-bold text-blue-700">{shipmentTranscript.summary.podDocumentsCount}</p>
                 </div>
+                {shipmentTranscript.shipment.agent && (
+                  <div className="bg-amber-100 rounded-xl p-3 sm:p-4">
+                    <p className="text-xs text-text-secondary mb-1">Agent Earning</p>
+                    <p className="text-lg font-bold text-amber-700">₦{parseFloat(shipmentTranscript.summary.agentEarnings || 0).toLocaleString()}</p>
+                  </div>
+                )}
               </div>
 
               {/* Financial Audit: who was debited/credited, and whether it balances */}
@@ -2524,6 +2551,7 @@ const AdminDashboard = () => {
                           <th className="p-2.5">Party</th>
                           <th className="p-2.5">Wallet</th>
                           <th className="p-2.5">Stage</th>
+                          <th className="p-2.5">%</th>
                           <th className="p-2.5">Amount</th>
                           <th className="p-2.5">Status</th>
                           <th className="p-2.5">Reference</th>
@@ -2537,7 +2565,17 @@ const AdminDashboard = () => {
                               {tx.partyName} <span className="text-text-secondary text-xs">({partyRoleLabel(tx.partyRole)})</span>
                             </td>
                             <td className="p-2.5 capitalize text-xs">{tx.walletKind}</td>
-                            <td className="p-2.5 text-xs whitespace-nowrap">{tx.paymentStage || '—'}</td>
+                            <td className="p-2.5 text-xs whitespace-nowrap">
+                              {tx.paymentStage ? (
+                                <span
+                                  className={tx.stageInferred ? 'italic text-text-secondary' : ''}
+                                  title={tx.stageInferred ? 'Guessed from an older transaction format — not stored in the original record.' : undefined}
+                                >
+                                  {tx.paymentStage}{tx.stageInferred && ' *'}
+                                </span>
+                              ) : '—'}
+                            </td>
+                            <td className="p-2.5 text-xs whitespace-nowrap text-text-secondary">{tx.percentage != null ? `${tx.percentage}%` : '—'}</td>
                             <td className={`p-2.5 whitespace-nowrap font-medium ${tx.type === 'credit' ? 'text-success' : 'text-error'}`}>
                               {tx.type === 'credit' ? '+' : '-'}₦{tx.amount.toLocaleString('en-NG')}
                             </td>
@@ -2572,20 +2610,34 @@ const AdminDashboard = () => {
                         
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                           {pod.hasPhotos && (
-                            <div>
-                              <p className="text-text-secondary mb-1">Photos ({pod.photoCount})</p>
-                              <div className="flex flex-wrap gap-2">
-                                {pod.photos && pod.photos.map((photo, idx) => (
-                                  <a
-                                    key={idx}
-                                    href={photo.startsWith('http') ? photo : `${API_BASE_URL.replace('/api', '')}${photo}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-primary hover:underline text-xs"
-                                  >
-                                    Photo {idx + 1}
-                                  </a>
-                                ))}
+                            <div className="sm:col-span-2">
+                              <p className="text-text-secondary mb-2">Photos ({pod.photoCount})</p>
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {pod.photos && pod.photos.map((photo, idx) => {
+                                  const src = photo.startsWith('http') ? photo : `${API_BASE_URL.replace('/api', '')}${photo}`
+                                  return (
+                                    <a
+                                      key={idx}
+                                      href={src}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="block"
+                                    >
+                                      <img
+                                        src={src}
+                                        alt={`${pod.type} POD ${idx + 1}`}
+                                        className="w-full h-24 object-cover rounded-lg border border-border hover:opacity-90 transition-opacity"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none'
+                                          e.currentTarget.nextSibling.style.display = 'flex'
+                                        }}
+                                      />
+                                      <div className="hidden w-full h-24 rounded-lg border border-dashed border-error/40 bg-error/5 items-center justify-center text-error text-[11px] text-center px-2">
+                                        Image failed to load
+                                      </div>
+                                    </a>
+                                  )
+                                })}
                               </div>
                             </div>
                           )}
