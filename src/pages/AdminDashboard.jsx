@@ -2539,52 +2539,79 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              {/* Money Trail: every debit/credit across main, driver, and bonus wallets */}
+              {/* Money Trail: every debit/credit across main, driver, and bonus wallets, split
+                  into a debit side and a credit side so each side's total is easy to check. */}
               {shipmentTranscript.financialLedger && shipmentTranscript.financialLedger.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-text-primary mb-3">Money Trail</h3>
-                  <div className="overflow-x-auto border border-border rounded-xl">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border text-left text-text-secondary text-xs uppercase bg-muted/30">
-                          <th className="p-2.5">Date</th>
-                          <th className="p-2.5">Party</th>
-                          <th className="p-2.5">Wallet</th>
-                          <th className="p-2.5">Stage</th>
-                          <th className="p-2.5">%</th>
-                          <th className="p-2.5">Amount</th>
-                          <th className="p-2.5">Status</th>
-                          <th className="p-2.5">Reference</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {shipmentTranscript.financialLedger.map((tx) => (
-                          <tr key={`${tx.walletKind}-${tx.id}`} className="border-b border-border/50 last:border-0">
-                            <td className="p-2.5 whitespace-nowrap text-xs">{new Date(tx.createdAt).toLocaleString()}</td>
-                            <td className="p-2.5 whitespace-nowrap">
-                              {tx.partyName} <span className="text-text-secondary text-xs">({partyRoleLabel(tx.partyRole)})</span>
-                            </td>
-                            <td className="p-2.5 capitalize text-xs">{tx.walletKind}</td>
-                            <td className="p-2.5 text-xs whitespace-nowrap">
-                              {tx.paymentStage ? (
-                                <span
-                                  className={tx.stageInferred ? 'italic text-text-secondary' : ''}
-                                  title={tx.stageInferred ? 'Guessed from an older transaction format — not stored in the original record.' : undefined}
-                                >
-                                  {tx.paymentStage}{tx.stageInferred && ' *'}
-                                </span>
-                              ) : '—'}
-                            </td>
-                            <td className="p-2.5 text-xs whitespace-nowrap text-text-secondary">{tx.percentage != null ? `${tx.percentage}%` : '—'}</td>
-                            <td className={`p-2.5 whitespace-nowrap font-medium ${tx.type === 'credit' ? 'text-success' : 'text-error'}`}>
-                              {tx.type === 'credit' ? '+' : '-'}₦{tx.amount.toLocaleString('en-NG')}
-                            </td>
-                            <td className="p-2.5 capitalize text-xs">{tx.status}</td>
-                            <td className="p-2.5 text-xs text-text-secondary whitespace-nowrap">{tx.reference}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="space-y-6">
+                    {[
+                      { key: 'debit', label: 'Debits', colorClass: 'text-error', sign: '-' },
+                      { key: 'credit', label: 'Credits', colorClass: 'text-success', sign: '+' },
+                    ].map(({ key, label, colorClass, sign }) => {
+                      const rows = shipmentTranscript.financialLedger.filter((tx) => tx.type === key)
+                      const total = rows
+                        .filter((tx) => tx.status === 'success')
+                        .reduce((sum, tx) => sum + tx.amount, 0)
+                      return (
+                        <div key={key}>
+                          <h4 className={`text-sm font-semibold mb-2 ${colorClass}`}>{label}</h4>
+                          <div className="overflow-x-auto border border-border rounded-xl">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-border text-left text-text-secondary text-xs uppercase bg-muted/30">
+                                  <th className="p-2.5">Date</th>
+                                  <th className="p-2.5">Party</th>
+                                  <th className="p-2.5">Wallet</th>
+                                  <th className="p-2.5">Stage</th>
+                                  <th className="p-2.5">%</th>
+                                  <th className="p-2.5">Amount</th>
+                                  <th className="p-2.5">Status</th>
+                                  <th className="p-2.5">Reference</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((tx) => (
+                                  <tr key={`${tx.walletKind}-${tx.id}`} className="border-b border-border/50 last:border-0">
+                                    <td className="p-2.5 whitespace-nowrap text-xs">{new Date(tx.createdAt).toLocaleString()}</td>
+                                    <td className="p-2.5 whitespace-nowrap">
+                                      {tx.partyName} <span className="text-text-secondary text-xs">({partyRoleLabel(tx.partyRole)})</span>
+                                    </td>
+                                    <td className="p-2.5 capitalize text-xs">{tx.walletKind}</td>
+                                    <td className="p-2.5 text-xs whitespace-nowrap">
+                                      {tx.paymentStage ? (
+                                        <span
+                                          className={tx.stageInferred ? 'italic text-text-secondary' : ''}
+                                          title={tx.stageInferred ? 'Guessed from an older transaction format — not stored in the original record.' : undefined}
+                                        >
+                                          {tx.paymentStage}{tx.stageInferred && ' *'}
+                                        </span>
+                                      ) : '—'}
+                                    </td>
+                                    <td className="p-2.5 text-xs whitespace-nowrap text-text-secondary">{tx.percentage != null ? `${tx.percentage}%` : '—'}</td>
+                                    <td className={`p-2.5 whitespace-nowrap font-medium ${colorClass}`}>
+                                      {sign}₦{tx.amount.toLocaleString('en-NG')}
+                                    </td>
+                                    <td className="p-2.5 capitalize text-xs">{tx.status}</td>
+                                    <td className="p-2.5 text-xs text-text-secondary whitespace-nowrap">{tx.reference}</td>
+                                  </tr>
+                                ))}
+                                {rows.length === 0 && (
+                                  <tr><td colSpan={8} className="p-4 text-center text-text-secondary text-xs">No {label.toLowerCase()}.</td></tr>
+                                )}
+                              </tbody>
+                              <tfoot>
+                                <tr className="bg-muted/30 font-semibold">
+                                  <td className="p-2.5 text-xs text-text-secondary" colSpan={5}>Total {label.toLowerCase()} (successful only)</td>
+                                  <td className={`p-2.5 whitespace-nowrap ${colorClass}`}>{sign}₦{total.toLocaleString('en-NG')}</td>
+                                  <td className="p-2.5" colSpan={2}></td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
