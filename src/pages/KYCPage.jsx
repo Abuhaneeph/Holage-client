@@ -52,12 +52,14 @@ const KYCPage = () => {
     let cancelled = false
     const timer = setTimeout(async () => {
       setVerifyingAccount(true)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 18000)
       try {
         const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
         const token = localStorage.getItem('authToken')
         const response = await fetch(
           `${API_BASE_URL}/wallet/paystack/resolve-account?account_number=${formData.bankAccountNumber}&bank_code=${formData.bankCode}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
         )
         const data = await response.json()
         if (cancelled) return
@@ -68,8 +70,15 @@ const KYCPage = () => {
           setAccountVerifyError(data.message || "Failed to verify account. Please check your details.")
         }
       } catch (err) {
-        if (!cancelled) setAccountVerifyError("Failed to verify account. Please try again.")
+        if (!cancelled) {
+          setAccountVerifyError(
+            err.name === "AbortError"
+              ? "Verifying your account is taking too long. Please try again."
+              : "Failed to verify account. Please try again."
+          )
+        }
       } finally {
+        clearTimeout(timeoutId)
         if (!cancelled) setVerifyingAccount(false)
       }
     }, 600)
