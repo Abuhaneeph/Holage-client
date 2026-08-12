@@ -161,9 +161,16 @@ export const AppProvider = ({ children }) => {
 
       const fullUrl = `${API_BASE_URL}${endpoint}`
       console.log('🌐 [API] Making request:', { method, url: fullUrl, authRequired })
-      
-      const response = await fetch(fullUrl, config)
-      
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 20000)
+      let response
+      try {
+        response = await fetch(fullUrl, { ...config, signal: controller.signal })
+      } finally {
+        clearTimeout(timeoutId)
+      }
+
       // Check content type before parsing
       const contentType = response.headers.get("content-type")
       let responseData
@@ -216,21 +223,64 @@ export const AppProvider = ({ children }) => {
       console.log('✅ [API] Request successful:', { url: fullUrl, status: response.status })
       return responseData
     } catch (err) {
+      const fullUrl = `${API_BASE_URL}${endpoint}`
+      // A rejected fetch() (as opposed to a resolved response with a bad status) means the
+      // request never reached the server at all — browsers report this as a generic
+      // "TypeError: Failed to fetch" with no further detail, so build a specific message here.
+      const isTimeout = err.name === "AbortError"
+      const isNetworkError = !isTimeout && err instanceof TypeError
+
+      let detailedMessage = err.message
+      if (isTimeout) {
+        detailedMessage = `Request to ${fullUrl} timed out after 20s. The server may be slow or unreachable.`
+      } else if (isNetworkError) {
+        detailedMessage = navigator.onLine
+          ? `Could not reach the server at ${fullUrl}. It may be down, or blocking this site (CORS).`
+          : `Could not reach the server — you appear to be offline.`
+      }
+
       console.error('❌ [API] Request failed:', {
         endpoint,
         method,
-        error: err.message,
-        stack: err.stack
+        url: fullUrl,
+        isNetworkError,
+        isTimeout,
+        online: navigator.onLine,
+        errorName: err.name,
+        errorMessage: err.message,
+        stack: err.stack,
+        timestamp: new Date().toISOString(),
       })
-      
+
+      // Network-level failures never reach the backend, so they'd otherwise be invisible
+      // outside this browser's console — report them so they show up in server logs too.
+      if (isNetworkError || isTimeout) {
+        fetch(`${API_BASE_URL}/client-errors`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            endpoint,
+            method,
+            url: fullUrl,
+            online: navigator.onLine,
+            errorName: err.name,
+            errorMessage: isTimeout ? "Request timed out after 20s" : err.message,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+          }),
+        }).catch(() => {})
+      }
+
       // Don't show error if it's a token expiration (already handled)
       if (err.message && (err.message.includes("expired") || err.message.includes("token"))) {
         // Token expiration already handled above, just return
         return
       }
-      setError(err.message)
-      toast.error(`Error: ${err.message}`)
-      throw err
+      setError(detailedMessage)
+      toast.error(detailedMessage)
+      const enrichedError = new Error(detailedMessage)
+      enrichedError.cause = err
+      throw enrichedError
     } finally {
       setLoading(false)
     }

@@ -46,11 +46,17 @@ export const apiFetch = async (endpoint, options = {}, navigateTo = null) => {
     headers['Authorization'] = `Bearer ${token}`
   }
 
+  const fullUrl = `${API_BASE_URL}${endpoint}`
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 20000)
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(fullUrl, {
       ...options,
-      headers
+      headers,
+      signal: controller.signal
     })
+    clearTimeout(timeoutId)
 
     // Parse JSON response
     let data
@@ -75,8 +81,52 @@ export const apiFetch = async (endpoint, options = {}, navigateTo = null) => {
 
     return { ok: true, status: response.status, data }
   } catch (error) {
-    console.error('API fetch error:', error)
-    throw error
+    clearTimeout(timeoutId)
+
+    const isTimeout = error.name === "AbortError"
+    const isNetworkError = !isTimeout && error instanceof TypeError
+
+    let detailedMessage = error.message
+    if (isTimeout) {
+      detailedMessage = `Request to ${fullUrl} timed out after 20s. The server may be slow or unreachable.`
+    } else if (isNetworkError) {
+      detailedMessage = navigator.onLine
+        ? `Could not reach the server at ${fullUrl}. It may be down, or blocking this site (CORS).`
+        : `Could not reach the server — you appear to be offline.`
+    }
+
+    console.error('API fetch error:', {
+      endpoint,
+      url: fullUrl,
+      isNetworkError,
+      isTimeout,
+      online: navigator.onLine,
+      errorName: error.name,
+      errorMessage: error.message,
+      timestamp: new Date().toISOString(),
+    })
+
+    // Network-level failures never reach the backend, so report them separately —
+    // otherwise they'd only ever be visible in this one browser's console.
+    if (isNetworkError || isTimeout) {
+      fetch(`${API_BASE_URL}/client-errors`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint,
+          url: fullUrl,
+          online: navigator.onLine,
+          errorName: error.name,
+          errorMessage: isTimeout ? "Request timed out after 20s" : error.message,
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString(),
+        }),
+      }).catch(() => {})
+    }
+
+    const enrichedError = new Error(detailedMessage)
+    enrichedError.cause = error
+    throw enrichedError
   }
 }
 
