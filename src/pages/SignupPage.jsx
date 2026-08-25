@@ -16,11 +16,12 @@ const SignupPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [step, setStep] = useState(1) // 1: Role selection, 2: Basic info, 3: Additional info (for fleet managers)
 
-  // Drivers live in a separate `drivers` table (phone + password login, no email), so they
+  // Drivers live in a separate `drivers` table (phone + password login), so they
   // can't reuse the shared `formData` (fullName/email) the other roles submit through.
   const [driverForm, setDriverForm] = useState({
     driverName: "",
     phoneNumber: "",
+    email: "",
     driverLicense: "",
     password: "",
     confirmPassword: "",
@@ -103,12 +104,16 @@ const SignupPage = () => {
   const handleNext = () => {
     if (step === 2) {
       if (userRole === "driver") {
-        if (!driverForm.driverName || !driverForm.phoneNumber || !driverForm.driverLicense || !driverForm.password || !driverForm.confirmPassword) {
+        if (!driverForm.driverName || !driverForm.phoneNumber || !driverForm.email || !driverForm.driverLicense || !driverForm.password || !driverForm.confirmPassword) {
           toast.warning("Please fill in all fields")
           return
         }
         if (driverForm.phoneNumber.length !== 11) {
           toast.error("Phone number must be 11 digits")
+          return
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(driverForm.email)) {
+          toast.error("Enter a valid email address")
           return
         }
         if (driverForm.password !== driverForm.confirmPassword) {
@@ -178,9 +183,10 @@ const SignupPage = () => {
     }
   }
 
-  // Drivers self-register directly against the drivers table (phone/password, no email
-  // verification) and are logged in immediately — no fleet manager involved yet. They get a
-  // driverCode to hand to a fleet manager later via the "Enroll Driver" flow.
+  // Drivers self-register directly against the drivers table (phone/password, email is
+  // collected but not verified at signup) and are logged in immediately — no fleet manager
+  // involved yet. They get a driverCode to hand to a fleet manager later via the "Enroll
+  // Driver" flow.
   const handleDriverSubmit = async () => {
     setSubmittingDriver(true)
     try {
@@ -190,6 +196,7 @@ const SignupPage = () => {
         body: JSON.stringify({
           driverName: driverForm.driverName,
           phoneNumber: driverForm.phoneNumber,
+          email: driverForm.email,
           driverLicense: driverForm.driverLicense,
           password: driverForm.password,
           nin: driverForm.nin || undefined,
@@ -462,7 +469,23 @@ const SignupPage = () => {
                               disabled={submittingDriver}
                             />
                           </div>
-                          <p className="text-xs text-text-secondary">11 digits — this is how you'll log in, not your email.</p>
+                          <p className="text-xs text-text-secondary">11 digits — this is how you'll log in.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-sm font-medium text-text-secondary">Email</label>
+                          <div className="relative">
+                            <Mail className="absolute left-4 top-3.5 h-5 w-5 text-text-secondary/70" />
+                            <input
+                              type="email"
+                              value={driverForm.email}
+                              onChange={(e) => setDriverForm({ ...driverForm, email: e.target.value })}
+                              className="w-full rounded-2xl border border-border bg-white/80 py-3 sm:py-3.5 pl-12 pr-4 text-text-primary text-sm sm:text-base shadow-sm transition-all duration-200 placeholder:text-text-secondary/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+                              placeholder="you@example.com"
+                              required
+                              disabled={submittingDriver}
+                            />
+                          </div>
                         </div>
 
                         <div className="space-y-2">
