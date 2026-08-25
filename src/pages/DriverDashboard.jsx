@@ -104,6 +104,10 @@ const DriverDashboard = () => {
   const [accountVerified, setAccountVerified] = useState(false)
   const [banks, setBanks] = useState([])
   const [loadingBanks, setLoadingBanks] = useState(false)
+  const [myJoinRequest, setMyJoinRequest] = useState(null)
+  const [showJoinFleetModal, setShowJoinFleetModal] = useState(false)
+  const [fleetCodeInput, setFleetCodeInput] = useState("")
+  const [submittingJoinRequest, setSubmittingJoinRequest] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('authToken')
@@ -118,6 +122,7 @@ const DriverDashboard = () => {
       const driver = JSON.parse(driverData)
       setDriverInfo(driver)
       fetchFleetManagerInfo(driver.fleetManagerId)
+      if (!driver.fleetManagerId) fetchMyFleetJoinRequest()
       fetchAssignedShipments()
       fetchAssignedTrucks()
       fetchWallet()
@@ -319,6 +324,54 @@ const DriverDashboard = () => {
       }
     } catch (error) {
       console.error('Error fetching fleet manager info:', error)
+    }
+  }
+
+  // Reverse of enrolling by driver code (fleet-manager-initiated): the driver applies
+  // to join a fleet manager's account using the fleet manager's own unique code,
+  // creating a reviewable request rather than joining instantly.
+  const fetchMyFleetJoinRequest = async () => {
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/drivers/fleet-join-requests/mine`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setMyJoinRequest((data.requests || [])[0] || null)
+      }
+    } catch (error) {
+      console.error('Error fetching fleet join request:', error)
+    }
+  }
+
+  const submitJoinFleetRequest = async () => {
+    if (!fleetCodeInput.trim()) {
+      toast.warning('Enter a fleet code')
+      return
+    }
+    setSubmittingJoinRequest(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/drivers/fleet-join-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ fleetManagerCode: fleetCodeInput.trim() })
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(data.message || "Request sent. The fleet manager will review it shortly.")
+        setShowJoinFleetModal(false)
+        setFleetCodeInput("")
+        fetchMyFleetJoinRequest()
+      } else {
+        toast.error(data.message || 'Failed to send request')
+      }
+    } catch (error) {
+      console.error('Error applying to join fleet:', error)
+      toast.error('Error sending request. Please check your connection.')
+    } finally {
+      setSubmittingJoinRequest(false)
     }
   }
 
@@ -1584,15 +1637,64 @@ const DriverDashboard = () => {
                   )}
                 </div>
               ) : (
-                <div className="bg-card border border-border rounded-2xl p-4 space-y-2">
+                <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
                   <p className="text-text-primary font-bold flex items-center gap-2 mb-1">
                     <Truck className="w-4 h-4 text-primary" /> My Fleet Company
                   </p>
                   <p className="text-text-secondary text-sm">
                     You're not enrolled with a fleet manager yet — you can still bid and operate independently.
                     Share your Driver ID{driverInfo?.driverCode ? ` (${driverInfo.driverCode})` : ""} with a fleet
-                    manager so they can enroll you.
+                    manager so they can enroll you, or apply to join one directly below.
                   </p>
+                  {myJoinRequest?.status === 'pending' ? (
+                    <div className="flex items-center gap-2 text-sm font-medium text-text-primary bg-warning/10 border border-warning/30 rounded-xl px-3 py-2">
+                      <Clock className="w-4 h-4 text-warning flex-shrink-0" />
+                      Request sent to {myJoinRequest.fleetManagerName || 'a fleet manager'} — awaiting their approval.
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowJoinFleetModal(true)}
+                      className="w-full border border-primary text-primary font-semibold text-sm rounded-xl py-2.5 hover:bg-primary/5 transition-colors"
+                    >
+                      Join a Fleet
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {showJoinFleetModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+                  <div className="bg-background rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-text-primary font-bold text-lg">Join a Fleet</h3>
+                      <button type="button" onClick={() => setShowJoinFleetModal(false)} className="text-text-secondary hover:text-text-primary">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <p className="text-text-secondary text-xs">
+                      Enter the fleet manager's unique code. They'll need to approve your request before you're enrolled.
+                    </p>
+                    <div>
+                      <label className="text-text-secondary text-xs block mb-1">Fleet code</label>
+                      <input
+                        type="text"
+                        value={fleetCodeInput}
+                        onChange={(e) => setFleetCodeInput(e.target.value)}
+                        placeholder="e.g. FM-ABC123"
+                        className="w-full border border-border rounded-xl px-3 py-2.5 text-sm text-text-primary bg-card focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={submitJoinFleetRequest}
+                      disabled={submittingJoinRequest}
+                      className="w-full bg-secondary hover:bg-accent disabled:opacity-60 text-white font-semibold text-sm rounded-xl py-2.5 flex items-center justify-center gap-2"
+                    >
+                      {submittingJoinRequest ? <Loader className="w-4 h-4 animate-spin" /> : null}
+                      Send Request
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

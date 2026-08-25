@@ -120,6 +120,9 @@ const FleetManagerDashboard = () => {
 
   // Drivers state
   const [drivers, setDrivers] = useState([])
+  const [joinRequests, setJoinRequests] = useState([])
+  const [loadingJoinRequests, setLoadingJoinRequests] = useState(false)
+  const [processingRequestId, setProcessingRequestId] = useState(null)
   const [loadingDrivers, setLoadingDrivers] = useState(false)
   const [showEditDriverModal, setShowEditDriverModal] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState(null)
@@ -261,6 +264,7 @@ const FleetManagerDashboard = () => {
         setKycCheckDone(true)
         fetchTrucks()
         fetchDrivers()
+        fetchJoinRequests()
         
         // Fetch wallet
         try {
@@ -542,7 +546,75 @@ const FleetManagerDashboard = () => {
       setLoadingDrivers(false)
     }
   }
-  
+
+  // Driver-initiated fleet join requests (reverse of Enroll Driver above — a driver
+  // applies using this fleet manager's own code, rather than being enrolled instantly).
+  const fetchJoinRequests = async () => {
+    setLoadingJoinRequests(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/drivers/fleet-join-requests?status=pending`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setJoinRequests(data.requests || [])
+      }
+    } catch (error) {
+      console.error('Error fetching fleet join requests:', error)
+    } finally {
+      setLoadingJoinRequests(false)
+    }
+  }
+
+  const approveJoinRequest = async (requestId, driverName) => {
+    setProcessingRequestId(requestId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/drivers/fleet-join-requests/${requestId}/approve`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success(`${driverName || 'Driver'} enrolled into your fleet.`)
+        fetchJoinRequests()
+        fetchDrivers()
+        fetchFleetOverview()
+      } else {
+        toast.error(data.message || 'Failed to approve request')
+      }
+    } catch (error) {
+      console.error('Error approving fleet join request:', error)
+      toast.error('Error approving request. Please check your connection.')
+    } finally {
+      setProcessingRequestId(null)
+    }
+  }
+
+  const rejectJoinRequest = async (requestId) => {
+    setProcessingRequestId(requestId)
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/drivers/fleet-join-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        toast.success('Request rejected.')
+        fetchJoinRequests()
+      } else {
+        toast.error(data.message || 'Failed to reject request')
+      }
+    } catch (error) {
+      console.error('Error rejecting fleet join request:', error)
+      toast.error('Error rejecting request. Please check your connection.')
+    } finally {
+      setProcessingRequestId(null)
+    }
+  }
+
   // Fetch fleet trips (all accepted trips by this fleet's drivers)
   const fetchFleetTrips = async () => {
     setLoadingFleetTrips(true)
@@ -1624,6 +1696,47 @@ const FleetManagerDashboard = () => {
                 <span>Enroll Driver</span>
               </button>
             </div>
+
+            {joinRequests.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-text-primary font-bold text-lg">Join Requests</h3>
+                {joinRequests.map((r) => (
+                  <div key={r.id} className="bg-card border border-warning/40 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                          <User className="w-5 h-5 text-text-secondary" />
+                        </div>
+                        <div>
+                          <p className="text-text-primary font-bold">{r.driverName || '—'}</p>
+                          {r.phoneNumber && <p className="text-text-secondary text-sm">{r.phoneNumber}</p>}
+                          {r.driverCode && <p className="text-primary text-xs font-semibold">Code: {r.driverCode}</p>}
+                        </div>
+                      </div>
+                      <span className="bg-warning/10 text-warning text-xs font-semibold px-2 py-1 rounded-full">Pending</span>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => approveJoinRequest(r.id, r.driverName)}
+                        disabled={processingRequestId === r.id}
+                        className="flex-1 bg-primary text-white text-sm font-semibold rounded-xl py-2 disabled:opacity-60 flex items-center justify-center gap-1.5"
+                      >
+                        {processingRequestId === r.id ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => rejectJoinRequest(r.id)}
+                        disabled={processingRequestId === r.id}
+                        className="flex-1 border border-border text-text-primary text-sm font-semibold rounded-xl py-2 disabled:opacity-60 flex items-center justify-center gap-1.5"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {loadingDrivers ? (
               <div className="flex justify-center items-center py-12">
