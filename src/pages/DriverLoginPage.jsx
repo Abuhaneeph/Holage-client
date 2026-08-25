@@ -9,7 +9,7 @@ import Reveal from "../components/Reveal"
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
 const DriverLoginPage = () => {
-  const { navigateTo } = useAppContext()
+  const { navigateTo, setUser, setUserRole } = useAppContext()
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     phoneNumber: "",
@@ -64,7 +64,20 @@ const DriverLoginPage = () => {
         localStorage.setItem('authToken', data.token)
         localStorage.setItem('driverInfo', JSON.stringify(data.driver))
         localStorage.setItem('userRole', 'driver')
-        
+
+        // Router.jsx guards each dashboard route against the AppContext userRole state
+        // (not localStorage) — without updating it here too, navigateTo below would fire
+        // but Router would immediately bounce back to the landing page since its guard
+        // would still see the pre-login (empty) role.
+        setUser({
+          id: data.driver.id,
+          role: 'driver',
+          driverName: data.driver.driverName,
+          phoneNumber: data.driver.phoneNumber,
+          fleetManagerId: data.driver.fleetManagerId
+        })
+        setUserRole('driver')
+
         // Navigate to driver dashboard
         navigateTo("driver-dashboard")
       } else {
