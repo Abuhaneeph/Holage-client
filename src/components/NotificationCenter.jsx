@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Bell, X, Check, CheckCheck, Trash2, Loader } from "lucide-react"
 import { useToast } from "../context/ToastContext"
+import ConfirmModal from "./ConfirmModal"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -12,6 +13,7 @@ const NotificationCenter = ({ userId }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [markingRead, setMarkingRead] = useState(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const dropdownRef = useRef(null)
 
   useEffect(() => {
@@ -273,7 +275,7 @@ const NotificationCenter = ({ userId }) => {
                             </button>
                           )}
                           <button
-                            onClick={() => deleteNotification(notification.id)}
+                            onClick={() => setConfirmDeleteId(notification.id)}
                             className="text-error text-xs font-medium hover:text-error/80 flex items-center space-x-1"
                             title="Delete"
                           >
@@ -289,6 +291,19 @@ const NotificationCenter = ({ userId }) => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmDeleteId !== null}
+        title="Delete this notification?"
+        message="This can't be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          deleteNotification(confirmDeleteId)
+          setConfirmDeleteId(null)
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   )
 }

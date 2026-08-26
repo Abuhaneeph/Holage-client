@@ -7,18 +7,40 @@ import { useToast } from "../context/ToastContext"
 import Header from "../components/Header"
 
 const ForgotPasswordPage = () => {
-  const { navigateTo, formData, handleInputChange, forgotPassword, verifyResetCode, resetPassword, loading } = useAppContext()
+  const {
+    navigateTo,
+    formData,
+    handleInputChange,
+    forgotPassword,
+    verifyResetCode,
+    resetPassword,
+    driverForgotPassword,
+    driverVerifyResetCode,
+    driverResetPassword,
+    loading,
+  } = useAppContext()
   const toast = useToast()
   const [currentStep, setCurrentStep] = useState("email") // "email", "code", "newPassword"
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [resetToken, setResetToken] = useState("")
+  // LoginPage's "Forgot password?" is shared by its Email and Driver tabs — this flag,
+  // stashed by navigateToForgotPassword, tells us which /drivers/... endpoints to hit.
+  const [isDriver] = useState(() => {
+    const flag = sessionStorage.getItem("holage_forgot_password_is_driver") === "true"
+    sessionStorage.removeItem("holage_forgot_password_is_driver")
+    return flag
+  })
 
   /* ---------- Handlers ---------- */
   const handleForgotPassword = async (e) => {
     e.preventDefault()
     try {
-      await forgotPassword(formData.email)
+      if (isDriver) {
+        await driverForgotPassword(formData.email)
+      } else {
+        await forgotPassword(formData.email)
+      }
       setCurrentStep("code")
     } catch {
       /* handled in context */
@@ -28,7 +50,9 @@ const ForgotPasswordPage = () => {
   const handleVerifyCode = async (e) => {
     e.preventDefault()
     try {
-      const response = await verifyResetCode(formData.email, formData.resetCode)
+      const response = isDriver
+        ? await driverVerifyResetCode(formData.email, formData.resetCode)
+        : await verifyResetCode(formData.email, formData.resetCode)
       setResetToken(response.resetToken)
       setCurrentStep("newPassword")
     } catch {
@@ -47,7 +71,11 @@ const ForgotPasswordPage = () => {
       return
     }
     try {
-      await resetPassword(resetToken, formData.newPassword)
+      if (isDriver) {
+        await driverResetPassword(resetToken, formData.newPassword)
+      } else {
+        await resetPassword(resetToken, formData.newPassword)
+      }
       handleInputChange("email", "")
       handleInputChange("resetCode", "")
       handleInputChange("newPassword", "")

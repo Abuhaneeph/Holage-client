@@ -38,6 +38,7 @@ import {
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import NotificationCenter from "../components/NotificationCenter"
+import ConfirmModal from "../components/ConfirmModal"
 import PODCapture from "../components/PODCapture"
 import SingleShipmentMap from "../components/SingleShipmentMap"
 import ShipmentProgressTracker from "../components/ShipmentProgressTracker"
@@ -106,6 +107,8 @@ const DriverDashboard = () => {
   const [loadingBanks, setLoadingBanks] = useState(false)
   const [myJoinRequest, setMyJoinRequest] = useState(null)
   const [showJoinFleetModal, setShowJoinFleetModal] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [pendingConfirm, setPendingConfirm] = useState(null)
   const [fleetCodeInput, setFleetCodeInput] = useState("")
   const [submittingJoinRequest, setSubmittingJoinRequest] = useState(false)
 
@@ -590,7 +593,6 @@ const DriverDashboard = () => {
   }
 
   const handleCancelBid = async (bidId) => {
-    if (!window.confirm("Cancel this bid?")) return
     setCancellingBidId(bidId)
     try {
       const token = localStorage.getItem("authToken")
@@ -821,10 +823,6 @@ const DriverDashboard = () => {
 
   // Start trip to pick up
   const handleStartPickupTrip = async (shipmentId) => {
-    if (!window.confirm('Start trip to pick up the shipment?')) {
-      return
-    }
-
     setUpdatingStatus(shipmentId)
     try {
       const token = localStorage.getItem('authToken')
@@ -931,10 +929,6 @@ const DriverDashboard = () => {
 
   // Start trip to destination (after pickup confirmed)
   const handleStartDeliveryTrip = async (shipmentId) => {
-    if (!window.confirm('Start trip to destination?')) {
-      return
-    }
-
     setUpdatingStatus(shipmentId)
     try {
       const token = localStorage.getItem('authToken')
@@ -1009,7 +1003,7 @@ const DriverDashboard = () => {
               <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${refreshingAll ? 'animate-spin' : ''}`} />
             </button>
             <button
-              onClick={handleLogout}
+              onClick={() => setShowLogoutConfirm(true)}
               className="w-9 h-9 sm:w-10 sm:h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors flex-shrink-0"
               title="Logout"
             >
@@ -1142,7 +1136,7 @@ const DriverDashboard = () => {
                             )}
                             <button
                               type="button"
-                              onClick={() => handleCancelBid(bid.id)}
+                              onClick={() => setPendingConfirm({ title: 'Cancel this bid?', destructive: true, confirmLabel: 'Cancel bid', onConfirm: () => handleCancelBid(bid.id) })}
                               disabled={cancellingBidId === bid.id}
                               className="flex-1 bg-error/10 text-error py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 hover:bg-error/20 disabled:opacity-50"
                             >
@@ -1217,7 +1211,7 @@ const DriverDashboard = () => {
                                     )}
                                     <button
                                       type="button"
-                                      onClick={() => handleCancelBid(existingBid.id)}
+                                      onClick={() => setPendingConfirm({ title: 'Cancel this bid?', destructive: true, confirmLabel: 'Cancel bid', onConfirm: () => handleCancelBid(existingBid.id) })}
                                       disabled={cancellingBidId === existingBid.id}
                                       className="bg-error/10 text-error text-xs px-2 py-1 rounded-lg font-medium disabled:opacity-50"
                                     >
@@ -1663,6 +1657,30 @@ const DriverDashboard = () => {
                 </div>
               )}
 
+              <ConfirmModal
+                open={showLogoutConfirm}
+                title="Log out?"
+                message="You'll need to sign in again to access your account."
+                confirmLabel="Log out"
+                destructive
+                onConfirm={handleLogout}
+                onCancel={() => setShowLogoutConfirm(false)}
+              />
+
+              <ConfirmModal
+                open={pendingConfirm !== null}
+                title={pendingConfirm?.title}
+                message={pendingConfirm?.message}
+                confirmLabel={pendingConfirm?.confirmLabel}
+                destructive={pendingConfirm?.destructive}
+                onConfirm={() => {
+                  const action = pendingConfirm?.onConfirm
+                  setPendingConfirm(null)
+                  action?.()
+                }}
+                onCancel={() => setPendingConfirm(null)}
+              />
+
               {showJoinFleetModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
                   <div className="bg-background rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-5 space-y-4">
@@ -1923,7 +1941,7 @@ const DriverDashboard = () => {
                         <div className="pt-3 sm:pt-4 border-t border-border space-y-2">
                           {shipment.status === 'assigned' && (
                             <button
-                              onClick={() => handleStartPickupTrip(shipment.id)}
+                              onClick={() => setPendingConfirm({ title: 'Start trip to pick up?', confirmLabel: 'Start trip', onConfirm: () => handleStartPickupTrip(shipment.id) })}
                               disabled={updatingStatus === shipment.id}
                               className="w-full bg-primary text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
                             >
@@ -1980,7 +1998,7 @@ const DriverDashboard = () => {
 
                           {shipment.status === 'picked_up' && Boolean(shipment.pickupConfirmed) && (
                             <button
-                              onClick={() => handleStartDeliveryTrip(shipment.id)}
+                              onClick={() => setPendingConfirm({ title: 'Start trip to destination?', confirmLabel: 'Start trip', onConfirm: () => handleStartDeliveryTrip(shipment.id) })}
                               disabled={updatingStatus === shipment.id}
                               className="w-full bg-success text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
                             >

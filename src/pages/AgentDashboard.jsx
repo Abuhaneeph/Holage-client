@@ -36,6 +36,7 @@ import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import ReferralPanel from "../components/ReferralPanel"
 import BonusWallet from "../components/BonusWallet"
+import ConfirmModal from "../components/ConfirmModal"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api"
 
@@ -67,6 +68,7 @@ const AgentDashboard = () => {
   const [trucksLoading, setTrucksLoading] = useState(false)
   const [bonusBalance, setBonusBalance] = useState(0)
   const [refreshingAll, setRefreshingAll] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   const referralCode = user?.referralCode || ""
   const uniqueCode = user?.uniqueCode || ""
@@ -447,7 +449,7 @@ const AgentDashboard = () => {
             </button>
             <button
               type="button"
-              onClick={() => logoutUser()}
+              onClick={() => setShowLogoutConfirm(true)}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-error/20 hover:bg-error/30"
               title="Log out"
             >
@@ -1014,6 +1016,16 @@ const AgentDashboard = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={showLogoutConfirm}
+        title="Log out?"
+        message="You'll need to sign in again to access your account."
+        confirmLabel="Log out"
+        destructive
+        onConfirm={logoutUser}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </div>
   )
 }

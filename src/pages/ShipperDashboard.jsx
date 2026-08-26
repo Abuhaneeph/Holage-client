@@ -45,6 +45,7 @@ import SelectModal from "../components/SelectModal"
 import { calculateDistance, estimateShippingCost } from "../utils/distanceCalculator"
 import LgaSelect from "../components/LgaSelect"
 import NotificationCenter from "../components/NotificationCenter"
+import ConfirmModal from "../components/ConfirmModal"
 import SingleShipmentMap from "../components/SingleShipmentMap"
 import ShipmentProgressTracker from "../components/ShipmentProgressTracker"
 import ReferralPanel from "../components/ReferralPanel"
@@ -70,6 +71,10 @@ const ShipperDashboard = () => {
   const [activeView, setActiveView] = useState("home")
   const [showBalance, setShowBalance] = useState(true)
   const [refreshingAll, setRefreshingAll] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  // Generic confirm-modal queue for actions that used to gate on window.confirm() — set
+  // { title, message, confirmLabel, destructive, onConfirm } to open it for any action.
+  const [pendingConfirm, setPendingConfirm] = useState(null)
   const [ewaybillShipmentId, setEwaybillShipmentId] = useState(null)
   const [wallet, setWallet] = useState(null)
   const [kycCheckDone, setKycCheckDone] = useState(false)
@@ -930,7 +935,6 @@ const ShipperDashboard = () => {
 
   // Delete shipment
   const handleDeleteShipment = async (shipmentId) => {
-    if (!window.confirm('Delete this shipment?')) return
     setDeletingShipmentId(shipmentId)
     try {
       const token = localStorage.getItem('authToken')
@@ -1426,10 +1430,6 @@ const ShipperDashboard = () => {
 
   // Confirm pickup
   const handleConfirmPickup = async (shipmentId) => {
-    if (!window.confirm('Confirm that the shipment has been picked up? This will charge 60% from your wallet and release it to the trucker/driver.')) {
-      return
-    }
-
     try {
       const token = localStorage.getItem('authToken')
       const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}/confirm-pickup`, {
@@ -1456,10 +1456,6 @@ const ShipperDashboard = () => {
 
   // Confirm delivery
   const handleConfirmDelivery = async (shipmentId) => {
-    if (!window.confirm('Confirm that the shipment has been delivered? This will charge the remaining 30% from your wallet.')) {
-      return
-    }
-
     try {
       const token = localStorage.getItem('authToken')
       const response = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}/confirm-delivery`, {
@@ -1554,8 +1550,8 @@ const ShipperDashboard = () => {
             >
               {showBalance ? <EyeOff className="w-5 h-5 text-white" /> : <Eye className="w-5 h-5 text-white" />}
             </button>
-            <button 
-              onClick={logoutUser}
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
               className="w-10 h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors"
               title="Logout"
             >
@@ -1644,9 +1640,9 @@ const ShipperDashboard = () => {
                             <div className="flex items-center space-x-3">
                               <p className={`text-${statusInfo.color} font-medium text-sm`}>{statusInfo.label}</p>
                         {shipment.status === 'pending' && (
-                                <button 
-                                  onClick={() => handleDeleteShipment(shipment.id)} 
-                                  disabled={deletingShipmentId === shipment.id} 
+                                <button
+                                  onClick={() => setPendingConfirm({ title: 'Delete this shipment?', message: "This can't be undone.", confirmLabel: 'Delete', destructive: true, onConfirm: () => handleDeleteShipment(shipment.id) })}
+                                  disabled={deletingShipmentId === shipment.id}
                                   className="bg-error/10 text-error px-4 py-2 rounded-xl font-medium text-sm disabled:opacity-50"
                                 >
                             {deletingShipmentId === shipment.id ? 'Deleting...' : 'Delete'}
@@ -1750,9 +1746,9 @@ const ShipperDashboard = () => {
                           {isExpanded ? 'Hide Details' : 'View Details'}
                         </button>
                         {shipment.status === 'pending' && (
-                          <button 
-                            onClick={() => handleDeleteShipment(shipment.id)} 
-                            disabled={deletingShipmentId === shipment.id} 
+                          <button
+                            onClick={() => setPendingConfirm({ title: 'Delete this shipment?', message: "This can't be undone.", confirmLabel: 'Delete', destructive: true, onConfirm: () => handleDeleteShipment(shipment.id) })}
+                            disabled={deletingShipmentId === shipment.id}
                             className="bg-error/10 text-error px-4 py-3 rounded-xl font-medium text-sm disabled:opacity-50"
                           >
                             {deletingShipmentId === shipment.id ? '...' : 'Delete'}
@@ -1820,7 +1816,7 @@ const ShipperDashboard = () => {
                           })()}
                         </div>
                         <button
-                          onClick={() => handleConfirmPickup(shipment.id)}
+                          onClick={() => setPendingConfirm({ title: 'Confirm pickup?', message: 'This will charge 60% from your wallet and release it to the trucker/driver.', confirmLabel: 'Confirm pickup', onConfirm: () => handleConfirmPickup(shipment.id) })}
                           className="w-full bg-warning text-white py-3 rounded-xl font-bold hover:bg-warning/90 transition-colors flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />
@@ -1858,7 +1854,7 @@ const ShipperDashboard = () => {
                           })()}
                         </div>
                         <button
-                          onClick={() => handleConfirmDelivery(shipment.id)}
+                          onClick={() => setPendingConfirm({ title: 'Confirm delivery?', message: 'This will charge the remaining 30% from your wallet.', confirmLabel: 'Confirm delivery', onConfirm: () => handleConfirmDelivery(shipment.id) })}
                           className="w-full bg-success text-white py-3 rounded-xl font-bold hover:bg-success/90 transition-colors flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />
@@ -2609,55 +2605,62 @@ const ShipperDashboard = () => {
                   <div className="flex items-center space-x-3 pt-2">
                     <button
                       onClick={async () => {
-                        try {
-                          if (!bankAccountForm.bankAccountNumber || !bankAccountForm.bankCode) {
-                            toast.error("Please fill in all bank account details")
-                            return
-                          }
-                          
-                          // Verification is optional - warn but allow saving
-                          if (!accountVerified) {
-                            const proceed = window.confirm("Your account hasn't been verified. Do you want to save anyway? (You can verify it later)")
-                            if (!proceed) {
-                              return
-                            }
-                          }
-                          
-                          setUpdatingBankAccount(true)
-                          const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
-                          const token = localStorage.getItem('authToken')
-                          
-                          const response = await fetch(`${API_BASE_URL}/kyc/bank-account`, {
-                            method: 'PUT',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify(bankAccountForm)
-                          })
-                          
-                          const data = await response.json()
-                          
-                          if (response.ok) {
-                            toast.success(data.message || "Bank account updated successfully")
-                            setEditingBankAccount(false)
-                            // Refresh documents
-                            const docsResponse = await fetch(`${API_BASE_URL}/kyc/documents`, {
-                              headers: { 'Authorization': `Bearer ${token}` }
-                            })
-                            const docsData = await docsResponse.json()
-                            if (docsData.success) {
-                              setDocuments(docsData.documents)
-                            }
-                          } else {
-                            toast.error(data.message || "Failed to update bank account")
-                          }
-                        } catch (error) {
-                          console.error("Error updating bank account:", error)
-                          toast.error("Failed to update bank account")
-                        } finally {
-                          setUpdatingBankAccount(false)
+                        if (!bankAccountForm.bankAccountNumber || !bankAccountForm.bankCode) {
+                          toast.error("Please fill in all bank account details")
+                          return
                         }
+
+                        const saveBankAccount = async () => {
+                          try {
+                            setUpdatingBankAccount(true)
+                            const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+                            const token = localStorage.getItem('authToken')
+
+                            const response = await fetch(`${API_BASE_URL}/kyc/bank-account`, {
+                              method: 'PUT',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                              },
+                              body: JSON.stringify(bankAccountForm)
+                            })
+
+                            const data = await response.json()
+
+                            if (response.ok) {
+                              toast.success(data.message || "Bank account updated successfully")
+                              setEditingBankAccount(false)
+                              // Refresh documents
+                              const docsResponse = await fetch(`${API_BASE_URL}/kyc/documents`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              })
+                              const docsData = await docsResponse.json()
+                              if (docsData.success) {
+                                setDocuments(docsData.documents)
+                              }
+                            } else {
+                              toast.error(data.message || "Failed to update bank account")
+                            }
+                          } catch (error) {
+                            console.error("Error updating bank account:", error)
+                            toast.error("Failed to update bank account")
+                          } finally {
+                            setUpdatingBankAccount(false)
+                          }
+                        }
+
+                        // Verification is optional - warn but allow saving
+                        if (!accountVerified) {
+                          setPendingConfirm({
+                            title: 'Account not verified',
+                            message: "Your account hasn't been verified. Do you want to save anyway? (You can verify it later)",
+                            confirmLabel: 'Save anyway',
+                            onConfirm: saveBankAccount,
+                          })
+                          return
+                        }
+
+                        saveBankAccount()
                       }}
                       disabled={updatingBankAccount}
                       className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
@@ -2844,6 +2847,30 @@ const ShipperDashboard = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={showLogoutConfirm}
+        title="Log out?"
+        message="You'll need to sign in again to access your account."
+        confirmLabel="Log out"
+        destructive
+        onConfirm={logoutUser}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
+
+      <ConfirmModal
+        open={pendingConfirm !== null}
+        title={pendingConfirm?.title}
+        message={pendingConfirm?.message}
+        confirmLabel={pendingConfirm?.confirmLabel}
+        destructive={pendingConfirm?.destructive}
+        onConfirm={() => {
+          const action = pendingConfirm?.onConfirm
+          setPendingConfirm(null)
+          action?.()
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
 
       {/* Create Shipment Modal */}
       {showCreateShipment && (

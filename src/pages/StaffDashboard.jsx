@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { LogOut, Loader, MessageSquare, Headphones, ChevronDown } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
+import ConfirmModal from "../components/ConfirmModal"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api"
 
@@ -13,6 +14,7 @@ const StaffDashboard = () => {
   const [complaints, setComplaints] = useState([])
   const [stats, setStats] = useState({ total: 0, pending: 0, in_progress: 0, resolved: 0 })
   const [loading, setLoading] = useState(true)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [selectedStatus, setSelectedStatus] = useState("all")
   const [selected, setSelected] = useState(null)
   const [messages, setMessages] = useState([])
@@ -162,7 +164,7 @@ const StaffDashboard = () => {
           </div>
           <button
             type="button"
-            onClick={() => logoutUser()}
+            onClick={() => setShowLogoutConfirm(true)}
             className="flex h-10 w-10 items-center justify-center rounded-full bg-error/20 transition-colors hover:bg-error/30"
             title="Log out"
           >
@@ -328,6 +330,16 @@ const StaffDashboard = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        open={showLogoutConfirm}
+        title="Log out?"
+        message="You'll need to sign in again to access your account."
+        confirmLabel="Log out"
+        destructive
+        onConfirm={logoutUser}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </div>
   )
 }

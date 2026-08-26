@@ -29,6 +29,7 @@ import {
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import ShipmentProgressTracker from "../components/ShipmentProgressTracker"
+import ConfirmModal from "../components/ConfirmModal"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -119,6 +120,8 @@ const AdminDashboard = () => {
   const [loadingAgents, setLoadingAgents] = useState(false)
   const [agentSearchQuery, setAgentSearchQuery] = useState("")
   const [refreshingAll, setRefreshingAll] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [pendingConfirm, setPendingConfirm] = useState(null)
 
   // Fetch all complaints for stats on component mount
   useEffect(() => {
@@ -584,10 +587,6 @@ const AdminDashboard = () => {
   }
 
   const handleKycStatusUpdate = async (userId, status) => {
-    if (!window.confirm(`Are you sure you want to ${status} this KYC submission?`)) {
-      return
-    }
-
     try {
       setUpdatingKycStatus(true)
       const token = localStorage.getItem('authToken')
@@ -898,7 +897,11 @@ const AdminDashboard = () => {
   }
 
   const rejectStaffRequest = async (requestId) => {
-    const reason = window.prompt("Reason for rejection (optional):") || ""
+    // window.prompt returns null on Cancel and "" on OK-with-empty-text — these must be
+    // told apart, since collapsing both to "" (the previous `|| ""` behavior) meant
+    // clicking Cancel still went ahead and rejected the request anyway.
+    const reason = window.prompt("Reason for rejection (optional):")
+    if (reason === null) return
     try {
       const token = localStorage.getItem("authToken")
       const response = await fetch(`${API_BASE_URL}/staff-requests/${requestId}/reject`, {
@@ -968,7 +971,7 @@ const AdminDashboard = () => {
             <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${refreshingAll ? 'animate-spin' : ''}`} />
           </button>
           <button
-            onClick={logoutUser}
+            onClick={() => setShowLogoutConfirm(true)}
             className="w-9 h-9 sm:w-10 sm:h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors flex-shrink-0 ml-2"
             title="Logout"
           >
@@ -1875,7 +1878,7 @@ const AdminDashboard = () => {
                   {selectedKycSubmission.kycStatus === 'pending' && (
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-border">
                       <button
-                        onClick={() => handleKycStatusUpdate(selectedKycSubmission.id, 'approved')}
+                        onClick={() => setPendingConfirm({ title: 'Approve this KYC submission?', confirmLabel: 'Approve', onConfirm: () => handleKycStatusUpdate(selectedKycSubmission.id, 'approved') })}
                         disabled={updatingKycStatus || getMissingDocuments(selectedKycSubmission).length > 0}
                         title={getMissingDocuments(selectedKycSubmission).length > 0 ? `Missing: ${getMissingDocuments(selectedKycSubmission).join(', ')}` : ''}
                         className="flex-1 bg-green-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
@@ -1884,7 +1887,7 @@ const AdminDashboard = () => {
                         <span>Approve</span>
                       </button>
                       <button
-                        onClick={() => handleKycStatusUpdate(selectedKycSubmission.id, 'rejected')}
+                        onClick={() => setPendingConfirm({ title: 'Reject this KYC submission?', destructive: true, confirmLabel: 'Reject', onConfirm: () => handleKycStatusUpdate(selectedKycSubmission.id, 'rejected') })}
                         disabled={updatingKycStatus}
                         className="flex-1 bg-red-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
                       >
@@ -2402,6 +2405,30 @@ const AdminDashboard = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={showLogoutConfirm}
+        title="Log out?"
+        message="You'll need to sign in again to access your account."
+        confirmLabel="Log out"
+        destructive
+        onConfirm={logoutUser}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
+
+      <ConfirmModal
+        open={pendingConfirm !== null}
+        title={pendingConfirm?.title}
+        message={pendingConfirm?.message}
+        confirmLabel={pendingConfirm?.confirmLabel}
+        destructive={pendingConfirm?.destructive}
+        onConfirm={() => {
+          const action = pendingConfirm?.onConfirm
+          setPendingConfirm(null)
+          action?.()
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
 
       {/* Shipment Transcript Modal */}
       {showTranscript && shipmentTranscript && (

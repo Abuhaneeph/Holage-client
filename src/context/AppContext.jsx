@@ -71,6 +71,14 @@ export const AppProvider = ({ children }) => {
     setCurrentPage("signup")
   }
 
+  /** LoginPage's "Forgot password?" is shared by its Email and Driver tabs — this is how
+   * ForgotPasswordPage learns which one sent it, so it hits /drivers/forgot-password instead
+   * of /auth/forgot-password for a driver account (separate table, no overlap). */
+  const navigateToForgotPassword = (isDriver) => {
+    sessionStorage.setItem("holage_forgot_password_is_driver", isDriver ? "true" : "false")
+    setCurrentPage("forgot-password")
+  }
+
   // Handle token expiration - clear session and redirect to login
   const handleTokenExpiration = () => {
     // Clear all auth data
@@ -508,11 +516,45 @@ export const AppProvider = ({ children }) => {
     }
   }
 
+  // Driver accounts live in a separate `drivers` table, not `users` — these hit
+  // /drivers/... instead of /auth/..., same request/response shapes otherwise.
+  const driverForgotPassword = async (email) => {
+    try {
+      const data = await callApi("/drivers/forgot-password", "POST", { email })
+      toast.success(data.message || "Password reset code sent to your email")
+      return data
+    } catch (err) {
+      console.error("Driver forgot password failed:", err)
+      throw err
+    }
+  }
+
+  const driverVerifyResetCode = async (email, resetCode) => {
+    try {
+      const data = await callApi("/drivers/verify-reset-code", "POST", { email, resetCode })
+      return data
+    } catch (err) {
+      console.error("Driver reset code verification failed:", err)
+      throw err
+    }
+  }
+
+  const driverResetPassword = async (resetToken, newPassword) => {
+    try {
+      const data = await callApi("/drivers/reset-password", "POST", { resetToken, newPassword })
+      toast.success(data.message || "Password reset successfully")
+      return data
+    } catch (err) {
+      console.error("Driver reset password failed:", err)
+      throw err
+    }
+  }
+
   const resetPassword = async (resetToken, newPassword) => {
     try {
-      const data = await callApi("/auth/reset-password", "POST", { 
-        resetToken, 
-        newPassword 
+      const data = await callApi("/auth/reset-password", "POST", {
+        resetToken,
+        newPassword
       })
       toast.success(data.message || "Password reset successfully")
       return data
@@ -772,6 +814,7 @@ export const AppProvider = ({ children }) => {
     setIsKycResubmission,
     navigateTo,
     navigateToSignupWithRole,
+    navigateToForgotPassword,
     setUserRole,
     setUser,
     handleInputChange,
@@ -786,6 +829,9 @@ export const AppProvider = ({ children }) => {
     forgotPassword,
     verifyResetCode, // Added missing function
     resetPassword,
+    driverForgotPassword,
+    driverVerifyResetCode,
+    driverResetPassword,
     submitKyc,
     callApiWithFiles,
     getKycStatus,

@@ -12,6 +12,7 @@ const LoginPage = () => {
   const {
     navigateTo,
     navigateToSignupWithRole,
+    navigateToForgotPassword,
     formData,
     handleInputChange,
     loginUser,
@@ -526,7 +527,7 @@ const LoginPage = () => {
                       </label>
                       <button
                         type="button"
-                        onClick={() => navigateTo("forgot-password")}
+                        onClick={() => navigateToForgotPassword(false)}
                         className="font-medium text-secondary transition-colors hover:text-accent"
                       >
                         Forgot password?
@@ -557,7 +558,7 @@ const LoginPage = () => {
                       </label>
                       <button
                         type="button"
-                        onClick={() => navigateTo("forgot-password")}
+                        onClick={() => navigateToForgotPassword(true)}
                         className="font-medium text-secondary transition-colors hover:text-accent"
                       >
                         Forgot password?

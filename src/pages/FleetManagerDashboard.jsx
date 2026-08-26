@@ -42,6 +42,7 @@ import {
 import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import NotificationCenter from "../components/NotificationCenter"
+import ConfirmModal from "../components/ConfirmModal"
 import ReferralPanel from "../components/ReferralPanel"
 import BonusWallet from "../components/BonusWallet"
 import { formatWithCommas, parseFormattedNumber } from "../utils/currencyFormat"
@@ -166,6 +167,8 @@ const FleetManagerDashboard = () => {
   // Driver payment routing setting
   const [updatingPaymentRouting, setUpdatingPaymentRouting] = useState(false)
   const [refreshingAll, setRefreshingAll] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [pendingConfirm, setPendingConfirm] = useState(null)
 
   // Wallet state
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
@@ -844,71 +847,78 @@ const FleetManagerDashboard = () => {
       return
     }
 
-    if (truckForm.driverId) {
-      const confirmed = window.confirm(
-        "You're about to assign a driver to this vehicle. The driver will be notified and expected to operate this vehicle on future trips — make sure you've selected the right one before continuing."
-      )
-      if (!confirmed) return
-    }
+    const submitAddTruck = async () => {
+      setSubmitting(true)
+      try {
+        const token = localStorage.getItem("authToken")
+        const formData = new FormData()
+        formData.append("plateNumber", truckForm.plateNumber)
+        formData.append("vehicleType", truckForm.vehicleType)
+        formData.append("capacity", truckForm.capacity)
+        formData.append("manufacturer", truckForm.manufacturer)
+        formData.append("vehicleReg", truckForm.vehicleReg)
+        if (truckForm.product) formData.append("product", truckForm.product)
+        if (truckForm.description) formData.append("description", truckForm.description)
+        if (truckForm.type) formData.append("type", truckForm.type)
+        if (truckForm.color) formData.append("color", truckForm.color)
+        if (truckForm.notes) formData.append("notes", truckForm.notes)
+        if (truckForm.driverId) formData.append("driverId", truckForm.driverId)
+        if (truckForm.capacityTier) formData.append("capacityTier", truckForm.capacityTier)
+        if (truckForm.imageFront) formData.append("imageFront", truckForm.imageFront)
+        if (truckForm.imageSide) formData.append("imageSide", truckForm.imageSide)
+        if (truckForm.imageBack) formData.append("imageBack", truckForm.imageBack)
+        if (truckForm.vehicleLicense) formData.append("vehicleLicense", truckForm.vehicleLicense)
 
-    setSubmitting(true)
-    try {
-      const token = localStorage.getItem("authToken")
-      const formData = new FormData()
-      formData.append("plateNumber", truckForm.plateNumber)
-      formData.append("vehicleType", truckForm.vehicleType)
-      formData.append("capacity", truckForm.capacity)
-      formData.append("manufacturer", truckForm.manufacturer)
-      formData.append("vehicleReg", truckForm.vehicleReg)
-      if (truckForm.product) formData.append("product", truckForm.product)
-      if (truckForm.description) formData.append("description", truckForm.description)
-      if (truckForm.type) formData.append("type", truckForm.type)
-      if (truckForm.color) formData.append("color", truckForm.color)
-      if (truckForm.notes) formData.append("notes", truckForm.notes)
-      if (truckForm.driverId) formData.append("driverId", truckForm.driverId)
-      if (truckForm.capacityTier) formData.append("capacityTier", truckForm.capacityTier)
-      if (truckForm.imageFront) formData.append("imageFront", truckForm.imageFront)
-      if (truckForm.imageSide) formData.append("imageSide", truckForm.imageSide)
-      if (truckForm.imageBack) formData.append("imageBack", truckForm.imageBack)
-      if (truckForm.vehicleLicense) formData.append("vehicleLicense", truckForm.vehicleLicense)
+        const response = await fetch(`${API_BASE_URL}/trucks/with-images`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        })
 
-      const response = await fetch(`${API_BASE_URL}/trucks/with-images`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      })
+        const data = await response.json()
 
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        // Insurance cert goes through its own endpoint since it needs the new truck's ID
-        if (truckForm.insuranceCert && data.truck?.id) {
-          const certForm = new FormData()
-          certForm.append("insuranceCert", truckForm.insuranceCert)
-          try {
-            await fetch(`${API_BASE_URL}/trucks/${data.truck.id}/insurance-cert`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-              body: certForm,
-            })
-          } catch (certError) {
-            console.error("Error uploading insurance certificate:", certError)
-            toast.error("Truck added, but the insurance certificate upload failed — you can retry it from Edit Truck.")
+        if (response.ok && data.success) {
+          // Insurance cert goes through its own endpoint since it needs the new truck's ID
+          if (truckForm.insuranceCert && data.truck?.id) {
+            const certForm = new FormData()
+            certForm.append("insuranceCert", truckForm.insuranceCert)
+            try {
+              await fetch(`${API_BASE_URL}/trucks/${data.truck.id}/insurance-cert`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: certForm,
+              })
+            } catch (certError) {
+              console.error("Error uploading insurance certificate:", certError)
+              toast.error("Truck added, but the insurance certificate upload failed — you can retry it from Edit Truck.")
+            }
           }
+          toast.success("Truck added successfully!")
+          setShowAddTruckModal(false)
+          resetTruckForm()
+          fetchTrucks()
+        } else {
+          toast.error(data.message || "Failed to add truck")
         }
-        toast.success("Truck added successfully!")
-        setShowAddTruckModal(false)
-        resetTruckForm()
-        fetchTrucks()
-      } else {
-        toast.error(data.message || "Failed to add truck")
+      } catch (error) {
+        console.error("Error adding truck:", error)
+        toast.error("Error adding truck")
+      } finally {
+        setSubmitting(false)
       }
-    } catch (error) {
-      console.error("Error adding truck:", error)
-      toast.error("Error adding truck")
-    } finally {
-      setSubmitting(false)
     }
+
+    if (truckForm.driverId) {
+      setPendingConfirm({
+        title: "Assign this driver?",
+        message: "You're about to assign a driver to this vehicle. The driver will be notified and expected to operate this vehicle on future trips — make sure you've selected the right one before continuing.",
+        confirmLabel: "Assign driver",
+        onConfirm: submitAddTruck,
+      })
+      return
+    }
+
+    submitAddTruck()
   }
 
   // Upload vehicle photo for truck (Edit Truck modal)
@@ -1072,8 +1082,6 @@ const FleetManagerDashboard = () => {
   
   // Handle delete driver
   const handleDeleteDriver = async (driverId) => {
-    if (!window.confirm('Are you sure you want to delete this driver?')) return
-    
     try {
       const token = localStorage.getItem('authToken')
       const response = await fetch(`${API_BASE_URL}/drivers/${driverId}`, {
@@ -1114,53 +1122,58 @@ const FleetManagerDashboard = () => {
       return
     }
 
-    const previousDriverId = selectedTruck?.driverId ? String(selectedTruck.driverId) : ""
-    if (truckForm.driverId && truckForm.driverId !== previousDriverId) {
-      const confirmed = window.confirm(
-        "You're about to (re)assign a driver to this vehicle. The driver will be notified and expected to operate this vehicle on future trips — make sure you've selected the right one before continuing."
-      )
-      if (!confirmed) return
+    const submitUpdateTruck = async () => {
+      setSubmitting(true)
+      try {
+        const token = localStorage.getItem('authToken')
+        const response = await fetch(`${API_BASE_URL}/trucks/${selectedTruck.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            ...truckForm,
+            capacity: truckForm.capacity ? parseFloat(truckForm.capacity) : null,
+            driverId: truckForm.driverId || null
+          })
+        })
+
+        const data = await response.json()
+
+        if (response.ok) {
+          toast.success('Truck updated successfully!')
+          setShowEditTruckModal(false)
+          setSelectedTruck(null)
+          resetTruckForm()
+          fetchTrucks()
+        } else {
+          toast.error(data.message || 'Failed to update truck')
+        }
+      } catch (error) {
+        console.error('Error updating truck:', error)
+        toast.error('Error updating truck')
+      } finally {
+        setSubmitting(false)
+      }
     }
 
-    setSubmitting(true)
-    try {
-      const token = localStorage.getItem('authToken')
-      const response = await fetch(`${API_BASE_URL}/trucks/${selectedTruck.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          ...truckForm,
-          capacity: truckForm.capacity ? parseFloat(truckForm.capacity) : null,
-          driverId: truckForm.driverId || null
-        })
+    const previousDriverId = selectedTruck?.driverId ? String(selectedTruck.driverId) : ""
+    if (truckForm.driverId && truckForm.driverId !== previousDriverId) {
+      setPendingConfirm({
+        title: "(Re)assign this driver?",
+        message: "You're about to (re)assign a driver to this vehicle. The driver will be notified and expected to operate this vehicle on future trips — make sure you've selected the right one before continuing.",
+        confirmLabel: "Assign driver",
+        onConfirm: submitUpdateTruck,
       })
-      
-      const data = await response.json()
-      
-      if (response.ok) {
-        toast.success('Truck updated successfully!')
-        setShowEditTruckModal(false)
-        setSelectedTruck(null)
-        resetTruckForm()
-        fetchTrucks()
-      } else {
-        toast.error(data.message || 'Failed to update truck')
-      }
-    } catch (error) {
-      console.error('Error updating truck:', error)
-      toast.error('Error updating truck')
-    } finally {
-      setSubmitting(false)
+      return
     }
+
+    submitUpdateTruck()
   }
 
   // Handle delete truck
   const handleDeleteTruck = async (truckId) => {
-    if (!window.confirm('Are you sure you want to delete this truck?')) return
-    
     try {
       const token = localStorage.getItem('authToken')
       const response = await fetch(`${API_BASE_URL}/trucks/${truckId}`, {
@@ -1336,7 +1349,7 @@ const FleetManagerDashboard = () => {
               {showBalance ? <EyeOff className="w-5 h-5 text-white" /> : <Eye className="w-5 h-5 text-white" />}
             </button>
             <button
-              onClick={logoutUser}
+              onClick={() => setShowLogoutConfirm(true)}
               className="w-10 h-10 bg-error/20 rounded-full flex items-center justify-center hover:bg-error/30 transition-colors"
               title="Logout"
             >
@@ -1475,7 +1488,7 @@ const FleetManagerDashboard = () => {
                           <span>Edit</span>
                         </button>
                         <button
-                          onClick={() => handleDeleteTruck(truck.id)}
+                          onClick={() => setPendingConfirm({ title: 'Delete this truck?', message: "This can't be undone.", confirmLabel: 'Delete', destructive: true, onConfirm: () => handleDeleteTruck(truck.id) })}
                           className="flex-1 bg-error/10 text-error px-4 py-2 rounded-xl font-medium text-sm hover:bg-error/20 transition-colors flex items-center justify-center space-x-2"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1832,7 +1845,7 @@ const FleetManagerDashboard = () => {
                           <span>Edit</span>
                         </button>
                         <button
-                          onClick={() => handleDeleteDriver(driver.id)}
+                          onClick={() => setPendingConfirm({ title: 'Delete this driver?', message: "This can't be undone.", confirmLabel: 'Delete', destructive: true, onConfirm: () => handleDeleteDriver(driver.id) })}
                           className="flex-1 bg-error/10 text-error px-4 py-2 rounded-xl font-medium text-sm hover:bg-error/20 transition-colors flex items-center justify-center space-x-2"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -2436,52 +2449,59 @@ const FleetManagerDashboard = () => {
                   <div className="flex items-center space-x-3 pt-2">
                     <button
                       onClick={async () => {
-                        try {
-                          if (!bankAccountForm.bankAccountNumber || !bankAccountForm.bankCode) {
-                            toast.error("Please fill in all bank account details")
-                            return
-                          }
-                          
-                          if (!accountVerified) {
-                            const proceed = window.confirm("Your account hasn't been verified. Do you want to save anyway? (You can verify it later)")
-                            if (!proceed) {
-                              return
-                            }
-                          }
-                          
-                          setUpdatingBankAccount(true)
-                          const token = localStorage.getItem('authToken')
-                          
-                          const response = await fetch(`${API_BASE_URL}/kyc/bank-account`, {
-                            method: 'PUT',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify(bankAccountForm)
-                          })
-                          
-                          const data = await response.json()
-                          
-                          if (response.ok) {
-                            toast.success(data.message || "Bank account updated successfully")
-                            setEditingBankAccount(false)
-                            const docsResponse = await fetch(`${API_BASE_URL}/kyc/documents`, {
-                              headers: { 'Authorization': `Bearer ${token}` }
-                            })
-                            const docsData = await docsResponse.json()
-                            if (docsData.success) {
-                              setDocuments(docsData.documents)
-                            }
-                          } else {
-                            toast.error(data.message || "Failed to update bank account")
-                          }
-                        } catch (error) {
-                          console.error("Error updating bank account:", error)
-                          toast.error("Failed to update bank account")
-                        } finally {
-                          setUpdatingBankAccount(false)
+                        if (!bankAccountForm.bankAccountNumber || !bankAccountForm.bankCode) {
+                          toast.error("Please fill in all bank account details")
+                          return
                         }
+
+                        const saveBankAccount = async () => {
+                          try {
+                            setUpdatingBankAccount(true)
+                            const token = localStorage.getItem('authToken')
+
+                            const response = await fetch(`${API_BASE_URL}/kyc/bank-account`, {
+                              method: 'PUT',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                              },
+                              body: JSON.stringify(bankAccountForm)
+                            })
+
+                            const data = await response.json()
+
+                            if (response.ok) {
+                              toast.success(data.message || "Bank account updated successfully")
+                              setEditingBankAccount(false)
+                              const docsResponse = await fetch(`${API_BASE_URL}/kyc/documents`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              })
+                              const docsData = await docsResponse.json()
+                              if (docsData.success) {
+                                setDocuments(docsData.documents)
+                              }
+                            } else {
+                              toast.error(data.message || "Failed to update bank account")
+                            }
+                          } catch (error) {
+                            console.error("Error updating bank account:", error)
+                            toast.error("Failed to update bank account")
+                          } finally {
+                            setUpdatingBankAccount(false)
+                          }
+                        }
+
+                        if (!accountVerified) {
+                          setPendingConfirm({
+                            title: 'Account not verified',
+                            message: "Your account hasn't been verified. Do you want to save anyway? (You can verify it later)",
+                            confirmLabel: 'Save anyway',
+                            onConfirm: saveBankAccount,
+                          })
+                          return
+                        }
+
+                        saveBankAccount()
                       }}
                       disabled={updatingBankAccount}
                       className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
@@ -2540,6 +2560,30 @@ const FleetManagerDashboard = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={showLogoutConfirm}
+        title="Log out?"
+        message="You'll need to sign in again to access your account."
+        confirmLabel="Log out"
+        destructive
+        onConfirm={logoutUser}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
+
+      <ConfirmModal
+        open={pendingConfirm !== null}
+        title={pendingConfirm?.title}
+        message={pendingConfirm?.message}
+        confirmLabel={pendingConfirm?.confirmLabel}
+        destructive={pendingConfirm?.destructive}
+        onConfirm={() => {
+          const action = pendingConfirm?.onConfirm
+          setPendingConfirm(null)
+          action?.()
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
 
       {/* Enroll Driver Modal */}
       {showEnrollDriverModal && (
