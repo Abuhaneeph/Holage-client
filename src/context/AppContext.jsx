@@ -311,9 +311,6 @@ export const AppProvider = ({ children }) => {
         }
       }
 
-      console.log("Making request to:", `${API_BASE_URL}${endpoint}`) // Debug log
-      console.log("Headers:", headers) // Debug log
-
       const config = {
         method: "POST",
         headers,
