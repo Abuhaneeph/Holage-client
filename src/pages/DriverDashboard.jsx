@@ -1664,7 +1664,7 @@ const DriverDashboard = () => {
               <ConfirmModal
                 open={showLogoutConfirm}
                 title="Log out?"
-                message="You'll need to sign in again to access your account."
+                message="Are you sure you want to log out?"
                 confirmLabel="Log out"
                 destructive
                 onConfirm={logoutUser}
