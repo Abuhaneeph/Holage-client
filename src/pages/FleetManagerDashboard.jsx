@@ -1299,7 +1299,7 @@ const FleetManagerDashboard = () => {
     <div className="min-h-screen bg-background pb-24">
       {/* Header Card */}
       <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800 p-6 rounded-b-3xl shadow-lg">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="flex items-center space-x-3 min-w-0">
             {documents?.profilePhoto ? (
               <img
@@ -1314,7 +1314,7 @@ const FleetManagerDashboard = () => {
             )}
             <div className="min-w-0">
               <p className="text-white/80 text-sm">Fleet Manager</p>
-              <p className="text-white font-extrabold text-base sm:text-xl leading-tight flex items-center gap-1.5 break-words">
+              <p className="text-white font-extrabold text-lg sm:text-xl leading-tight flex items-center gap-1.5 break-words">
                 {user?.fullName || "Fleet Manager"}
                 {documents?.cacVerified && (
                   <CheckCircle className="w-4 h-4 text-emerald-300 flex-shrink-0" title="CAC verified" />
@@ -1325,7 +1325,7 @@ const FleetManagerDashboard = () => {
               )}
             </div>
           </div>
-          <div className="flex items-center space-x-2 flex-shrink-0">
+          <div className="flex items-center justify-end space-x-2 flex-shrink-0">
             <NotificationCenter userId={user?.id} />
             <button
               onClick={handleGlobalRefresh}
