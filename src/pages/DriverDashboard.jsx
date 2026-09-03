@@ -50,7 +50,7 @@ import { formatWithCommas, parseFormattedNumber } from "../utils/currencyFormat"
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
 const DriverDashboard = () => {
-  const { navigateTo } = useAppContext()
+  const { navigateTo, logoutUser } = useAppContext()
   const toast = useToast()
   const [activeTab, setActiveTab] = useState("jobs") // jobs | findwork | wallet
   const [driverInfo, setDriverInfo] = useState(null)
@@ -787,14 +787,6 @@ const DriverDashboard = () => {
       setRefreshingAll(false)
     }
   }
-
-  const handleLogout = () => {
-    localStorage.removeItem('authToken')
-    localStorage.removeItem('driverInfo')
-    localStorage.removeItem('userRole')
-    navigateTo('driver-login')
-  }
-
 
   // Each status gets its own distinct icon (not a shared checkmark/truck) so the trip's
   // stage reads at a glance from the icon alone, without needing to check the color/label.
@@ -1663,7 +1655,7 @@ const DriverDashboard = () => {
                 message="You'll need to sign in again to access your account."
                 confirmLabel="Log out"
                 destructive
-                onConfirm={handleLogout}
+                onConfirm={logoutUser}
                 onCancel={() => setShowLogoutConfirm(false)}
               />
 

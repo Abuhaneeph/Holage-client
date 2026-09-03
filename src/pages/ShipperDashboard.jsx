@@ -1834,20 +1834,11 @@ const ShipperDashboard = () => {
                             const bidAmt = parseFloat(shipmentDetails[shipment.id]?.acceptedBidWithRating?.bidAmount || shipment.estimatedCost || 0)
                             if (bidAmt <= 0) return null
                             const carrierAmt = calculateStageAmount(bidAmt, 30)
-                            const platformAmt = calculateStageAmount(bidAmt, 5)
                             return (
                               <div className="space-y-1 pt-2 mt-2 border-t border-warning/20 text-sm">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-text-secondary">Carrier payment (30%)</span>
-                                  <span className="text-text-primary font-medium">₦{carrierAmt.toLocaleString('en-NG')}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-text-secondary">Platform fee (5%)</span>
-                                  <span className="text-text-primary font-medium">₦{platformAmt.toLocaleString('en-NG')}</span>
-                                </div>
-                                <div className="flex items-center justify-between pt-1 border-t border-warning/30">
+                                <div className="flex items-center justify-between pt-1">
                                   <span className="text-text-secondary font-medium">Total to be charged</span>
-                                  <span className="text-text-primary font-bold">₦{(carrierAmt + platformAmt).toLocaleString('en-NG')}</span>
+                                  <span className="text-text-primary font-bold">₦{carrierAmt.toLocaleString('en-NG')}</span>
                                 </div>
                               </div>
                             )
@@ -1858,7 +1849,7 @@ const ShipperDashboard = () => {
                           className="w-full bg-success text-white py-3 rounded-xl font-bold hover:bg-success/90 transition-colors flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />
-                          <span>Confirm Delivery (Release 30% + 5% Fee)</span>
+                          <span>Confirm Delivery (Release 30%)</span>
                         </button>
                       </div>
                     )}
@@ -3028,6 +3019,9 @@ const ShipperDashboard = () => {
                   </span>
                   <ChevronDown className="w-5 h-5 text-text-secondary" />
                 </button>
+                <p className="text-text-secondary text-xs mt-1.5">
+                  Ensure you pick a truck that can contain your shipment, either by weight or space.
+                </p>
               </div>
 
               <div>
@@ -3041,40 +3035,45 @@ const ShipperDashboard = () => {
                 />
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-xl">
-                  <input
-                    type="checkbox"
-                    id="insurance"
-                    checked={shipmentForm.insurance}
-                    onChange={(e) => handleFormChange('insurance', e.target.checked)}
-                    className="w-6 h-6 rounded border-border text-primary"
-                  />
-                  <label htmlFor="insurance" className="text-text-primary font-medium">
-                    Insurance (+₦200,000)
-                  </label>
-                </div>
-
-                {shipmentForm.insurance && (
-                  <div className="p-4 bg-muted/30 rounded-xl">
-                    <label className="block text-text-primary font-medium mb-2">
-                      Declared Cargo Value (₦) <span className="text-error">*</span>
-                    </label>
+              {/* Insurance temporarily disabled until the real insurer integration replaces the
+                  flat placeholder fee — see holage_insurance_integration memory. Flip to true to
+                  re-enable. */}
+              {false && (
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-xl">
                     <input
-                      type="text"
-                      inputMode="decimal"
-                      value={formatWithCommas(shipmentForm.declaredValue)}
-                      onChange={(e) => handleFormChange('declaredValue', parseFormattedNumber(e.target.value))}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      placeholder="e.g., 1,500,000"
-                      required
+                      type="checkbox"
+                      id="insurance"
+                      checked={shipmentForm.insurance}
+                      onChange={(e) => handleFormChange('insurance', e.target.checked)}
+                      className="w-6 h-6 rounded border-border text-primary"
                     />
-                    <p className="text-text-secondary text-xs mt-1">
-                      Required for insured shipments — this is the value the cargo would be covered for.
-                    </p>
+                    <label htmlFor="insurance" className="text-text-primary font-medium">
+                      Insurance (+₦200,000)
+                    </label>
                   </div>
-                )}
-              </div>
+
+                  {shipmentForm.insurance && (
+                    <div className="p-4 bg-muted/30 rounded-xl">
+                      <label className="block text-text-primary font-medium mb-2">
+                        Declared Cargo Value (₦) <span className="text-error">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={formatWithCommas(shipmentForm.declaredValue)}
+                        onChange={(e) => handleFormChange('declaredValue', parseFormattedNumber(e.target.value))}
+                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                        placeholder="e.g., 1,500,000"
+                        required
+                      />
+                      <p className="text-text-secondary text-xs mt-1">
+                        Required for insured shipments — this is the value the cargo would be covered for.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Distance and Cost Estimate */}
               {calculating && (
