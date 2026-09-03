@@ -1511,21 +1511,21 @@ const ShipperDashboard = () => {
       {/* Wallet Card - Always visible at top */}
       <div className="bg-gradient-to-br from-primary via-primary to-secondary p-6 rounded-b-3xl shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 min-w-0">
             {documents?.profilePhoto ? (
-              <img 
-                src={documents.profilePhoto} 
-                alt="Profile" 
-                className="w-12 h-12 rounded-full object-cover border-2 border-white"
+              <img
+                src={documents.profilePhoto}
+                alt="Profile"
+                className="w-12 h-12 rounded-full object-cover border-2 border-white flex-shrink-0"
               />
             ) : (
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
                 <User className="w-6 h-6 text-white" />
               </div>
             )}
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-white/80 text-sm">Welcome</p>
-              <p className="text-white font-bold text-lg">
+              <p className="text-white font-bold text-lg truncate">
                 {(() => {
                   const firstName = user?.fullName?.split(' ')[0] || "User"
                   // Remove "00" from the beginning of the name
@@ -1534,7 +1534,7 @@ const ShipperDashboard = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <NotificationCenter userId={user?.id} />
             <button
               onClick={handleGlobalRefresh}
