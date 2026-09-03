@@ -184,11 +184,15 @@ const LandingPage = () => {
                   key={slide.id}
                   type="button"
                   onClick={() => goToSlide(index)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    index === currentSlide ? "w-10 bg-white" : "w-2 bg-white/40 hover:bg-white/70"
-                  }`}
+                  className="-m-2 flex items-center justify-center p-2"
                   aria-label={`Show slide ${index + 1}`}
-                />
+                >
+                  <span
+                    className={`block h-2 rounded-full transition-all duration-300 ${
+                      index === currentSlide ? "w-10 bg-white" : "w-2 bg-white/40 hover:bg-white/70"
+                    }`}
+                  />
+                </button>
               ))}
             </div>
           </div>
@@ -298,7 +302,7 @@ const LandingPage = () => {
             <div className="flex items-center gap-6">
               <button
                 onClick={() => navigateTo("login")}
-                className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors text-sm font-medium"
+                className="-m-2 flex items-center space-x-2 p-2 text-gray-300 hover:text-white transition-colors text-sm font-medium"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Log In</span>
@@ -306,7 +310,7 @@ const LandingPage = () => {
               <span className="text-gray-600">|</span>
               <button
                 onClick={() => navigateTo("signup")}
-                className="flex items-center space-x-2 text-secondary hover:text-accent transition-colors text-sm font-medium"
+                className="-m-2 flex items-center space-x-2 p-2 text-secondary hover:text-accent transition-colors text-sm font-medium"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>Sign Up</span>

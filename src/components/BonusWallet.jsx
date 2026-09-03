@@ -140,6 +140,8 @@ export default function BonusWallet({ variant = 'user' }) {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Bank Account Number</label>
                 <input
+                  type="text"
+                  inputMode="numeric"
                   value={bankAccountNumber}
                   onChange={(e) => setBankAccountNumber(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -150,6 +152,8 @@ export default function BonusWallet({ variant = 'user' }) {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Bank Code</label>
                   <input
+                    type="text"
+                    inputMode="numeric"
                     value={bankCode}
                     onChange={(e) => setBankCode(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"

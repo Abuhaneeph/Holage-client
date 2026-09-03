@@ -171,6 +171,7 @@ const ForgotPasswordPage = () => {
           <label className="block text-sm font-medium text-text-secondary mb-2">Verification Code</label>
           <input
             type="text"
+            inputMode="numeric"
             value={formData.resetCode || ""}
             onChange={handleCodeInput}
             className="w-full px-4 py-3 bg-input border border-border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200 text-text-primary placeholder-text-secondary text-center text-2xl tracking-widest"
@@ -250,7 +251,7 @@ const ForgotPasswordPage = () => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-3 text-text-secondary hover:text-text-primary disabled:opacity-50"
+              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-text-secondary hover:text-text-primary disabled:opacity-50"
               disabled={loading}
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -275,7 +276,7 @@ const ForgotPasswordPage = () => {
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-3 text-text-secondary hover:text-text-primary disabled:opacity-50"
+              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-text-secondary hover:text-text-primary disabled:opacity-50"
               disabled={loading}
             >
               {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}

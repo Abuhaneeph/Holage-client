@@ -400,7 +400,7 @@ const ComplaintPage = () => {
                     setSelectedComplaint(null)
                     setReplyMessage("")
                   }}
-                  className="flex items-center space-x-2 text-text-secondary hover:text-text-primary transition-colors"
+                  className="-m-2 flex items-center space-x-2 p-2 text-text-secondary hover:text-text-primary transition-colors"
                 >
                   <ArrowLeft className="w-5 h-5" />
                   <span>Back to Complaints</span>
@@ -526,7 +526,7 @@ const ComplaintPage = () => {
                   <h2 className="text-2xl font-bold text-text-primary">My Complaints</h2>
                   <button
                     onClick={() => setActiveView("submit")}
-                    className="px-4 py-2 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors text-sm"
+                    className="px-4 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors text-sm"
                   >
                     + New Complaint
                   </button>

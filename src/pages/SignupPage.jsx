@@ -387,7 +387,7 @@ const SignupPage = () => {
                     <button
                       type="button"
                       onClick={handleBack}
-                      className="text-text-secondary hover:text-text-primary transition-colors mb-4 flex items-center gap-2 text-sm sm:text-base"
+                      className="-ml-2 -mt-2 mb-2 flex items-center gap-2 p-2 text-text-secondary hover:text-text-primary transition-colors text-sm sm:text-base"
                     >
                       <ArrowRight className="w-4 h-4 rotate-180" />
                       Back
@@ -521,7 +521,7 @@ const SignupPage = () => {
                               <button
                                 type="button"
                                 onClick={() => setShowPassword((prev) => !prev)}
-                                className="absolute right-4 top-3.5 text-text-secondary/70 transition-colors hover:text-text-primary"
+                                className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-text-secondary/70 transition-colors hover:text-text-primary"
                                 disabled={submittingDriver}
                               >
                                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -545,7 +545,7 @@ const SignupPage = () => {
                               <button
                                 type="button"
                                 onClick={() => setShowConfirmPassword((prev) => !prev)}
-                                className="absolute right-4 top-3.5 text-text-secondary/70 transition-colors hover:text-text-primary"
+                                className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-text-secondary/70 transition-colors hover:text-text-primary"
                                 disabled={submittingDriver}
                               >
                                 {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -559,6 +559,7 @@ const SignupPage = () => {
                             <label className="block text-sm font-medium text-text-secondary">NIN (optional)</label>
                             <input
                               type="text"
+                              inputMode="numeric"
                               value={driverForm.nin}
                               onChange={(e) => setDriverForm({ ...driverForm, nin: e.target.value.replace(/\D/g, "") })}
                               className="w-full rounded-2xl border border-border bg-white/80 py-3 sm:py-3.5 px-4 text-text-primary text-sm sm:text-base shadow-sm transition-all duration-200 placeholder:text-text-secondary/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
@@ -571,6 +572,7 @@ const SignupPage = () => {
                             <label className="block text-sm font-medium text-text-secondary">BVN (optional)</label>
                             <input
                               type="text"
+                              inputMode="numeric"
                               value={driverForm.bvn}
                               onChange={(e) => setDriverForm({ ...driverForm, bvn: e.target.value.replace(/\D/g, "") })}
                               className="w-full rounded-2xl border border-border bg-white/80 py-3 sm:py-3.5 px-4 text-text-primary text-sm sm:text-base shadow-sm transition-all duration-200 placeholder:text-text-secondary/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
@@ -637,7 +639,7 @@ const SignupPage = () => {
                               <button
                                 type="button"
                                 onClick={() => setShowPassword((prev) => !prev)}
-                                className="absolute right-4 top-3.5 text-text-secondary/70 transition-colors hover:text-text-primary"
+                                className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-text-secondary/70 transition-colors hover:text-text-primary"
                                 disabled={loading}
                               >
                                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -661,7 +663,7 @@ const SignupPage = () => {
                               <button
                                 type="button"
                                 onClick={() => setShowConfirmPassword((prev) => !prev)}
-                                className="absolute right-4 top-3.5 text-text-secondary/70 transition-colors hover:text-text-primary"
+                                className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-text-secondary/70 transition-colors hover:text-text-primary"
                                 disabled={loading}
                               >
                                 {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}

@@ -1300,19 +1300,19 @@ const FleetManagerDashboard = () => {
       {/* Header Card */}
       <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800 p-6 rounded-b-3xl shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 min-w-0">
             {documents?.profilePhoto ? (
               <img
                 src={documents.profilePhoto}
                 alt="Profile"
-                className="w-12 h-12 rounded-full object-cover border-2 border-white"
+                className="w-12 h-12 rounded-full object-cover border-2 border-white flex-shrink-0"
               />
             ) : (
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
                 <User className="w-6 h-6 text-white" />
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               <p className="text-white/80 text-sm">Fleet Manager</p>
               <p className="text-white font-extrabold text-xl leading-tight flex items-center gap-1.5">
                 {user?.fullName || "Fleet Manager"}
@@ -1325,7 +1325,7 @@ const FleetManagerDashboard = () => {
               )}
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <NotificationCenter userId={user?.id} />
             <button
               onClick={handleGlobalRefresh}
@@ -1381,7 +1381,7 @@ const FleetManagerDashboard = () => {
                   </div>
                 </div>
                 <p className="text-white/80 text-sm">Total Trucks</p>
-                <p className="text-white font-bold text-3xl">{trucks.length}</p>
+                <p className="text-white font-bold text-2xl sm:text-3xl">{trucks.length}</p>
               </div>
 
               <div className="bg-gradient-to-br from-success to-success/80 rounded-2xl p-4 shadow-md">
@@ -1391,7 +1391,7 @@ const FleetManagerDashboard = () => {
                   </div>
                 </div>
                 <p className="text-white/80 text-sm">Total Drivers</p>
-                <p className="text-white font-bold text-3xl">{drivers.length}</p>
+                <p className="text-white font-bold text-2xl sm:text-3xl">{drivers.length}</p>
               </div>
             </div>
 
@@ -1428,7 +1428,7 @@ const FleetManagerDashboard = () => {
                 <span className="text-xl">🎁</span>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide">Bonus Wallet</p>
-                  <p className="text-2xl font-bold text-text-primary">₦{bonusBalance.toLocaleString('en-NG')}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-text-primary">₦{bonusBalance.toLocaleString('en-NG')}</p>
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-amber-600" />
@@ -1450,12 +1450,12 @@ const FleetManagerDashboard = () => {
                       key={truck.id}
                       className="bg-card border border-border rounded-2xl p-4 shadow-sm"
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
                             <Truck className="w-6 h-6 text-primary" />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-text-primary font-bold">{truck.plateNumber}</p>
                             <p className="text-text-secondary text-sm">{truck.vehicleType}</p>
                             {truck.capacity != null && (
@@ -1464,14 +1464,14 @@ const FleetManagerDashboard = () => {
                               </p>
                             )}
                             {truck.driverName && (
-                              <p className="text-text-secondary text-xs mt-1 flex items-center space-x-1">
-                                <User className="w-3 h-3" />
-                                <span>Driver: {truck.driverName}</span>
+                              <p className="text-text-secondary text-xs mt-1 flex items-center space-x-1 min-w-0">
+                                <User className="w-3 h-3 flex-shrink-0" />
+                                <span className="min-w-0 break-words">Driver: {truck.driverName}</span>
                               </p>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 flex-shrink-0">
                           {getStatusIcon(truck.isOutOfService ? 'out_of_service' : truck.status)}
                           <span className={`text-xs capitalize ${truck.isOutOfService ? 'text-error font-medium' : 'text-text-secondary'}`}>
                             {truck.isOutOfService ? 'Out of Service (Inactive 6mo+)' : truck.status}
@@ -1530,15 +1530,15 @@ const FleetManagerDashboard = () => {
                   {/* Summary stats */}
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     <div className="bg-card border border-border rounded-xl p-3 text-center">
-                      <p className="text-2xl font-bold text-text-primary">{fleetOverview.length}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-text-primary">{fleetOverview.length}</p>
                       <p className="text-text-secondary text-xs">Total Drivers</p>
                     </div>
                     <div className="bg-card border border-border rounded-xl p-3 text-center">
-                      <p className="text-2xl font-bold text-success">{fleetOverview.filter(d => d.isActive).length}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-success">{fleetOverview.filter(d => d.isActive).length}</p>
                       <p className="text-text-secondary text-xs">Active</p>
                     </div>
                     <div className="bg-card border border-border rounded-xl p-3 text-center">
-                      <p className="text-2xl font-bold text-primary">{fleetOverview.filter(d => d.currentTrip).length}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-primary">{fleetOverview.filter(d => d.currentTrip).length}</p>
                       <p className="text-text-secondary text-xs">On Trip</p>
                     </div>
                   </div>
@@ -1601,13 +1601,10 @@ const FleetManagerDashboard = () => {
             
             {wallet && (
               <>
-                <div className="bg-card border border-border rounded-2xl p-6">
-                  <p className="text-text-secondary mb-2">Total Fleet Earnings</p>
-                  <p className="text-text-primary font-bold text-4xl">₦{Number(walletBalance || 0).toLocaleString('en-NG')}</p>
-                  <p className="text-text-secondary text-xs mt-2">
-                    Sum of everything your fleet has earned from completed shipments. Fleet managers don't fund this wallet directly — only withdrawals apply.
-                  </p>
-                </div>
+                {/* Balance itself is shown in the persistent header above — avoid repeating it here */}
+                <p className="text-text-secondary text-xs">
+                  Sum of everything your fleet has earned from completed shipments. Fleet managers don't fund this wallet directly — only withdrawals apply.
+                </p>
 
                 <button
                   onClick={() => {
@@ -1641,11 +1638,11 @@ const FleetManagerDashboard = () => {
                         {paginatedTransactions.map((t) => (
                           <div
                             key={t.id || t.reference}
-                            className="bg-card border border-border rounded-xl p-4 flex items-center justify-between"
+                            className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
                           >
-                            <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-3 min-w-0">
                               <div
-                                className={`w-10 h-10 ${
+                                className={`w-10 h-10 flex-shrink-0 ${
                                   t.type === 'credit' ? 'bg-success/10' : 'bg-error/10'
                                 } rounded-full flex items-center justify-center`}
                               >
@@ -1655,14 +1652,14 @@ const FleetManagerDashboard = () => {
                                   <ArrowUp className="w-5 h-5 text-error" />
                                 )}
                               </div>
-                              <div>
+                              <div className="min-w-0">
                                 <p className="text-text-primary font-medium">
                                   {t.description || (t.type === 'credit' ? 'Wallet Funding' : 'Wallet Debit')}
                                 </p>
-                                <p className="text-text-secondary text-xs">Ref: {t.reference}</p>
+                                <p className="text-text-secondary text-xs break-all">Ref: {t.reference}</p>
                               </div>
                             </div>
-                            <p className={`${t.type === 'credit' ? 'text-success' : 'text-error'} font-bold`}>
+                            <p className={`${t.type === 'credit' ? 'text-success' : 'text-error'} font-bold flex-shrink-0`}>
                               {t.type === 'credit' ? '+' : '-'}₦{Number(t.amount || 0).toLocaleString('en-NG')}
                             </p>
                           </div>
@@ -1715,18 +1712,18 @@ const FleetManagerDashboard = () => {
                 <h3 className="text-text-primary font-bold text-lg">Join Requests</h3>
                 {joinRequests.map((r) => (
                   <div key={r.id} className="bg-card border border-warning/40 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                           <User className="w-5 h-5 text-text-secondary" />
                         </div>
-                        <div>
-                          <p className="text-text-primary font-bold">{r.driverName || '—'}</p>
+                        <div className="min-w-0">
+                          <p className="text-text-primary font-bold break-words">{r.driverName || '—'}</p>
                           {r.phoneNumber && <p className="text-text-secondary text-sm">{r.phoneNumber}</p>}
                           {r.driverCode && <p className="text-primary text-xs font-semibold">Code: {r.driverCode}</p>}
                         </div>
                       </div>
-                      <span className="bg-warning/10 text-warning text-xs font-semibold px-2 py-1 rounded-full">Pending</span>
+                      <span className="bg-warning/10 text-warning text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0">Pending</span>
                     </div>
                     <div className="flex gap-3">
                       <button
@@ -1761,20 +1758,20 @@ const FleetManagerDashboard = () => {
                   const overview = fleetOverview.find(d => d.id === driver.id)
                   return (
                     <div key={driver.id} className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${driver.isActive ? 'bg-success/10' : 'bg-muted'}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${driver.isActive ? 'bg-success/10' : 'bg-muted'}`}>
                             <User className={`w-6 h-6 ${driver.isActive ? 'text-success' : 'text-text-secondary'}`} />
                           </div>
-                          <div>
-                            <p className="text-text-primary font-bold text-lg">{driver.driverName}</p>
+                          <div className="min-w-0">
+                            <p className="text-text-primary font-bold text-base sm:text-lg break-words">{driver.driverName}</p>
                             <p className="text-text-secondary text-sm">{driver.phoneNumber}</p>
                             {driver.driverCode && (
                               <p className="text-primary text-xs font-medium mt-0.5">Code: {driver.driverCode}</p>
                             )}
                             {driverRatings[driver.id]?.count > 0 && (
                               <div className="flex items-center gap-1.5 mt-1">
-                                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                <Star className="w-4 h-4 fill-amber-400 text-amber-400 flex-shrink-0" />
                                 <span className="text-text-secondary text-xs">{driverRatings[driver.id].average} ({driverRatings[driver.id].count} {driverRatings[driver.id].count === 1 ? "review" : "reviews"})</span>
                               </div>
                             )}
@@ -1783,7 +1780,7 @@ const FleetManagerDashboard = () => {
                         <button
                           onClick={() => handleToggleDriverActive(driver.id)}
                           disabled={togglingDriverId === driver.id}
-                          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
+                          className={`flex-shrink-0 px-3 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
                             driver.isActive
                               ? 'bg-success/10 text-success hover:bg-error/10 hover:text-error'
                               : 'bg-error/10 text-error hover:bg-success/10 hover:text-success'
@@ -1801,11 +1798,11 @@ const FleetManagerDashboard = () => {
                       {overview && (
                         <div className="grid grid-cols-3 gap-2 mb-3 py-3 border-y border-border">
                           <div className="text-center">
-                            <p className="text-text-primary font-bold text-lg">{overview.tripsCompleted}</p>
+                            <p className="text-text-primary font-bold text-base sm:text-lg">{overview.tripsCompleted}</p>
                             <p className="text-text-secondary text-xs">Completed</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-text-primary font-bold text-lg">{overview.currentTrip ? '1' : '0'}</p>
+                            <p className="text-text-primary font-bold text-base sm:text-lg">{overview.currentTrip ? '1' : '0'}</p>
                             <p className="text-text-secondary text-xs">On Trip</p>
                           </div>
                           <div className="text-center">
@@ -1816,9 +1813,9 @@ const FleetManagerDashboard = () => {
                       )}
 
                       <div className="space-y-1 mb-3">
-                        <div className="flex items-center space-x-2 text-text-secondary text-sm">
-                          <CreditCard className="w-4 h-4" />
-                          <span>License: {driver.driverLicense}</span>
+                        <div className="flex items-center space-x-2 text-text-secondary text-sm min-w-0">
+                          <CreditCard className="w-4 h-4 flex-shrink-0" />
+                          <span className="min-w-0 break-all">License: {driver.driverLicense}</span>
                         </div>
                         {driver.assignedTrucksCount > 0 && (
                           <div className="flex items-center space-x-2 text-text-secondary text-sm">
@@ -1945,16 +1942,16 @@ const FleetManagerDashboard = () => {
                           <span className={`text-xs font-medium ${colors.text}`}>{statusInfo.label}</span>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between pt-3 border-t border-border text-xs text-text-secondary">
-                        <div className="flex items-center space-x-1">
-                          <User className="w-3 h-3" />
-                          <span>{trip.driverName || 'Unknown driver'}</span>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-border text-xs text-text-secondary">
+                        <div className="flex items-center space-x-1 min-w-0">
+                          <User className="w-3 h-3 flex-shrink-0" />
+                          <span className="min-w-0 break-words">{trip.driverName || 'Unknown driver'}</span>
                         </div>
-                        <div className="flex items-center space-x-1">
-                          <Phone className="w-3 h-3" />
-                          <span>{trip.driverPhone || ''}</span>
+                        <div className="flex items-center space-x-1 min-w-0">
+                          <Phone className="w-3 h-3 flex-shrink-0" />
+                          <span className="min-w-0 break-words">{trip.driverPhone || ''}</span>
                         </div>
-                        <div>
+                        <div className="min-w-0 break-words">
                           Shipper: {trip.shipperName || '—'}
                         </div>
                       </div>
@@ -1983,18 +1980,18 @@ const FleetManagerDashboard = () => {
                   <img
                     src={documents.profilePhoto}
                     alt="Profile"
-                    className="w-20 h-20 rounded-full object-cover border-4 border-white/30 shadow-lg"
+                    className="w-20 h-20 rounded-full object-cover border-4 border-white/30 shadow-lg flex-shrink-0"
                   />
                 ) : (
-                  <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center border-4 border-white/30 shadow-lg">
+                  <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center border-4 border-white/30 shadow-lg flex-shrink-0">
                     <User className="w-10 h-10 text-white" />
                   </div>
                 )}
-                <div className="flex-1">
-                  <h2 className="text-white font-bold text-2xl mb-1">{user?.fullName || "Fleet Manager"}</h2>
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <Mail className="w-4 h-4" />
-                    <p className="text-sm">{user?.email || ""}</p>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-white font-bold text-2xl mb-1 break-words">{user?.fullName || "Fleet Manager"}</h2>
+                  <div className="flex items-center space-x-2 text-white/90 min-w-0">
+                    <Mail className="w-4 h-4 flex-shrink-0" />
+                    <p className="text-sm min-w-0 break-all">{user?.email || ""}</p>
                   </div>
                   {user?.fleetManagerCode && (
                     <div className="mt-2 inline-flex items-center bg-white/15 rounded-lg px-3 py-1">
@@ -2019,7 +2016,7 @@ const FleetManagerDashboard = () => {
                     checked={(documents?.driverPaymentRouting || 'driver_direct') === 'driver_direct'}
                     onChange={() => handlePaymentRoutingChange('driver_direct')}
                     disabled={updatingPaymentRouting}
-                    className="mt-1"
+                    className="mt-1 w-6 h-6 flex-shrink-0"
                   />
                   <span>
                     <span className="block text-text-primary font-medium">Driver-direct (default)</span>
@@ -2033,7 +2030,7 @@ const FleetManagerDashboard = () => {
                     checked={documents?.driverPaymentRouting === 'fleet_manager_direct'}
                     onChange={() => handlePaymentRoutingChange('fleet_manager_direct')}
                     disabled={updatingPaymentRouting}
-                    className="mt-1"
+                    className="mt-1 w-6 h-6 flex-shrink-0"
                   />
                   <span>
                     <span className="block text-text-primary font-medium">Fleet-manager-direct</span>
@@ -2154,6 +2151,7 @@ const FleetManagerDashboard = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">NIN (National Identification Number)</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={identityForm.nin}
                       onChange={(e) => setIdentityForm(f => ({ ...f, nin: e.target.value.replace(/\D/g, '') }))}
                       maxLength="11"
@@ -2165,6 +2163,7 @@ const FleetManagerDashboard = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">BVN (Bank Verification Number)</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={identityForm.bvn}
                       onChange={(e) => setIdentityForm(f => ({ ...f, bvn: e.target.value.replace(/\D/g, '') }))}
                       maxLength="11"
@@ -2365,6 +2364,7 @@ const FleetManagerDashboard = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">Account Number</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={bankAccountForm.bankAccountNumber || ''}
                       onChange={(e) => {
                         setBankAccountForm(prev => ({ ...prev, bankAccountNumber: e.target.value.replace(/\D/g, "") }))
@@ -3072,15 +3072,15 @@ const FleetManagerDashboard = () => {
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
-        <div className="grid grid-cols-6 gap-1 px-2 py-3 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-1 px-2 py-3 overflow-x-auto scrollbar-hide">
           <button
             onClick={() => setActiveView("home")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "home" ? "bg-primary/10" : ""
             }`}
           >
             <Truck className={`w-7 h-7 ${activeView === "home" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "home" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "home" ? "text-primary" : "text-text-secondary"}`}>
               Fleet
             </span>
           </button>
@@ -3090,60 +3090,60 @@ const FleetManagerDashboard = () => {
               setActiveView("drivers")
               fetchDrivers()
             }}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "drivers" ? "bg-primary/10" : ""
             }`}
           >
             <Users className={`w-7 h-7 ${activeView === "drivers" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "drivers" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "drivers" ? "text-primary" : "text-text-secondary"}`}>
               Drivers
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("shipments")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "shipments" ? "bg-primary/10" : ""
             }`}
           >
             <Package className={`w-7 h-7 ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`}>
               Trips
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("wallet")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "wallet" ? "bg-primary/10" : ""
             }`}
           >
             <Wallet className={`w-7 h-7 ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`}>
               Wallet
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("referrals")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "referrals" ? "bg-primary/10" : ""
             }`}
           >
             <Gift className={`w-7 h-7 ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
               Refer
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("profile")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "profile" ? "bg-primary/10" : ""
             }`}
           >
             <User className={`w-7 h-7 ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`}>
               Profile
             </span>
           </button>
@@ -3327,7 +3327,7 @@ const FleetManagerDashboard = () => {
                   setShowBankModal(false)
                   setBankSearchQuery('')
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
               >
                 <X className="w-5 h-5 text-text-secondary" />
               </button>

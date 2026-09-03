@@ -51,7 +51,7 @@ export default function EwaybillModal({ shipmentId, onClose }) {
                 <Printer className="w-4 h-4" /> Print
               </button>
             )}
-            <button onClick={onClose} className="w-9 h-9 bg-muted rounded-full flex items-center justify-center">
+            <button onClick={onClose} className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
               <X className="w-5 h-5 text-text-secondary" />
             </button>
           </div>

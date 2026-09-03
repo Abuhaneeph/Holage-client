@@ -146,7 +146,7 @@ const StaffSignupPage = () => {
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
-                        className="absolute right-4 top-3.5 text-text-secondary/70 hover:text-text-primary"
+                        className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-text-secondary/70 hover:text-text-primary"
                       >
                         {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                       </button>

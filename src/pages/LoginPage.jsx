@@ -496,7 +496,7 @@ const LoginPage = () => {
                       <button
                         type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
-                        className="absolute right-4 top-3.5 text-text-secondary/70 transition-colors hover:text-text-primary"
+                        className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-text-secondary/70 transition-colors hover:text-text-primary"
                       >
                         {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                       </button>
@@ -521,7 +521,7 @@ const LoginPage = () => {
                               console.log('💾 [Remember Me] Checkbox checked, will save email on successful login')
                             }
                           }}
-                          className="rounded border-border text-secondary focus:ring-ring cursor-pointer" 
+                          className="h-6 w-6 flex-shrink-0 rounded border-border text-secondary focus:ring-ring cursor-pointer"
                         />
                         <span>Remember me</span>
                       </label>
@@ -552,7 +552,7 @@ const LoginPage = () => {
                               console.log('💾 [Remember Me] Checkbox checked, will save phone on successful login')
                             }
                           }}
-                          className="rounded border-border text-secondary focus:ring-ring cursor-pointer" 
+                          className="h-6 w-6 flex-shrink-0 rounded border-border text-secondary focus:ring-ring cursor-pointer"
                         />
                         <span>Remember me</span>
                       </label>
@@ -615,7 +615,7 @@ const LoginPage = () => {
                           Create an account
                         </button>
                       </div>
-                      <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-4">
                         <button
                           type="button"
                           onClick={() => navigateToSignupWithRole("agent")}

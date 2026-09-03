@@ -1345,7 +1345,7 @@ const TruckerDashboard = () => {
                   </div>
                 </div>
                 <p className="text-white/80 text-sm">Active Loads</p>
-                <p className="text-white font-bold text-3xl">{activeLoads.length}</p>
+                <p className="text-white font-bold text-2xl sm:text-3xl">{activeLoads.length}</p>
               </div>
 
               <div className="bg-gradient-to-br from-secondary to-secondary/80 rounded-2xl p-4 shadow-md">
@@ -1355,7 +1355,7 @@ const TruckerDashboard = () => {
                   </div>
                 </div>
                 <p className="text-white/80 text-sm">This Month</p>
-                <p className="text-white font-bold text-2xl">₦{formattedMonthlyEarnings}</p>
+                <p className="text-white font-bold text-xl sm:text-2xl">₦{formattedMonthlyEarnings}</p>
               </div>
             </div>
             {myRating.count > 0 && (
@@ -1406,19 +1406,19 @@ const TruckerDashboard = () => {
                   {activeLoads.map((load) => (
                     <div key={load.id} className="bg-card border border-border rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                        <div className="flex items-center space-x-3 min-w-0 flex-1">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
                             load.status === 'assigned' || load.status === 'in_transit' ? 'bg-primary/10' : 'bg-success/10'
                           }`}>
                             <Navigation className={`w-6 h-6 ${
                               load.status === 'assigned' || load.status === 'in_transit' ? 'text-primary' : 'text-success'
                             }`} />
                           </div>
-                          <div>
-                            <p className="text-text-primary font-bold">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-text-primary font-bold text-sm sm:text-base break-words">
                               {formatLocation(load.pickupState, load.pickupLga)} → {formatLocation(load.destinationState, load.destinationLga)}
                             </p>
-                            <p className="text-text-secondary text-sm">
+                            <p className="text-text-secondary text-sm break-words">
                               {load.bookingReference || `#${filterZeroZero(load.id)}`} • {filterZeroZero(load.weight)} tons
                             </p>
                           </div>
@@ -1631,19 +1631,19 @@ const TruckerDashboard = () => {
                 </button>
                 
                 <div className="bg-card border-2 border-border rounded-2xl p-6 shadow-sm">
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
                         <Package className="w-7 h-7 text-primary" />
                       </div>
-                      <div>
-                        <p className="text-text-primary font-bold text-lg">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-text-primary font-bold text-sm sm:text-lg break-words">
                           {selectedShipment.pickupState} → {selectedShipment.destinationState}
                         </p>
-                        <p className="text-text-secondary text-sm">Shipment {selectedShipment.bookingReference || `#${selectedShipment.id}`}</p>
+                        <p className="text-text-secondary text-sm break-words">Shipment {selectedShipment.bookingReference || `#${selectedShipment.id}`}</p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="sm:text-right flex-shrink-0">
                       <p className="text-success font-bold text-xl">₦{parseFloat(selectedShipment.estimatedCost || 0).toLocaleString('en-NG')}</p>
                       <p className="text-text-secondary text-xs">{selectedShipment.distance ? `${selectedShipment.distance}km` : 'N/A'}</p>
                     </div>
@@ -1772,19 +1772,19 @@ const TruckerDashboard = () => {
                     key={shipment.id}
                     className="bg-card border-2 border-border rounded-2xl p-5 shadow-sm hover:border-primary/50 transition-colors"
                   >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Package className="w-7 h-7 text-primary" />
                     </div>
-                    <div>
-                          <p className="text-text-primary font-bold text-lg">
+                    <div className="min-w-0 flex-1">
+                          <p className="text-text-primary font-bold text-sm sm:text-lg break-words">
                             {shipment.pickupState} → {shipment.destinationState}
                           </p>
-                          <p className="text-text-secondary text-sm">{shipment.bookingReference || `#${shipment.id}`}</p>
+                          <p className="text-text-secondary text-sm break-words">{shipment.bookingReference || `#${shipment.id}`}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="sm:text-right flex-shrink-0">
                         <p className="text-success font-bold text-xl">
                           ₦{parseFloat(shipment.estimatedCost || 0).toLocaleString('en-NG')}
                         </p>
@@ -1868,11 +1868,6 @@ const TruckerDashboard = () => {
         {activeView === "wallet" && (
           <div className="space-y-4">
             <h2 className="text-text-primary font-bold text-2xl">Wallet</h2>
-            
-            <div className="bg-card border border-border rounded-2xl p-6">
-              <p className="text-text-secondary mb-2">Available Balance</p>
-              <p className="text-text-primary font-bold text-4xl">₦{Number(walletBalance || 0).toLocaleString('en-NG')}</p>
-            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <button
@@ -2076,6 +2071,7 @@ const TruckerDashboard = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">NIN (National Identification Number)</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={identityForm.nin}
                       onChange={(e) => setIdentityForm(f => ({ ...f, nin: e.target.value.replace(/\D/g, '') }))}
                       maxLength="11"
@@ -2087,6 +2083,7 @@ const TruckerDashboard = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">BVN (Bank Verification Number)</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={identityForm.bvn}
                       onChange={(e) => setIdentityForm(f => ({ ...f, bvn: e.target.value.replace(/\D/g, '') }))}
                       maxLength="11"
@@ -2250,6 +2247,7 @@ const TruckerDashboard = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">Account Number</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={bankAccountForm.bankAccountNumber || ''}
                       onChange={(e) => {
                         setBankAccountForm(prev => ({ ...prev, bankAccountNumber: e.target.value.replace(/\D/g, "") }))
@@ -2697,73 +2695,73 @@ const TruckerDashboard = () => {
 
       {/* Bottom Navigation - BIG ICONS */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
-        <div className="grid grid-cols-6 gap-1 px-2 py-3">
+        <div className="flex gap-1 px-2 py-3 overflow-x-auto scrollbar-hide">
           <button
             onClick={() => setActiveView("home")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "home" ? "bg-primary/10" : ""
             }`}
           >
             <Truck className={`w-7 h-7 ${activeView === "home" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "home" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "home" ? "text-primary" : "text-text-secondary"}`}>
               Home
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("jobs")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "jobs" ? "bg-primary/10" : ""
             }`}
           >
             <Package className={`w-7 h-7 ${activeView === "jobs" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "jobs" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "jobs" ? "text-primary" : "text-text-secondary"}`}>
               Find Jobs
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("wallet")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "wallet" ? "bg-primary/10" : ""
             }`}
           >
             <Wallet className={`w-7 h-7 ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`}>
               Wallet
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("referrals")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "referrals" ? "bg-primary/10" : ""
             }`}
           >
             <Gift className={`w-7 h-7 ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
               Refer
             </span>
           </button>
 
           <button
             onClick={() => navigateTo("complaint")}
-            className="flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors hover:bg-primary/10"
+            className="flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors hover:bg-primary/10 flex-shrink-0 min-w-[64px] flex-1"
           >
             <AlertCircle className="w-7 h-7 text-text-secondary" />
-            <span className="text-xs font-medium text-text-secondary">
+            <span className="text-xs font-medium text-text-secondary whitespace-nowrap">
               Complaints
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("profile")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "profile" ? "bg-primary/10" : ""
             }`}
           >
             <User className={`w-7 h-7 ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`}>
               Profile
             </span>
           </button>
@@ -2783,7 +2781,7 @@ const TruckerDashboard = () => {
                   setBidForm({ bidAmount: '', message: '' })
                   setEditingBid(null)
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
               >
                 <X className="w-5 h-5 text-text-secondary" />
               </button>
@@ -2816,6 +2814,7 @@ const TruckerDashboard = () => {
                 </label>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={bidForm.bidAmount}
                   onChange={(e) => {
                     const formatted = formatNumberWithCommas(e.target.value)
@@ -2890,7 +2889,7 @@ const TruckerDashboard = () => {
                   setShowBankModal(false)
                   setBankSearchQuery('')
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
               >
                 <X className="w-5 h-5 text-text-secondary" />
               </button>

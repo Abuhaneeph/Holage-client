@@ -90,6 +90,7 @@ const DriverDashboard = () => {
 
   // Wallet state
   const [walletBalance, setWalletBalance] = useState(0)
+  const [routedToFleetManager, setRoutedToFleetManager] = useState(false)
   const [walletTransactions, setWalletTransactions] = useState([])
   const [loadingWallet, setLoadingWallet] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
@@ -437,6 +438,7 @@ const DriverDashboard = () => {
       if (response.ok && data.success) {
         setWalletBalance(parseFloat(data.wallet?.balance || 0))
         setWalletTransactions(data.transactions || [])
+        setRoutedToFleetManager(Boolean(data.wallet?.routedToFleetManager))
       }
     } catch (error) {
       console.error('Error fetching wallet:', error)
@@ -1191,12 +1193,12 @@ const DriverDashboard = () => {
                             <div className="flex-shrink-0">
                               {existingBid ? (
                                 existingBid.status === "pending" ? (
-                                  <div className="flex flex-col gap-1">
+                                  <div className="flex flex-col gap-2">
                                     {getBidEditMinutesLeft(existingBid) > 0 && (
                                       <button
                                         type="button"
                                         onClick={() => openBidModal(shipment, existingBid)}
-                                        className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-lg font-medium"
+                                        className="bg-primary/10 text-primary text-xs px-2 py-1.5 rounded-lg font-medium"
                                       >
                                         Edit ({getBidEditMinutesLeft(existingBid)}m)
                                       </button>
@@ -1205,7 +1207,7 @@ const DriverDashboard = () => {
                                       type="button"
                                       onClick={() => setPendingConfirm({ title: 'Cancel this bid?', destructive: true, confirmLabel: 'Cancel bid', onConfirm: () => handleCancelBid(existingBid.id) })}
                                       disabled={cancellingBidId === existingBid.id}
-                                      className="bg-error/10 text-error text-xs px-2 py-1 rounded-lg font-medium disabled:opacity-50"
+                                      className="bg-error/10 text-error text-xs px-2 py-1.5 rounded-lg font-medium disabled:opacity-50"
                                     >
                                       Cancel
                                     </button>
@@ -1237,13 +1239,13 @@ const DriverDashboard = () => {
                       <button
                         onClick={() => setAvailablePage(p => Math.max(1, p - 1))}
                         disabled={availablePage === 1}
-                        className="text-sm text-primary disabled:text-text-secondary disabled:opacity-50"
+                        className="text-sm text-primary disabled:text-text-secondary disabled:opacity-50 py-2 px-2"
                       >← Prev</button>
                       <span className="text-sm text-text-secondary">Page {availablePage}</span>
                       <button
                         onClick={() => setAvailablePage(p => Math.min(availableTotalPages, p + 1))}
                         disabled={availablePage >= availableTotalPages}
-                        className="text-sm text-primary disabled:text-text-secondary disabled:opacity-50"
+                        className="text-sm text-primary disabled:text-text-secondary disabled:opacity-50 py-2 px-2"
                       >Next →</button>
                     </div>
                   </div>
@@ -1280,6 +1282,15 @@ const DriverDashboard = () => {
                 </div>
               </div>
               <p className="text-text-secondary text-xs -mt-2">Earnings are credited to your account as trips progress (5% / 60% / 30%)</p>
+
+              {routedToFleetManager && (
+                <div className="flex items-start gap-2 bg-warning/10 border border-warning/20 rounded-xl p-3">
+                  <AlertCircle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                  <p className="text-text-secondary text-xs sm:text-sm">
+                    Your fleet manager currently receives your trip earnings directly, so this wallet won't grow from completed trips. Speak to your fleet manager about how you're paid.
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
@@ -1404,6 +1415,7 @@ const DriverDashboard = () => {
                         <label className="block text-text-primary font-medium mb-2">Account Number</label>
                         <input
                           type="text"
+                          inputMode="numeric"
                           value={withdrawBankAccountNumber}
                           onChange={(e) => {
                             setWithdrawBankAccountNumber(e.target.value.replace(/\D/g, ""))
@@ -1553,7 +1565,7 @@ const DriverDashboard = () => {
                             toast.success('Driver ID copied!')
                             setTimeout(() => setCopiedDriverCode(false), 2000)
                           }}
-                          className="text-text-secondary hover:text-primary transition-colors flex-shrink-0"
+                          className="text-text-secondary hover:text-primary transition-colors flex-shrink-0 p-2 -m-2"
                           title="Copy Driver ID"
                         >
                           {copiedDriverCode ? <CheckCircle className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
@@ -1562,9 +1574,9 @@ const DriverDashboard = () => {
                     </div>
                   )}
                   {driverInfo?.driverLicense && (
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-text-secondary text-xs">License No.</p>
-                      <p className="text-text-primary font-medium">{driverInfo.driverLicense}</p>
+                      <p className="text-text-primary font-medium break-all">{driverInfo.driverLicense}</p>
                     </div>
                   )}
                   <div>
@@ -1610,15 +1622,15 @@ const DriverDashboard = () => {
                     <p className="text-text-secondary text-xs font-mono">ID: {fleetManagerInfo.fleetManagerCode}</p>
                   )}
                   {fleetManagerInfo.phone && (
-                    <div className="flex items-center space-x-2 text-text-secondary text-sm">
-                      <Phone className="w-4 h-4" />
-                      <p>{fleetManagerInfo.phone}</p>
+                    <div className="flex items-center space-x-2 text-text-secondary text-sm min-w-0">
+                      <Phone className="w-4 h-4 flex-shrink-0" />
+                      <p className="min-w-0 break-all">{fleetManagerInfo.phone}</p>
                     </div>
                   )}
                   {fleetManagerInfo.email && (
-                    <div className="flex items-center space-x-2 text-text-secondary text-sm">
-                      <Mail className="w-4 h-4" />
-                      <p>{fleetManagerInfo.email}</p>
+                    <div className="flex items-center space-x-2 text-text-secondary text-sm min-w-0">
+                      <Mail className="w-4 h-4 flex-shrink-0" />
+                      <p className="min-w-0 break-all">{fleetManagerInfo.email}</p>
                     </div>
                   )}
                 </div>
@@ -1678,7 +1690,7 @@ const DriverDashboard = () => {
                   <div className="bg-background rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-5 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-text-primary font-bold text-lg">Join a Fleet</h3>
-                      <button type="button" onClick={() => setShowJoinFleetModal(false)} className="text-text-secondary hover:text-text-primary">
+                      <button type="button" onClick={() => setShowJoinFleetModal(false)} className="text-text-secondary hover:text-text-primary p-2 -m-2">
                         <X className="w-5 h-5" />
                       </button>
                     </div>
@@ -2094,7 +2106,7 @@ const DriverDashboard = () => {
               <button
                 type="button"
                 onClick={() => { setShowInvoiceModal(false); setInvoiceData(null) }}
-                className="text-text-secondary hover:text-text-primary"
+                className="text-text-secondary hover:text-text-primary p-2 -m-2"
               >
                 ✕
               </button>
@@ -2187,7 +2199,7 @@ const DriverDashboard = () => {
           <div className="bg-card w-full max-w-md rounded-2xl shadow-xl">
             <div className="flex items-center justify-between p-5 border-b border-border">
               <h3 className="text-text-primary font-bold text-lg">{editingBid ? "Edit Bid" : "Submit Bid"}</h3>
-              <button type="button" onClick={closeBidModal} className="text-text-secondary hover:text-text-primary">✕</button>
+              <button type="button" onClick={closeBidModal} className="text-text-secondary hover:text-text-primary p-2 -m-2">✕</button>
             </div>
             <div className="p-5 space-y-4">
               <div className="bg-muted/30 rounded-xl p-4">

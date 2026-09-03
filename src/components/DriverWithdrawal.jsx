@@ -60,12 +60,12 @@ export default function DriverWithdrawal() {
         </div>
         <div className="mb-2">
           <label className="block text-sm font-medium">Bank Account Number</label>
-          <input value={bankAccountNumber} onChange={e=>setBankAccountNumber(e.target.value)} className="mt-1 block w-full border rounded px-2 py-1" required />
+          <input type="text" inputMode="numeric" value={bankAccountNumber} onChange={e=>setBankAccountNumber(e.target.value)} className="mt-1 block w-full border rounded px-2 py-1" required />
         </div>
         <div className="mb-2 grid grid-cols-2 gap-2">
           <div>
             <label className="block text-sm font-medium">Bank Code</label>
-            <input value={bankCode} onChange={e=>setBankCode(e.target.value)} className="mt-1 block w-full border rounded px-2 py-1" required />
+            <input type="text" inputMode="numeric" value={bankCode} onChange={e=>setBankCode(e.target.value)} className="mt-1 block w-full border rounded px-2 py-1" required />
           </div>
           <div>
             <label className="block text-sm font-medium">Bank Name</label>

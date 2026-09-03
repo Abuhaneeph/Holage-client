@@ -1236,7 +1236,7 @@ const AdminDashboard = () => {
               <div className="space-y-4">
                 <button
                   onClick={() => setSelectedComplaint(null)}
-                  className="flex items-center space-x-2 text-text-secondary hover:text-text-primary transition-colors"
+                  className="flex items-center space-x-2 text-text-secondary hover:text-text-primary transition-colors py-2 -my-2"
                 >
                   <X className="w-5 h-5" />
                   <span>Back to Complaints</span>
@@ -1258,7 +1258,7 @@ const AdminDashboard = () => {
                           <span className="capitalize">{selectedComplaint.status.replace('_', ' ')}</span>
                         </span>
                       </div>
-                      <p className="text-text-secondary text-sm mb-4">
+                      <p className="text-text-secondary text-sm mb-4 break-words">
                         From: <span className="font-medium">{selectedComplaint.userName}</span> ({selectedComplaint.userEmail}) - {selectedComplaint.userRole}
                       </p>
                       {selectedComplaint.shipmentId && (
@@ -1385,8 +1385,8 @@ const AdminDashboard = () => {
                     onClick={() => fetchComplaintDetails(complaint.id)}
                   >
                     <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                           <h3 className="text-lg font-semibold text-text-primary">
                             {complaint.subject}
                           </h3>
@@ -1399,7 +1399,7 @@ const AdminDashboard = () => {
                             <span className="capitalize">{complaint.status.replace('_', ' ')}</span>
                           </span>
                         </div>
-                        <p className="text-text-secondary text-sm mb-2">
+                        <p className="text-text-secondary text-sm mb-2 break-words">
                           From: <span className="font-medium">{complaint.userName}</span> ({complaint.userEmail}) - {complaint.userRole}
                         </p>
                         <p className="text-text-primary line-clamp-2">{complaint.message}</p>
@@ -1514,7 +1514,7 @@ const AdminDashboard = () => {
               <div className="space-y-4">
                 <button
                   onClick={() => setSelectedKycSubmission(null)}
-                  className="flex items-center space-x-2 text-text-secondary hover:text-text-primary transition-colors"
+                  className="flex items-center space-x-2 text-text-secondary hover:text-text-primary transition-colors py-2 -my-2"
                 >
                   <ArrowLeft className="w-5 h-5" />
                   <span>Back to Submissions</span>
@@ -1572,7 +1572,7 @@ const AdminDashboard = () => {
                           <button
                             onClick={() => handleFetchNin(selectedKycSubmission.id)}
                             disabled={fetchingNin}
-                            className="px-3 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200 hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200 hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {fetchingNin ? 'Fetching...' : 'Fetch NIN Data'}
                           </button>
@@ -1637,7 +1637,7 @@ const AdminDashboard = () => {
                           <button
                             onClick={() => handleFetchBvn(selectedKycSubmission.id)}
                             disabled={fetchingBvn}
-                            className="px-3 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200 hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200 hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {fetchingBvn ? 'Fetching...' : 'Fetch BVN Data'}
                           </button>
@@ -1716,7 +1716,7 @@ const AdminDashboard = () => {
                               <button
                                 onClick={() => handleConfirmCac(selectedKycSubmission.id)}
                                 disabled={confirmingCac}
-                                className="px-3 py-0.5 bg-green-500 text-white text-xs rounded-full hover:bg-green-600 transition-colors disabled:opacity-50"
+                                className="px-3 py-1.5 bg-green-500 text-white text-xs rounded-full hover:bg-green-600 transition-colors disabled:opacity-50"
                               >
                                 {confirmingCac ? 'Confirming...' : 'Verify CAC'}
                               </button>
@@ -1911,22 +1911,22 @@ const AdminDashboard = () => {
                     className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => fetchKycSubmissionDetails(submission.id)}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-4 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center space-x-4 flex-1 min-w-0">
                         {submission.profilePhoto ? (
                           <img
                             src={submission.profilePhoto}
                             alt="Profile"
-                            className="w-12 h-12 rounded-full object-cover border-2 border-border"
+                            className="w-12 h-12 rounded-full object-cover border-2 border-border flex-shrink-0"
                           />
                         ) : (
-                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                             <User className="w-6 h-6 text-primary" />
                           </div>
                         )}
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <h3 className="text-lg font-semibold text-text-primary mb-1">{submission.fullName}</h3>
-                          <p className="text-text-secondary text-sm mb-2">{submission.email}</p>
+                          <p className="text-text-secondary text-sm mb-2 break-all">{submission.email}</p>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-text-secondary text-xs">{getRoleLabel(submission.role)}</span>
                             <span className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center space-x-1 w-fit ${getKycStatusColor(submission.kycStatus)}`}>
@@ -1946,7 +1946,7 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                       </div>
-                      <Eye className="w-5 h-5 text-text-secondary" />
+                      <Eye className="w-5 h-5 text-text-secondary flex-shrink-0" />
                     </div>
                   </div>
                 ))}
@@ -2446,7 +2446,7 @@ const AdminDashboard = () => {
                   setShowTranscript(false)
                   setShipmentTranscript(null)
                 }}
-                className="w-8 h-8 sm:w-10 sm:h-10 bg-muted rounded-full flex items-center justify-center hover:bg-muted/80 transition-colors"
+                className="w-10 h-10 bg-muted rounded-full flex items-center justify-center hover:bg-muted/80 transition-colors flex-shrink-0"
               >
                 <X className="w-5 h-5 text-text-primary" />
               </button>

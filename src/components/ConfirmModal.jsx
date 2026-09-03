@@ -23,7 +23,7 @@ const ConfirmModal = ({
       <div className="bg-background rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-5 space-y-4">
         <div className="flex items-start justify-between">
           <h3 className="text-text-primary font-bold text-lg">{title}</h3>
-          <button type="button" onClick={onCancel} className="text-text-secondary hover:text-text-primary">
+          <button type="button" onClick={onCancel} className="w-10 h-10 flex items-center justify-center rounded-full text-text-secondary hover:text-text-primary hover:bg-muted/50 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>

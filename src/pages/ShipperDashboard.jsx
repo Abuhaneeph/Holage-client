@@ -1717,22 +1717,22 @@ const ShipperDashboard = () => {
                 const isExpanded = expandedShipmentId === shipment.id
                 return (
                   <div key={shipment.id} className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 flex-1">
-                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center bg-${statusInfo.color}/10`}>
-                          <StatusIcon className={`w-7 h-7 text-${statusInfo.color}`} />
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                        <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center bg-${statusInfo.color}/10 flex-shrink-0`}>
+                          <StatusIcon className={`w-6 h-6 sm:w-7 sm:h-7 text-${statusInfo.color}`} />
                         </div>
-                        <div className="flex-1">
-                          <p className="text-text-primary font-bold text-lg">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-text-primary font-bold text-sm sm:text-lg break-words">
                             {formatLocation(shipment.pickupState, shipment.pickupLga)} → {formatLocation(shipment.destinationState, shipment.destinationLga)}
                           </p>
-                          <p className="text-text-secondary text-sm">
+                          <p className="text-text-secondary text-xs sm:text-sm break-words">
                             {shipment.bookingReference || `#${filterZeroZero(shipment.id)}`} • {shipment.cargoType} • {filterZeroZero(shipment.weight)}t
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <button 
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
                           onClick={() => {
                             const newExpandedId = isExpanded ? null : shipment.id
                             setExpandedShipmentId(newExpandedId)
@@ -1741,7 +1741,7 @@ const ShipperDashboard = () => {
                               if (['picked_up', 'delivered'].includes(shipment.status)) fetchShipmentDetail(shipment.id)
                             }
                           }}
-                          className="bg-primary text-white px-6 py-3 rounded-xl font-medium text-base"
+                          className="flex-1 sm:flex-initial bg-primary text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-medium text-sm sm:text-base whitespace-nowrap"
                         >
                           {isExpanded ? 'Hide Details' : 'View Details'}
                         </button>
@@ -1749,7 +1749,7 @@ const ShipperDashboard = () => {
                           <button
                             onClick={() => setPendingConfirm({ title: 'Delete this shipment?', message: "This can't be undone.", confirmLabel: 'Delete', destructive: true, onConfirm: () => handleDeleteShipment(shipment.id) })}
                             disabled={deletingShipmentId === shipment.id}
-                            className="bg-error/10 text-error px-4 py-3 rounded-xl font-medium text-sm disabled:opacity-50"
+                            className="bg-error/10 text-error px-4 py-2.5 sm:py-3 rounded-xl font-medium text-xs sm:text-sm disabled:opacity-50 whitespace-nowrap"
                           >
                             {deletingShipmentId === shipment.id ? '...' : 'Delete'}
                           </button>
@@ -1956,7 +1956,7 @@ const ShipperDashboard = () => {
                                     key={n}
                                     type="button"
                                     onClick={() => setRatingForm(prev => ({ ...prev, rating: n }))}
-                                    className={`p-1 rounded transition-colors ${ratingForm.rating >= n ? 'text-amber-400' : 'text-text-secondary hover:text-amber-400/70'}`}
+                                    className={`p-2.5 rounded transition-colors ${ratingForm.rating >= n ? 'text-amber-400' : 'text-text-secondary hover:text-amber-400/70'}`}
                                     aria-label={`${n} star${n > 1 ? 's' : ''}`}
                                   >
                                     <Star className={`w-5 h-5 ${ratingForm.rating >= n ? 'fill-amber-400' : ''}`} />
@@ -2170,11 +2170,6 @@ const ShipperDashboard = () => {
         {activeView === "wallet" && (
           <div className="space-y-4">
             <h2 className="text-text-primary font-bold text-2xl">Wallet</h2>
-            
-            <div className="bg-card border border-border rounded-2xl p-6">
-              <p className="text-text-secondary mb-2">Available Balance</p>
-              <p className="text-text-primary font-bold text-4xl">₦{Number(walletBalance || 0).toLocaleString('en-NG')}</p>
-            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <button
@@ -2336,6 +2331,7 @@ const ShipperDashboard = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">NIN (National Identification Number)</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={identityForm.nin}
                       onChange={(e) => setIdentityForm(f => ({ ...f, nin: e.target.value.replace(/\D/g, '') }))}
                       maxLength="11"
@@ -2347,6 +2343,7 @@ const ShipperDashboard = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">BVN (Bank Verification Number)</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={identityForm.bvn}
                       onChange={(e) => setIdentityForm(f => ({ ...f, bvn: e.target.value.replace(/\D/g, '') }))}
                       maxLength="11"
@@ -2510,6 +2507,7 @@ const ShipperDashboard = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">Account Number</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={bankAccountForm.bankAccountNumber || ''}
                       onChange={(e) => {
                         setBankAccountForm(prev => ({ ...prev, bankAccountNumber: e.target.value.replace(/\D/g, "") }))
@@ -3243,7 +3241,7 @@ const ShipperDashboard = () => {
                     setSelectedBidForAccept(null)
                     setSelectedShipmentForBid(null)
                   }}
-                  className="text-text-secondary hover:text-text-primary transition-colors"
+                  className="w-10 h-10 flex items-center justify-center rounded-full text-text-secondary hover:text-text-primary hover:bg-muted transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -3496,73 +3494,73 @@ const ShipperDashboard = () => {
 
       {/* Bottom Navigation - BIG ICONS */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
-        <div className="grid grid-cols-6 gap-1 px-2 py-3">
+        <div className="flex gap-1 px-2 py-3 overflow-x-auto scrollbar-hide">
           <button
             onClick={() => setActiveView("home")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "home" ? "bg-primary/10" : ""
             }`}
           >
             <Package className={`w-7 h-7 ${activeView === "home" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "home" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "home" ? "text-primary" : "text-text-secondary"}`}>
               Home
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("shipments")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "shipments" ? "bg-primary/10" : ""
             }`}
           >
             <Truck className={`w-7 h-7 ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`}>
               Shipments
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("wallet")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "wallet" ? "bg-primary/10" : ""
             }`}
           >
             <Wallet className={`w-7 h-7 ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`}>
               Wallet
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("referrals")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "referrals" ? "bg-primary/10" : ""
             }`}
           >
             <Gift className={`w-7 h-7 ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
               Refer
             </span>
           </button>
 
           <button
             onClick={() => navigateTo("complaint")}
-            className="flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors hover:bg-primary/10"
+            className="flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors hover:bg-primary/10 flex-shrink-0 min-w-[64px] flex-1"
           >
             <AlertCircle className="w-7 h-7 text-text-secondary" />
-            <span className="text-xs font-medium text-text-secondary">
+            <span className="text-xs font-medium text-text-secondary whitespace-nowrap">
               Complaints
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("profile")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors ${
+            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
               activeView === "profile" ? "bg-primary/10" : ""
             }`}
           >
             <User className={`w-7 h-7 ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`}>
               Profile
             </span>
           </button>
@@ -3581,7 +3579,7 @@ const ShipperDashboard = () => {
                   setShowBankModal(false)
                   setBankSearchQuery('')
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
               >
                 <X className="w-5 h-5 text-text-secondary" />
               </button>

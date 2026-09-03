@@ -111,7 +111,7 @@ const PODCapture = ({ shipmentId, podType, onSuccess, onClose }) => {
           </h2>
           <button
             onClick={onClose}
-            className="text-text-secondary hover:text-text-primary"
+            className="text-text-secondary hover:text-text-primary p-2 -m-2"
           >
             <X className="w-6 h-6" />
           </button>
@@ -135,7 +135,7 @@ const PODCapture = ({ shipmentId, podType, onSuccess, onClose }) => {
                     />
                     <button
                       onClick={() => removePhoto(index)}
-                      className="absolute top-1 right-1 bg-error text-white rounded-full p-1"
+                      className="absolute top-1 right-1 bg-error text-white rounded-full p-2.5"
                     >
                       <X className="w-4 h-4" />
                     </button>

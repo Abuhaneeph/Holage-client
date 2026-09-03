@@ -152,20 +152,20 @@ const StaffDashboard = () => {
     <div className="min-h-screen bg-background pb-24">
       <div className="bg-gradient-to-br from-primary via-primary to-secondary p-6 rounded-b-3xl shadow-lg">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/40 bg-white/20">
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/40 bg-white/20 flex-shrink-0">
               <Headphones className="h-6 w-6 text-white" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm text-white/80">Staff</p>
-              <p className="text-lg font-bold text-white">{firstName}</p>
+              <p className="text-base sm:text-lg font-bold text-white truncate">{firstName}</p>
               <p className="text-xs text-white/70">Disputes & support</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setShowLogoutConfirm(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-error/20 transition-colors hover:bg-error/30"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-error/20 transition-colors hover:bg-error/30 flex-shrink-0"
             title="Log out"
           >
             <LogOut className="h-5 w-5 text-white" />
@@ -276,10 +276,10 @@ const StaffDashboard = () => {
             {!detailLoading && selected && (
               <>
                 <div className="p-4 border-b border-border space-y-2 text-sm">
-                  <p className="text-text-primary font-medium">{selected.subject}</p>
-                  <p className="text-text-secondary">{selected.message}</p>
+                  <p className="text-text-primary font-medium break-words">{selected.subject}</p>
+                  <p className="text-text-secondary break-words">{selected.message}</p>
                   {selected.disputeCode && (
-                    <p className="text-xs font-mono text-primary">Code: {selected.disputeCode}</p>
+                    <p className="text-xs font-mono text-primary break-all">Code: {selected.disputeCode}</p>
                   )}
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-64 p-4 space-y-3">

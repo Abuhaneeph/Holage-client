@@ -358,7 +358,7 @@ const AgentDashboard = () => {
         </p>
         <div className="flex items-center justify-between gap-2">
           <code className="break-all text-base font-semibold text-text-primary">{referralCode || "—"}</code>
-          <button type="button" onClick={() => copyText("Referral code", referralCode)} className="rounded-xl p-2 hover:bg-muted/40">
+          <button type="button" onClick={() => copyText("Referral code", referralCode)} className="rounded-xl p-2.5 hover:bg-muted/40">
             {copiedField === "Referral code" ? <Check className="h-5 w-5 text-success" /> : <Copy className="h-5 w-5 text-text-secondary" />}
           </button>
         </div>
@@ -371,7 +371,7 @@ const AgentDashboard = () => {
         <p className="mb-2 text-xs text-text-secondary">Internal support ID — keep private.</p>
         <div className="flex items-center justify-between gap-2">
           <code className="break-all text-base font-semibold text-text-primary">{uniqueCode || "—"}</code>
-          <button type="button" onClick={() => copyText("Unique code", uniqueCode)} className="rounded-xl p-2 hover:bg-muted/40">
+          <button type="button" onClick={() => copyText("Unique code", uniqueCode)} className="rounded-xl p-2.5 hover:bg-muted/40">
             {copiedField === "Unique code" ? <Check className="h-5 w-5 text-success" /> : <Copy className="h-5 w-5 text-text-secondary" />}
           </button>
         </div>
@@ -407,7 +407,7 @@ const AgentDashboard = () => {
           <Wallet className="h-4 w-4" />
           <span className="text-xs font-medium uppercase tracking-wide">Commission earned</span>
         </div>
-        <p className="text-2xl font-bold text-success">
+        <p className="text-xl sm:text-2xl font-bold text-success break-all">
           ₦{Number(stats?.agentCommissionTotal || 0).toLocaleString("en-NG", { minimumFractionDigits: 2 })}
         </p>
       </div>
@@ -425,19 +425,19 @@ const AgentDashboard = () => {
     <div className="min-h-screen bg-background pb-28">
       <div className="bg-gradient-to-br from-primary via-primary to-secondary p-6 rounded-b-3xl shadow-lg">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/40 bg-white/20">
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/40 bg-white/20 flex-shrink-0">
               <User className="h-6 w-6 text-white" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm text-white/80">Welcome</p>
-              <p className="text-lg font-bold text-white">{firstName}</p>
-              <p className="text-xs text-white/70">
+              <p className="text-base sm:text-lg font-bold text-white truncate">{firstName}</p>
+              <p className="text-xs text-white/70 truncate">
                 {progress?.currentLevel?.title || "Agent"} · Level {progress?.currentLevel?.level || 1}
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <button
               type="button"
               onClick={handleGlobalRefresh}
@@ -476,14 +476,14 @@ const AgentDashboard = () => {
                   onClick={() => setActiveView("referrals")}
                   className="w-full text-left rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm hover:bg-amber-100/70 transition-colors flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-2 text-amber-700">
-                    <span className="text-xl">🎁</span>
-                    <div>
+                  <div className="flex items-center gap-2 text-amber-700 min-w-0">
+                    <span className="text-xl flex-shrink-0">🎁</span>
+                    <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-wide">Bonus Wallet</p>
-                      <p className="text-2xl font-bold text-text-primary">₦{bonusBalance.toLocaleString('en-NG')}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-text-primary break-all">₦{bonusBalance.toLocaleString('en-NG')}</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-amber-600" />
+                  <ChevronRight className="w-5 h-5 text-amber-600 flex-shrink-0" />
                 </button>
                 <div>
                   <h2 className="mb-3 text-lg font-bold text-text-primary">Trips (referred truckers)</h2>
@@ -538,7 +538,7 @@ const AgentDashboard = () => {
               <>
                 <div className="bg-card border border-border rounded-2xl p-6">
                   <p className="text-text-secondary mb-2">Available Balance</p>
-                  <p className="text-text-primary font-bold text-4xl">₦{Number(walletBalance || 0).toLocaleString("en-NG")}</p>
+                  <p className="text-text-primary font-bold text-3xl sm:text-4xl break-all">₦{Number(walletBalance || 0).toLocaleString("en-NG")}</p>
                   <p className="text-text-secondary text-xs mt-2">
                     Includes dispute onsite incentives. Trip commissions are calculated separately.
                   </p>
@@ -676,7 +676,7 @@ const AgentDashboard = () => {
                     >
                       <div className="min-w-0">
                         <p className="text-text-primary font-medium truncate">{d.subject}</p>
-                        <p className="text-text-secondary text-xs mt-1">
+                        <p className="text-text-secondary text-xs mt-1 break-all">
                           #{d.id} · {d.status} · Code: {d.disputeCode || "—"}
                         </p>
                         {d.requiresAgentOnsite && d.agentIncentiveAmount > 0 && (
@@ -702,13 +702,13 @@ const AgentDashboard = () => {
             </h2>
 
             <div className="bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
+              <div className="flex items-center justify-between mb-4 gap-3">
+                <div className="min-w-0 flex-1">
                   <p className="text-text-secondary text-sm">Current Level</p>
-                  <p className="text-text-primary font-bold text-2xl">{progress?.currentLevel?.title || "Starter"}</p>
+                  <p className="text-text-primary font-bold text-lg sm:text-2xl break-words">{progress?.currentLevel?.title || "Starter"}</p>
                   <p className="text-text-secondary text-xs">Level {progress?.currentLevel?.level || 1}</p>
                 </div>
-                <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                   <span className="text-primary font-bold text-xl">L{progress?.currentLevel?.level || 1}</span>
                 </div>
               </div>
@@ -745,12 +745,12 @@ const AgentDashboard = () => {
                         isCurrent ? "border-primary bg-primary/5" : isDone ? "border-success/30 bg-success/5" : "border-border"
                       }`}
                     >
-                      <div>
-                        <p className="text-text-primary font-medium">L{lvl.level} — {lvl.title}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-text-primary font-medium break-words">L{lvl.level} — {lvl.title}</p>
                         <p className="text-text-secondary text-xs">{lvl.minReferrals}+ referrals · {lvl.minTrips}+ trips</p>
                       </div>
-                      {isDone && <CheckCircle className="w-5 h-5 text-success" />}
-                      {isCurrent && <span className="text-primary text-xs font-bold">CURRENT</span>}
+                      {isDone && <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />}
+                      {isCurrent && <span className="text-primary text-xs font-bold flex-shrink-0">CURRENT</span>}
                     </div>
                   )
                 })}
@@ -794,21 +794,21 @@ const AgentDashboard = () => {
             <div className={`bg-card border-2 rounded-xl p-4 ${
               documents?.profilePhoto ? "border-success/30" : "border-border"
             }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center space-x-3 min-w-0">
                   {documents?.profilePhoto ? (
                     <img
                       src={documents.profilePhoto}
                       alt="Profile"
-                      className="w-12 h-12 rounded-lg object-cover"
+                      className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                       onClick={() => window.open(documents.profilePhoto, "_blank")}
                     />
                   ) : (
-                    <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">
+                    <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center flex-shrink-0">
                       <Camera className="w-6 h-6 text-warning" />
                     </div>
                   )}
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-text-primary font-bold">Profile Photo</p>
                     <p className="text-text-secondary text-sm">
                       {documents?.profilePhoto ? "Uploaded ✓" : "Not uploaded"}
@@ -818,7 +818,7 @@ const AgentDashboard = () => {
                 <button
                   onClick={triggerProfilePhotoUpload}
                   disabled={uploadingDoc === "profilePhoto"}
-                  className={`px-4 py-2 rounded-lg font-medium flex items-center space-x-2 ${
+                  className={`px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2 ${
                     documents?.profilePhoto
                       ? "bg-secondary/10 text-secondary hover:bg-secondary/20"
                       : "bg-primary text-white hover:bg-primary/90"
@@ -848,13 +848,13 @@ const AgentDashboard = () => {
               </div>
 
               <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between py-2 border-b border-border">
-                  <span className="text-text-secondary flex items-center gap-2"><Mail className="w-4 h-4" /> Email</span>
-                  <span className="text-text-primary">{user?.email}</span>
+                <div className="flex items-center justify-between py-2 border-b border-border gap-3 min-w-0">
+                  <span className="text-text-secondary flex items-center gap-2 flex-shrink-0"><Mail className="w-4 h-4" /> Email</span>
+                  <span className="text-text-primary min-w-0 break-all text-right">{user?.email}</span>
                 </div>
-                <div className="flex items-center justify-between py-2 border-b border-border">
-                  <span className="text-text-secondary flex items-center gap-2"><Phone className="w-4 h-4" /> Phone</span>
-                  <span className="text-text-primary">{documents?.phone || verification?.phone || "Not provided"}</span>
+                <div className="flex items-center justify-between py-2 border-b border-border gap-3 min-w-0">
+                  <span className="text-text-secondary flex items-center gap-2 flex-shrink-0"><Phone className="w-4 h-4" /> Phone</span>
+                  <span className="text-text-primary min-w-0 break-all text-right">{documents?.phone || verification?.phone || "Not provided"}</span>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-border">
                   <span className="text-text-secondary flex items-center gap-2"><FileText className="w-4 h-4" /> NIN</span>
@@ -909,7 +909,7 @@ const AgentDashboard = () => {
 
       {/* Bottom navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-40">
-        <div className="max-w-6xl mx-auto grid grid-cols-7 gap-1 px-1 py-2">
+        <div className="max-w-6xl mx-auto flex gap-1 px-1 py-2 overflow-x-auto scrollbar-hide">
           {[
             { id: "home", label: "Home", icon: Home },
             { id: "wallet", label: "Wallet", icon: Wallet },
@@ -923,10 +923,10 @@ const AgentDashboard = () => {
               key={id}
               type="button"
               onClick={() => setActiveView(id)}
-              className={`flex flex-col items-center py-2 rounded-xl ${activeView === id ? "bg-primary/10" : ""}`}
+              className={`flex flex-col items-center py-2 rounded-xl flex-shrink-0 min-w-[56px] flex-1 ${activeView === id ? "bg-primary/10" : ""}`}
             >
               <Icon className={`w-6 h-6 ${activeView === id ? "text-primary" : "text-text-secondary"}`} />
-              <span className={`text-[10px] font-medium mt-0.5 ${activeView === id ? "text-primary" : "text-text-secondary"}`}>
+              <span className={`text-[10px] font-medium mt-0.5 whitespace-nowrap ${activeView === id ? "text-primary" : "text-text-secondary"}`}>
                 {label}
               </span>
             </button>
@@ -940,7 +940,7 @@ const AgentDashboard = () => {
           <div className="bg-card rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] flex flex-col border border-border">
             <div className="flex items-center justify-between p-4 border-b border-border">
               <h3 className="text-text-primary font-bold">Dispute #{selectedDispute.id}</h3>
-              <button type="button" onClick={() => { setSelectedDispute(null); setDisputeDetail(null) }} className="p-2 hover:bg-muted rounded-full">
+              <button type="button" onClick={() => { setSelectedDispute(null); setDisputeDetail(null) }} className="p-2.5 hover:bg-muted rounded-full">
                 <X className="w-5 h-5 text-text-secondary" />
               </button>
             </div>
@@ -983,7 +983,7 @@ const AgentDashboard = () => {
                           type="button"
                           onClick={handleSendMessage}
                           disabled={sendingMessage || !newMessage.trim()}
-                          className="px-4 py-2 bg-primary text-white rounded-xl text-sm disabled:opacity-50"
+                          className="px-4 py-3 bg-primary text-white rounded-xl text-sm disabled:opacity-50"
                         >
                           {sendingMessage ? <Loader className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
                         </button>

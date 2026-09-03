@@ -203,7 +203,7 @@ const NotificationCenter = ({ userId }) => {
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
-                  className="text-primary text-xs font-medium hover:text-primary/80"
+                  className="p-2 text-primary text-xs font-medium hover:text-primary/80 rounded-lg transition-colors"
                   title="Mark all as read"
                 >
                   <CheckCheck className="w-4 h-4" />
@@ -211,7 +211,7 @@ const NotificationCenter = ({ userId }) => {
               )}
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-text-secondary hover:text-text-primary"
+                className="p-2 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -276,7 +276,7 @@ const NotificationCenter = ({ userId }) => {
                           )}
                           <button
                             onClick={() => setConfirmDeleteId(notification.id)}
-                            className="text-error text-xs font-medium hover:text-error/80 flex items-center space-x-1"
+                            className="p-2 text-error text-xs font-medium hover:text-error/80 flex items-center space-x-1 rounded-lg transition-colors"
                             title="Delete"
                           >
                             <Trash2 className="w-3 h-3" />

@@ -241,7 +241,7 @@ const KYCPage = () => {
                   </div>
                   <button
                     onClick={() => setCurrentStep(2)}
-                    className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap flex-shrink-0"
+                    className="bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap flex-shrink-0"
                   >
                     Skip to Documents →
                   </button>
@@ -293,6 +293,7 @@ const KYCPage = () => {
                 <FileText className="absolute left-4 top-3.5 w-5 h-5 text-text-secondary/70" />
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={formData.nin || ''}
                   onChange={(e) => handleInputChange("nin", e.target.value.replace(/\D/g, ""))}
                   className="w-full pl-12 pr-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
@@ -318,6 +319,7 @@ const KYCPage = () => {
                 <FileText className="absolute left-4 top-3.5 w-5 h-5 text-text-secondary/70" />
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={formData.bvn || ''}
                   onChange={(e) => handleInputChange("bvn", e.target.value.replace(/\D/g, ""))}
                   className="w-full pl-12 pr-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
@@ -483,6 +485,7 @@ const KYCPage = () => {
                     <label className="block text-sm font-medium text-text-secondary mb-2">Account Number</label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={formData.bankAccountNumber || ''}
                       onChange={(e) => handleInputChange("bankAccountNumber", e.target.value.replace(/\D/g, ""))}
                       className="w-full px-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
@@ -662,6 +665,7 @@ const KYCPage = () => {
                   <label className="block text-sm font-medium text-text-secondary mb-2">Account Number</label>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={formData.bankAccountNumber || ''}
                     onChange={(e) => handleInputChange("bankAccountNumber", e.target.value.replace(/\D/g, ""))}
                     className="w-full px-4 py-3.5 bg-white/80 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all duration-200 text-text-primary placeholder:text-text-secondary/70 shadow-sm"
@@ -811,7 +815,7 @@ const KYCPage = () => {
                         navigateTo('landing')
                       }
                     }}
-                    className="flex items-center space-x-2 text-text-secondary hover:text-primary transition-colors text-sm sm:text-base"
+                    className="-ml-2 -mt-2 mb-2 flex items-center space-x-2 p-2 text-text-secondary hover:text-primary transition-colors text-sm sm:text-base"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     <span>Back to Dashboard</span>
@@ -910,7 +914,7 @@ const KYCPage = () => {
                   setShowBankModal(false)
                   setBankSearchQuery('')
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
               >
                 <X className="w-5 h-5 text-text-secondary" />
               </button>
