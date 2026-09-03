@@ -1314,7 +1314,7 @@ const FleetManagerDashboard = () => {
             )}
             <div className="min-w-0">
               <p className="text-white/80 text-sm">Fleet Manager</p>
-              <p className="text-white font-extrabold text-xl leading-tight flex items-center gap-1.5">
+              <p className="text-white font-extrabold text-base sm:text-xl leading-tight flex items-center gap-1.5 break-words">
                 {user?.fullName || "Fleet Manager"}
                 {documents?.cacVerified && (
                   <CheckCircle className="w-4 h-4 text-emerald-300 flex-shrink-0" title="CAC verified" />
