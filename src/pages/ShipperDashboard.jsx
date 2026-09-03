@@ -3494,51 +3494,51 @@ const ShipperDashboard = () => {
 
       {/* Bottom Navigation - BIG ICONS */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
-        <div className="flex gap-1 px-2 py-3 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-0.5 px-1.5 py-3 overflow-x-auto scrollbar-hide">
           <button
             onClick={() => setActiveView("home")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
+            className={`flex flex-col items-center space-y-1 py-1.5 rounded-xl transition-colors flex-shrink-0 min-w-[56px] flex-1 ${
               activeView === "home" ? "bg-primary/10" : ""
             }`}
           >
-            <Package className={`w-7 h-7 ${activeView === "home" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "home" ? "text-primary" : "text-text-secondary"}`}>
+            <Package className={`w-6 h-6 ${activeView === "home" ? "text-primary" : "text-text-secondary"}`} />
+            <span className={`text-[10px] font-medium whitespace-nowrap ${activeView === "home" ? "text-primary" : "text-text-secondary"}`}>
               Home
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("shipments")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
+            className={`flex flex-col items-center space-y-1 py-1.5 rounded-xl transition-colors flex-shrink-0 min-w-[56px] flex-1 ${
               activeView === "shipments" ? "bg-primary/10" : ""
             }`}
           >
-            <Truck className={`w-7 h-7 ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`}>
+            <Truck className={`w-6 h-6 ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`} />
+            <span className={`text-[10px] font-medium whitespace-nowrap ${activeView === "shipments" ? "text-primary" : "text-text-secondary"}`}>
               Shipments
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("wallet")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
+            className={`flex flex-col items-center space-y-1 py-1.5 rounded-xl transition-colors flex-shrink-0 min-w-[56px] flex-1 ${
               activeView === "wallet" ? "bg-primary/10" : ""
             }`}
           >
-            <Wallet className={`w-7 h-7 ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`}>
+            <Wallet className={`w-6 h-6 ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`} />
+            <span className={`text-[10px] font-medium whitespace-nowrap ${activeView === "wallet" ? "text-primary" : "text-text-secondary"}`}>
               Wallet
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("referrals")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
+            className={`flex flex-col items-center space-y-1 py-1.5 rounded-xl transition-colors flex-shrink-0 min-w-[56px] flex-1 ${
               activeView === "referrals" ? "bg-primary/10" : ""
             }`}
           >
-            <Gift className={`w-7 h-7 ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
+            <Gift className={`w-6 h-6 ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`} />
+            <span className={`text-[10px] font-medium whitespace-nowrap ${activeView === "referrals" ? "text-primary" : "text-text-secondary"}`}>
               Refer
             </span>
           </button>
@@ -3547,20 +3547,20 @@ const ShipperDashboard = () => {
             onClick={() => navigateTo("complaint")}
             className="flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors hover:bg-primary/10 flex-shrink-0 min-w-[64px] flex-1"
           >
-            <AlertCircle className="w-7 h-7 text-text-secondary" />
-            <span className="text-xs font-medium text-text-secondary whitespace-nowrap">
+            <AlertCircle className="w-6 h-6 text-text-secondary" />
+            <span className="text-[10px] font-medium text-text-secondary whitespace-nowrap">
               Complaints
             </span>
           </button>
 
           <button
             onClick={() => setActiveView("profile")}
-            className={`flex flex-col items-center space-y-1 py-2 rounded-xl transition-colors flex-shrink-0 min-w-[64px] flex-1 ${
+            className={`flex flex-col items-center space-y-1 py-1.5 rounded-xl transition-colors flex-shrink-0 min-w-[56px] flex-1 ${
               activeView === "profile" ? "bg-primary/10" : ""
             }`}
           >
-            <User className={`w-7 h-7 ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`} />
-            <span className={`text-xs font-medium whitespace-nowrap ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`}>
+            <User className={`w-6 h-6 ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`} />
+            <span className={`text-[10px] font-medium whitespace-nowrap ${activeView === "profile" ? "text-primary" : "text-text-secondary"}`}>
               Profile
             </span>
           </button>

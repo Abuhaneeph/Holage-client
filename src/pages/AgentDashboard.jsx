@@ -909,28 +909,34 @@ const AgentDashboard = () => {
 
       {/* Bottom navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-40">
-        <div className="max-w-6xl mx-auto flex gap-1 px-1 py-2 overflow-x-auto scrollbar-hide">
-          {[
-            { id: "home", label: "Home", icon: Home },
-            { id: "wallet", label: "Wallet", icon: Wallet },
-            { id: "trucks", label: "Trucks", icon: Truck },
-            { id: "referrals", label: "Refer", icon: Gift },
-            { id: "complaints", label: "Complaints", icon: AlertTriangle },
-            { id: "progress", label: "Progress", icon: TrendingUp },
-            { id: "verification", label: "Verify", icon: ShieldCheck },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveView(id)}
-              className={`flex flex-col items-center py-2 rounded-xl flex-shrink-0 min-w-[56px] flex-1 ${activeView === id ? "bg-primary/10" : ""}`}
-            >
-              <Icon className={`w-6 h-6 ${activeView === id ? "text-primary" : "text-text-secondary"}`} />
-              <span className={`text-[10px] font-medium mt-0.5 whitespace-nowrap ${activeView === id ? "text-primary" : "text-text-secondary"}`}>
-                {label}
-              </span>
-            </button>
-          ))}
+        <div className="relative max-w-6xl mx-auto">
+          <div className="flex gap-1 px-1 py-2 overflow-x-auto scrollbar-hide">
+            {[
+              { id: "home", label: "Home", icon: Home },
+              { id: "wallet", label: "Wallet", icon: Wallet },
+              { id: "trucks", label: "Trucks", icon: Truck },
+              { id: "referrals", label: "Refer", icon: Gift },
+              { id: "complaints", label: "Complaints", icon: AlertTriangle },
+              { id: "progress", label: "Progress", icon: TrendingUp },
+              { id: "verification", label: "Verify", icon: ShieldCheck },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveView(id)}
+                className={`flex flex-col items-center py-2 rounded-xl flex-shrink-0 min-w-[56px] flex-1 ${activeView === id ? "bg-primary/10" : ""}`}
+              >
+                <Icon className={`w-6 h-6 ${activeView === id ? "text-primary" : "text-text-secondary"}`} />
+                <span className={`text-[10px] font-medium mt-0.5 whitespace-nowrap ${activeView === id ? "text-primary" : "text-text-secondary"}`}>
+                  {label}
+                </span>
+              </button>
+            ))}
+          </div>
+          {/* Fade hint on the right edge — this nav has 7 tabs, more than can fit on most
+              phones even at this tight sizing, so it scrolls; without this, a tab like
+              "Verify" can sit fully off-screen with no visual cue there's more to scroll to. */}
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent" />
         </div>
       </div>
 
