@@ -123,12 +123,34 @@ const AdminDashboard = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [pendingConfirm, setPendingConfirm] = useState(null)
 
+  // Overview stat-card drill-downs — clicking a card (Fleet Managers, Admins, Staff, Drivers, ...)
+  // shows the underlying list inline, same in-tab "detail view + Back button" pattern used by
+  // the complaint detail and KYC detail views below (no client-side routing in this app).
+  const [overviewDrillDown, setOverviewDrillDown] = useState(null) // { type: 'role', role, label } | { type: 'drivers', label }
+  const [overviewDrillDownItems, setOverviewDrillDownItems] = useState([])
+  const [overviewDrillDownPagination, setOverviewDrillDownPagination] = useState(null)
+  const [overviewDrillDownPage, setOverviewDrillDownPage] = useState(1)
+  const [loadingOverviewDrillDown, setLoadingOverviewDrillDown] = useState(false)
+  const [overviewDrillDownSearch, setOverviewDrillDownSearch] = useState("")
+  const [overviewDrillDownSearchInput, setOverviewDrillDownSearchInput] = useState("")
+  const [loadingArchiveSummary, setLoadingArchiveSummary] = useState(false)
+
   // Fetch all complaints for stats on component mount
   useEffect(() => {
     fetchAllComplaintsForStats()
     fetchDieselRate()
     fetchTruckPricing()
+    fetchArchiveSummary()
   }, [])
+
+  // Fetch the underlying list for whichever Overview stat card is drilled into, or when its
+  // page changes. Cleared (drillDown === null) when the admin hits Back.
+  useEffect(() => {
+    if (activeView === "home" && overviewDrillDown) {
+      fetchOverviewDrillDown(overviewDrillDown, overviewDrillDownPage, overviewDrillDownSearch)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, overviewDrillDown, overviewDrillDownPage])
 
   // Fetch KYC submissions when KYC view is active or status changes
   useEffect(() => {
@@ -183,15 +205,49 @@ const AdminDashboard = () => {
     }
   }
 
-  const fetchArchiveData = async (shipmentsPage = archiveShipmentsPage, transactionsPage = archiveTransactionsPage) => {
+  // Shared by fetchArchiveData and fetchArchiveSummary so both build the exact same
+  // dateFrom/dateTo query params from a given filters object.
+  const buildArchiveDateParams = (filters) => {
+    const params = new URLSearchParams()
+    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom)
+    if (filters.dateTo) params.append('dateTo', filters.dateTo)
+    return params
+  }
+
+  // Lightweight — just the summary counts/totals, used to power the Overview tab's stat
+  // cards without pulling the (paginated) shipment/transaction lists those cards drill into.
+  const fetchArchiveSummary = async (filtersOverride = archiveFilters) => {
+    setLoadingArchiveSummary(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const dateParams = buildArchiveDateParams(filtersOverride)
+      const response = await fetch(`${API_BASE_URL}/archive/summary?${dateParams.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (response.ok && data.success) setArchiveSummary(data.summary)
+    } catch (error) {
+      console.error('Error fetching archive summary:', error)
+    } finally {
+      setLoadingArchiveSummary(false)
+    }
+  }
+
+  // `filtersOverride` lets callers (Apply/Clear) pass the exact filter values they just set
+  // instead of relying on `archiveFilters` state, which may not have committed yet in the same
+  // event handler — reading stale state here previously meant "Clear" reset the visible date
+  // inputs without ever re-fetching an unfiltered list.
+  const fetchArchiveData = async (
+    shipmentsPage = archiveShipmentsPage,
+    transactionsPage = archiveTransactionsPage,
+    filtersOverride = archiveFilters
+  ) => {
     setLoadingArchive(true)
     try {
       const token = localStorage.getItem('authToken')
-      const dateParams = new URLSearchParams()
-      if (archiveFilters.dateFrom) dateParams.append('dateFrom', archiveFilters.dateFrom)
-      if (archiveFilters.dateTo) dateParams.append('dateTo', archiveFilters.dateTo)
+      const dateParams = buildArchiveDateParams(filtersOverride)
       const transactionParams = new URLSearchParams(dateParams)
-      if (archiveFilters.partyRole) transactionParams.append('partyRole', archiveFilters.partyRole)
+      if (filtersOverride.partyRole) transactionParams.append('partyRole', filtersOverride.partyRole)
 
       const [summaryRes, shipmentsRes, transactionsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/archive/summary?${dateParams.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -218,6 +274,64 @@ const AdminDashboard = () => {
     } finally {
       setLoadingArchive(false)
     }
+  }
+
+  // Overview stat-card drill-downs: user-role directory (Fleet Managers/Admins/Staff) or the
+  // admin-wide driver list. Agents and (if ever surfaced) Shippers reuse their own existing,
+  // richer directory endpoints instead of this one — see the click handlers below.
+  const fetchOverviewDrillDown = async (drillDown, page = 1, search = "") => {
+    if (!drillDown) return
+    setLoadingOverviewDrillDown(true)
+    try {
+      const token = localStorage.getItem('authToken')
+      const params = new URLSearchParams({ page: String(page), limit: '20' })
+      if (search) params.append('search', search)
+      const endpoint = drillDown.type === 'drivers' ? 'drivers' : 'users'
+      if (drillDown.type !== 'drivers') params.append('role', drillDown.role)
+      const response = await fetch(`${API_BASE_URL}/archive/${endpoint}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setOverviewDrillDownItems(data.users || data.drivers || [])
+        setOverviewDrillDownPagination(data.pagination)
+      } else {
+        toast.error(data.message || 'Failed to load list')
+      }
+    } catch (error) {
+      console.error('Error fetching overview drill-down:', error)
+      toast.error('Error loading list')
+    } finally {
+      setLoadingOverviewDrillDown(false)
+    }
+  }
+
+  // Opens a stat-card drill-down, resetting pagination/search so a stale page-3 or leftover
+  // search term from a previous card doesn't leak into the new one.
+  const openOverviewDrillDown = (drillDown) => {
+    setOverviewDrillDownSearchInput("")
+    setOverviewDrillDownSearch("")
+    setOverviewDrillDownPage(1)
+    setOverviewDrillDown(drillDown)
+  }
+
+  const handleOverviewDrillDownSearch = (e) => {
+    e.preventDefault()
+    setOverviewDrillDownPage(1)
+    setOverviewDrillDownSearch(overviewDrillDownSearchInput.trim())
+  }
+
+  // "Gross Shipment Value" and the earnings cards don't have their own list view — they reuse
+  // the Archive tab's Shipments/Transactions tables (fixed above to actually respect date +
+  // party filters), pre-set to the right sub-tab and, for earnings, the right party filter.
+  const goToArchiveShipments = () => {
+    setArchiveTab('shipments')
+    setActiveView('archive')
+  }
+  const goToArchiveTransactions = (partyRole = '') => {
+    setArchiveTab('transactions')
+    if (partyRole) setArchiveFilters((prev) => ({ ...prev, partyRole }))
+    setActiveView('archive')
   }
 
   // Fetch diesel rate
@@ -938,7 +1052,9 @@ const AdminDashboard = () => {
       } else if (activeView === "agents") {
         await fetchAgentDirectory()
       } else {
-        await fetchAllComplaintsForStats()
+        const tasks = [fetchAllComplaintsForStats(), fetchArchiveSummary()]
+        if (overviewDrillDown) tasks.push(fetchOverviewDrillDown(overviewDrillDown, overviewDrillDownPage, overviewDrillDownSearch))
+        await Promise.all(tasks)
       }
       toast.success('Refreshed')
     } catch (error) {
@@ -947,6 +1063,27 @@ const AdminDashboard = () => {
       setRefreshingAll(false)
     }
   }
+
+  // Renders one clickable Overview stat card. Pulled out because the platform-metrics grid
+  // below has 8 of these (role counts + financial figures) all sharing the same clickable-card
+  // shell that the original 4 static complaint-stat cards duplicated by hand.
+  const renderClickableStat = ({ label, value, icon: Icon, iconBg = 'bg-primary/10', iconColor = 'text-primary', onClick, sub }) => (
+    <button
+      onClick={onClick}
+      className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border text-left hover:shadow-md hover:border-primary/30 transition-all"
+    >
+      <div className="flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="text-text-secondary text-xs sm:text-sm truncate">{label}</p>
+          <p className="text-lg sm:text-2xl font-bold text-text-primary mt-1 truncate">{value}</p>
+          {sub && <p className="text-[11px] text-text-secondary mt-1 truncate">{sub}</p>}
+        </div>
+        <div className={`w-10 h-10 sm:w-12 sm:h-12 ${iconBg} rounded-full flex items-center justify-center flex-shrink-0 ml-2`}>
+          <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${iconColor}`} />
+        </div>
+      </div>
+    </button>
+  )
 
   return (
     <div className="min-h-screen bg-background">
@@ -1060,149 +1197,378 @@ const AdminDashboard = () => {
           <div className="space-y-4 sm:space-y-6">
             <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Dashboard Overview</h2>
 
-            {/* Shipment Lookup by Booking Reference */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
-              <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-1">Shipment Lookup</h3>
-              <p className="text-sm text-text-secondary mb-3 sm:mb-4">
-                Look up a shipment by its booking reference to see the full trip — bids, driver, payments, PODs, and timeline.
-              </p>
-              <form onSubmit={handleBookingRefSearch} className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={bookingRefSearch}
-                    onChange={(e) => setBookingRefSearch(e.target.value.toUpperCase())}
-                    placeholder="e.g. A1B2C"
-                    className="w-full pl-9 pr-4 py-2.5 border border-border rounded-xl text-text-primary uppercase tracking-wide"
-                    disabled={loadingTranscript}
-                  />
-                </div>
+            {overviewDrillDown ? (
+              <div className="space-y-4">
                 <button
-                  type="submit"
-                  disabled={loadingTranscript}
-                  className="px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={() => setOverviewDrillDown(null)}
+                  className="flex items-center space-x-2 text-text-secondary hover:text-text-primary transition-colors py-2 -my-2"
                 >
-                  {loadingTranscript ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <Search className="w-4 h-4" />
-                  )}
-                  <span>Search</span>
+                  <ArrowLeft className="w-5 h-5" />
+                  <span>Back to Overview</span>
                 </button>
-              </form>
-            </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-text-secondary text-xs sm:text-sm truncate">Total Complaints</p>
-                    <p className="text-xl sm:text-2xl font-bold text-text-primary mt-1">{stats.total}</p>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <h3 className="text-lg sm:text-xl font-semibold text-text-primary">{overviewDrillDown.label}</h3>
+                  <form onSubmit={handleOverviewDrillDownSearch} className="flex gap-2 w-full sm:w-auto">
+                    <input
+                      type="text"
+                      value={overviewDrillDownSearchInput}
+                      onChange={(e) => setOverviewDrillDownSearchInput(e.target.value)}
+                      placeholder="Search by name, email, or phone..."
+                      className="flex-1 sm:w-64 px-3 py-2 border border-border rounded-lg text-sm"
+                    />
+                    <button type="submit" className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90">
+                      Search
+                    </button>
+                  </form>
+                </div>
+
+                {loadingOverviewDrillDown ? (
+                  <div className="flex justify-center items-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
                   </div>
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
-                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+                ) : overviewDrillDown.type === 'drivers' ? (
+                  <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-border overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left text-text-secondary text-xs uppercase">
+                          <th className="p-3">Driver</th>
+                          <th className="p-3">Contact</th>
+                          <th className="p-3">Code</th>
+                          <th className="p-3">Fleet Manager</th>
+                          <th className="p-3">KYC</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3">Joined</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overviewDrillDownItems.map((d) => (
+                          <tr key={d.id} className="border-b border-border/50 last:border-0">
+                            <td className="p-3 font-medium text-text-primary">{d.driverName}</td>
+                            <td className="p-3">
+                              <p className="text-text-secondary text-xs">{d.email || '—'}</p>
+                              <p className="text-text-secondary text-xs">{d.phoneNumber || '—'}</p>
+                            </td>
+                            <td className="p-3 font-mono text-xs">{d.driverCode || '—'}</td>
+                            <td className="p-3">{d.fleetManagerName || 'Unassigned'}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getKycStatusColor(d.kycStatus || 'pending')}`}>
+                                {d.kycStatus || 'not_submitted'}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${d.isActive ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-800 border-gray-300'}`}>
+                                {d.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td className="p-3 whitespace-nowrap text-text-secondary text-xs">
+                              {d.createdAt ? new Date(d.createdAt).toLocaleDateString() : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                        {overviewDrillDownItems.length === 0 && (
+                          <tr><td colSpan={7} className="p-6 text-center text-text-secondary">No drivers found.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-border overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left text-text-secondary text-xs uppercase">
+                          <th className="p-3">Name</th>
+                          <th className="p-3">Contact</th>
+                          <th className="p-3">Verified</th>
+                          <th className="p-3">KYC</th>
+                          <th className="p-3">Joined</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overviewDrillDownItems.map((u) => (
+                          <tr key={u.id} className="border-b border-border/50 last:border-0">
+                            <td className="p-3 font-medium text-text-primary">{u.fullName}</td>
+                            <td className="p-3">
+                              <p className="text-text-secondary text-xs">{u.email}</p>
+                              <p className="text-text-secondary text-xs">{u.phone || '—'}</p>
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${u.isVerified ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-800 border-gray-300'}`}>
+                                {u.isVerified ? 'Verified' : 'Unverified'}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getKycStatusColor(u.kycStatus || 'pending')}`}>
+                                {u.kycStatus || 'not_submitted'}
+                              </span>
+                            </td>
+                            <td className="p-3 whitespace-nowrap text-text-secondary text-xs">
+                              {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                        {overviewDrillDownItems.length === 0 && (
+                          <tr><td colSpan={5} className="p-6 text-center text-text-secondary">No {overviewDrillDown.label.toLowerCase()} found.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {overviewDrillDownPagination && overviewDrillDownPagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setOverviewDrillDownPage((p) => Math.max(1, p - 1))}
+                      disabled={overviewDrillDownPage === 1}
+                      className="px-4 py-2 bg-muted rounded-lg text-sm font-medium disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <p className="text-text-secondary text-sm">
+                      Page {overviewDrillDownPagination.page} of {overviewDrillDownPagination.totalPages} ({overviewDrillDownPagination.total} total)
+                    </p>
+                    <button
+                      onClick={() => setOverviewDrillDownPage((p) => Math.min(overviewDrillDownPagination.totalPages, p + 1))}
+                      disabled={overviewDrillDownPage === overviewDrillDownPagination.totalPages}
+                      className="px-4 py-2 bg-muted rounded-lg text-sm font-medium disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Shipment Lookup by Booking Reference */}
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+                  <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-1">Shipment Lookup</h3>
+                  <p className="text-sm text-text-secondary mb-3 sm:mb-4">
+                    Look up a shipment by its booking reference to see the full trip — bids, driver, payments, PODs, and timeline.
+                  </p>
+                  <form onSubmit={handleBookingRefSearch} className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={bookingRefSearch}
+                        onChange={(e) => setBookingRefSearch(e.target.value.toUpperCase())}
+                        placeholder="e.g. A1B2C"
+                        className="w-full pl-9 pr-4 py-2.5 border border-border rounded-xl text-text-primary uppercase tracking-wide"
+                        disabled={loadingTranscript}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loadingTranscript}
+                      className="px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {loadingTranscript ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      ) : (
+                        <Search className="w-4 h-4" />
+                      )}
+                      <span>Search</span>
+                    </button>
+                  </form>
+                </div>
+
+                {/* Stats Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-text-secondary text-xs sm:text-sm truncate">Total Complaints</p>
+                        <p className="text-xl sm:text-2xl font-bold text-text-primary mt-1">{stats.total}</p>
+                      </div>
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                        <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-text-secondary text-xs sm:text-sm truncate">Pending</p>
+                        <p className="text-xl sm:text-2xl font-bold text-yellow-600 mt-1">{stats.pending}</p>
+                      </div>
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                        <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-text-secondary text-xs sm:text-sm truncate">In Progress</p>
+                        <p className="text-xl sm:text-2xl font-bold text-blue-600 mt-1">{stats.in_progress}</p>
+                      </div>
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                        <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-text-secondary text-xs sm:text-sm truncate">Resolved</p>
+                        <p className="text-xl sm:text-2xl font-bold text-green-600 mt-1">{stats.resolved}</p>
+                      </div>
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                        <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-text-secondary text-xs sm:text-sm truncate">Pending</p>
-                    <p className="text-xl sm:text-2xl font-bold text-yellow-600 mt-1">{stats.pending}</p>
-                  </div>
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
-                    <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-text-secondary text-xs sm:text-sm truncate">In Progress</p>
-                    <p className="text-xl sm:text-2xl font-bold text-blue-600 mt-1">{stats.in_progress}</p>
-                  </div>
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
-                    <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-text-secondary text-xs sm:text-sm truncate">Resolved</p>
-                    <p className="text-xl sm:text-2xl font-bold text-green-600 mt-1">{stats.resolved}</p>
-                  </div>
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
-                    <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
-              <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-3 sm:mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <button
-                  onClick={() => setActiveView("complaints")}
-                  className="flex items-center space-x-3 p-4 bg-primary/10 rounded-xl hover:bg-primary/20 transition-colors text-left"
-                >
-                  <AlertCircle className="w-6 h-6 text-primary" />
-                  <div>
-                    <p className="font-medium text-text-primary">View Complaints</p>
-                    <p className="text-sm text-text-secondary">Manage customer complaints</p>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Diesel Rate Settings */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
-              <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-3 sm:mb-4">System Settings</h3>
-              <div className="space-y-3 sm:space-y-4">
+                {/* Platform stat cards — click any to drill into the underlying list, right here
+                    in the Overview tab (same in-tab pattern as the complaint/KYC detail views). */}
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    Diesel Cost Per Liter (₦)
-                  </label>
-                  {loadingDieselRate ? (
-                    <div className="flex items-center space-x-2 text-text-secondary">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      <span className="text-sm">Loading...</span>
+                  <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-3 sm:mb-4">Platform at a Glance</h3>
+                  {loadingArchiveSummary && !archiveSummary ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
                   ) : (
-                    <form onSubmit={handleUpdateDieselRate} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                      <input
-                        type="number"
-                        min="1"
-                        step="0.01"
-                        value={dieselRateInput}
-                        onChange={(e) => setDieselRateInput(e.target.value)}
-                        className="flex-1 px-3 sm:px-4 py-2 border border-border rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
-                        placeholder="Enter diesel rate"
-                        required
-                      />
-                      <button
-                        type="submit"
-                        disabled={updatingDieselRate || dieselRateInput === dieselRate.toString()}
-                        className="px-4 sm:px-6 py-2 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base whitespace-nowrap"
-                      >
-                        {updatingDieselRate ? 'Updating...' : 'Update'}
-                      </button>
-                    </form>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                      {renderClickableStat({
+                        label: 'Fleet Managers',
+                        value: archiveSummary?.usersByRole?.fleet_manager ?? 0,
+                        icon: Truck,
+                        iconBg: 'bg-purple-100',
+                        iconColor: 'text-purple-600',
+                        onClick: () => openOverviewDrillDown({ type: 'role', role: 'fleet_manager', label: 'Fleet Managers' }),
+                      })}
+                      {renderClickableStat({
+                        label: 'Admins',
+                        value: archiveSummary?.usersByRole?.admin ?? 0,
+                        icon: Shield,
+                        iconBg: 'bg-indigo-100',
+                        iconColor: 'text-indigo-600',
+                        onClick: () => openOverviewDrillDown({ type: 'role', role: 'admin', label: 'Admins' }),
+                      })}
+                      {renderClickableStat({
+                        label: 'Staff',
+                        value: archiveSummary?.usersByRole?.staff ?? 0,
+                        icon: User,
+                        iconBg: 'bg-cyan-100',
+                        iconColor: 'text-cyan-600',
+                        onClick: () => openOverviewDrillDown({ type: 'role', role: 'staff', label: 'Staff' }),
+                      })}
+                      {renderClickableStat({
+                        label: 'Agents',
+                        value: archiveSummary?.usersByRole?.agent ?? 0,
+                        icon: Users,
+                        iconBg: 'bg-amber-100',
+                        iconColor: 'text-amber-600',
+                        // Agents already have a dedicated, richer directory view (referral code,
+                        // KYC, dispute counts) — jump straight to that tab instead of duplicating it.
+                        onClick: () => setActiveView('agents'),
+                      })}
+                      {renderClickableStat({
+                        label: 'Drivers',
+                        value: archiveSummary?.driverCount ?? 0,
+                        icon: MapPin,
+                        iconBg: 'bg-teal-100',
+                        iconColor: 'text-teal-600',
+                        onClick: () => openOverviewDrillDown({ type: 'drivers', label: 'Drivers' }),
+                      })}
+                      {renderClickableStat({
+                        label: 'Gross Shipment Value',
+                        value: `₦${(archiveSummary?.shipments?.completedRevenue || 0).toLocaleString('en-NG')}`,
+                        sub: `${archiveSummary?.shipments?.completed ?? 0} completed shipments`,
+                        icon: Package,
+                        iconBg: 'bg-primary/10',
+                        iconColor: 'text-primary',
+                        // Reuses the (now-fixed) Archive tab's Shipments view rather than a new list.
+                        onClick: goToArchiveShipments,
+                      })}
+                      {renderClickableStat({
+                        label: 'Platform Earnings (Net)',
+                        value: `₦${(archiveSummary?.platformEarnings || 0).toLocaleString('en-NG')}`,
+                        sub: `Gross 5% fee: ₦${(archiveSummary?.grossPlatformEarnings || 0).toLocaleString('en-NG')}`,
+                        icon: CreditCard,
+                        iconBg: 'bg-green-100',
+                        iconColor: 'text-green-600',
+                        // Reuses the Archive tab's Transactions view, pre-filtered to the platform's own ledger rows.
+                        onClick: () => goToArchiveTransactions('platform'),
+                      })}
+                      {renderClickableStat({
+                        label: 'Agent Earnings',
+                        value: `₦${(archiveSummary?.agentEarnings || 0).toLocaleString('en-NG')}`,
+                        sub: '4% referral commission',
+                        icon: CreditCard,
+                        iconBg: 'bg-amber-100',
+                        iconColor: 'text-amber-600',
+                        onClick: () => goToArchiveTransactions('agent'),
+                      })}
+                    </div>
                   )}
-                  <p className="text-xs text-text-secondary mt-2">
-                    Current rate: ₦{dieselRate.toLocaleString()} per liter
-                  </p>
-                  <p className="text-xs text-text-secondary mt-1">
-                    This rate is used to calculate shipping costs for all shipments.
-                  </p>
                 </div>
-              </div>
-            </div>
+
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+                  <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-3 sm:mb-4">Quick Actions</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <button
+                      onClick={() => setActiveView("complaints")}
+                      className="flex items-center space-x-3 p-4 bg-primary/10 rounded-xl hover:bg-primary/20 transition-colors text-left"
+                    >
+                      <AlertCircle className="w-6 h-6 text-primary" />
+                      <div>
+                        <p className="font-medium text-text-primary">View Complaints</p>
+                        <p className="text-sm text-text-secondary">Manage customer complaints</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Diesel Rate Settings */}
+                <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+                  <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-3 sm:mb-4">System Settings</h3>
+                  <div className="space-y-3 sm:space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-text-primary mb-2">
+                        Diesel Cost Per Liter (₦)
+                      </label>
+                      {loadingDieselRate ? (
+                        <div className="flex items-center space-x-2 text-text-secondary">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                          <span className="text-sm">Loading...</span>
+                        </div>
+                      ) : (
+                        <form onSubmit={handleUpdateDieselRate} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                          <input
+                            type="number"
+                            min="1"
+                            step="0.01"
+                            value={dieselRateInput}
+                            onChange={(e) => setDieselRateInput(e.target.value)}
+                            className="flex-1 px-3 sm:px-4 py-2 border border-border rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
+                            placeholder="Enter diesel rate"
+                            required
+                          />
+                          <button
+                            type="submit"
+                            disabled={updatingDieselRate || dieselRateInput === dieselRate.toString()}
+                            className="px-4 sm:px-6 py-2 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base whitespace-nowrap"
+                          >
+                            {updatingDieselRate ? 'Updating...' : 'Update'}
+                          </button>
+                        </form>
+                      )}
+                      <p className="text-xs text-text-secondary mt-2">
+                        Current rate: ₦{dieselRate.toLocaleString()} per liter
+                      </p>
+                      <p className="text-xs text-text-secondary mt-1">
+                        This rate is used to calculate shipping costs for all shipments.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -2183,14 +2549,24 @@ const AdminDashboard = () => {
                 </div>
               )}
               <button
-                onClick={() => { setArchiveShipmentsPage(1); setArchiveTransactionsPage(1); fetchArchiveData(1, 1) }}
+                onClick={() => { setArchiveShipmentsPage(1); setArchiveTransactionsPage(1); fetchArchiveData(1, 1, archiveFilters) }}
                 className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90"
               >
                 Apply Filters
               </button>
               {(archiveFilters.dateFrom || archiveFilters.dateTo || archiveFilters.partyRole) && (
                 <button
-                  onClick={() => { setArchiveFilters({ dateFrom: '', dateTo: '', partyRole: '' }); setArchiveShipmentsPage(1); setArchiveTransactionsPage(1) }}
+                  onClick={() => {
+                    // Pass the cleared filters straight into fetchArchiveData rather than relying
+                    // on archiveFilters state (which won't have committed yet in this same handler)
+                    // or on the page-change effect (which won't re-fire if the page was already 1) —
+                    // both previously let "Clear" reset the visible inputs without refreshing the list.
+                    const cleared = { dateFrom: '', dateTo: '', partyRole: '' }
+                    setArchiveFilters(cleared)
+                    setArchiveShipmentsPage(1)
+                    setArchiveTransactionsPage(1)
+                    fetchArchiveData(1, 1, cleared)
+                  }}
                   className="px-4 py-2 bg-muted text-text-secondary rounded-lg text-sm font-medium hover:bg-muted/80"
                 >
                   Clear
