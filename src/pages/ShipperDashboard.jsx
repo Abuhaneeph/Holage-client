@@ -1441,7 +1441,7 @@ const ShipperDashboard = () => {
       
       const data = await response.json()
       if (response.ok && data.success) {
-        toast.success(data.message || 'Pickup confirmed! 60% payment has been released.')
+        toast.success(data.message || 'Pickup confirmed! 60% payment + 5% platform fee has been charged.')
         // Refresh shipments and wallet
         fetchMyShipments()
         refreshWalletAndTransactions()
