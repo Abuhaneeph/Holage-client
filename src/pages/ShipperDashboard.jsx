@@ -59,11 +59,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 const calculateStageAmount = (totalAmount, percentage) =>
   Math.round(parseFloat(totalAmount || 0) * (percentage / 100) * 100) / 100
 
-const calculateBidAcceptUpfrontDue = (bidAmount, estimatedCost) => {
-  const bidUpfront = calculateStageAmount(bidAmount, 5)
-  const estimateUpfront = calculateStageAmount(estimatedCost, 5)
-  return Math.max(0, Math.round((bidUpfront - estimateUpfront) * 100) / 100)
-}
+// Shipment creation no longer charges anything up front, so this is simply 5% of the real,
+// accepted bid amount -- the shipper's first charge on the trip. `estimatedCost` is unused now
+// (kept as a parameter so every call site below didn't need touching) but harmless to pass.
+const calculateBidAcceptUpfrontDue = (bidAmount, _estimatedCost) => calculateStageAmount(bidAmount, 5)
 
 const ShipperDashboard = () => {
   const { user, logoutUser, navigateTo } = useAppContext()
@@ -761,13 +760,8 @@ const ShipperDashboard = () => {
       return
     }
 
-    const estimatedTotal = costEstimate?.cost?.totalCost || 0
-    const upfrontRequired = calculateStageAmount(estimatedTotal, 5)
-    if (estimatedTotal > 0 && walletBalance < upfrontRequired) {
-      toast.error(`Insufficient wallet balance. Required: ₦${upfrontRequired.toLocaleString('en-NG')} (5% upfront of ₦${estimatedTotal.toLocaleString('en-NG')}), Available: ₦${walletBalance.toLocaleString('en-NG')}`)
-      return
-    }
-    
+    // No wallet balance check here anymore -- shipment creation doesn't charge anything up
+    // front. The shipper only needs funds once they accept a bid (5%, checked there instead).
     const pickupSlug = `${slugifyValue(shipmentForm.pickupState)}-${slugifyValue(cleanPickupLga)}`
     const destinationSlug = `${slugifyValue(shipmentForm.destinationState)}-${slugifyValue(cleanDestinationLga)}`
 
@@ -1065,7 +1059,7 @@ const ShipperDashboard = () => {
     const upfrontAdjustmentDue = calculateBidAcceptUpfrontDue(bidAmount, estimatedCost)
 
     if (upfrontAdjustmentDue > 0 && walletBalance < upfrontAdjustmentDue) {
-      toast.error(`Insufficient wallet balance. Required: ₦${upfrontAdjustmentDue.toLocaleString('en-NG')} (5% upfront adjustment), Available: ₦${walletBalance.toLocaleString('en-NG')}. Please fund your wallet.`)
+      toast.error(`Insufficient wallet balance. Required: ₦${upfrontAdjustmentDue.toLocaleString('en-NG')} (5% upfront payment), Available: ₦${walletBalance.toLocaleString('en-NG')}. Please fund your wallet.`)
       setShowBidAcceptModal(false)
       setSelectedBidForAccept(null)
       setSelectedShipmentForBid(null)
@@ -3119,13 +3113,13 @@ const ShipperDashboard = () => {
                   <p className="text-text-secondary text-sm mb-1">Estimated Cost</p>
                   <p className="text-success font-bold text-3xl">{costEstimate.cost.formattedCost}</p>
                   <p className="text-text-primary text-sm font-medium mt-2">
-                    5% upfront required now: ₦{calculateStageAmount(costEstimate.cost.totalCost, 5).toLocaleString('en-NG')}
+                    No payment is due to create this shipment — 5% is charged when you accept a bid
                   </p>
                   <p className="text-text-secondary text-xs mt-1">
                     60% + 5% commission charged at pickup • 30% at delivery
                   </p>
                   <p className="text-text-secondary text-xs mt-1">
-                    Total you'll pay: ₦{parseFloat(costEstimate.cost.totalCost || 0).toLocaleString('en-NG')} (no extra platform fee on top)
+                    Estimated total: ₦{parseFloat(costEstimate.cost.totalCost || 0).toLocaleString('en-NG')} — the actual amount charged will be based on the bid you accept, not this estimate
                   </p>
                   <p className="text-text-secondary text-xs mt-2">
                     {shipmentForm.truckType ? `${truckOptions.find(opt => opt.value === shipmentForm.truckType)?.label || shipmentForm.truckType}` : 'Truck type not selected'} • {distanceInfo?.distance} km
@@ -3270,44 +3264,21 @@ const ShipperDashboard = () => {
                 {/* Payment Breakdown */}
                 {(() => {
                   const bidAmount = parseFloat(selectedBidForAccept.bidAmount || 0)
-                  const estimatedCost = parseFloat(selectedShipmentForBid.estimatedCost || 0)
-                  const upfrontAdjustmentDue = calculateBidAcceptUpfrontDue(bidAmount, estimatedCost)
-                  const alreadyPaidUpfront = calculateStageAmount(estimatedCost, 5)
-                  const totalUpfrontOnBid = calculateStageAmount(bidAmount, 5)
+                  const upfrontDue = calculateStageAmount(bidAmount, 5)
                   return (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between py-2 border-b border-border">
-                    <span className="text-text-secondary text-sm">Estimated Shipment Cost</span>
-                    <span className="text-text-primary font-medium">
-                      ₦{estimatedCost.toLocaleString('en-NG')}
-                    </span>
-                  </div>
                   <div className="flex items-center justify-between py-2 border-b border-border">
                     <span className="text-text-secondary text-sm">Accepted Bid Amount</span>
                     <span className="text-text-primary font-medium">
                       ₦{bidAmount.toLocaleString('en-NG')}
                     </span>
                   </div>
-                  {upfrontAdjustmentDue > 0 && (
-                    <>
-                      <div className="flex items-center justify-between py-1 px-3 text-xs text-text-secondary">
-                        <span>Already paid at order creation (5% of estimate)</span>
-                        <span>₦{alreadyPaidUpfront.toLocaleString('en-NG')}</span>
-                      </div>
-                      <div className="flex items-center justify-between py-1 px-3 text-xs text-text-secondary">
-                        <span>Full 5% of the accepted bid amount</span>
-                        <span>₦{totalUpfrontOnBid.toLocaleString('en-NG')}</span>
-                      </div>
-                    </>
-                  )}
-                  {upfrontAdjustmentDue > 0 && (
-                    <div className="flex items-center justify-between py-2 border-b border-error/30 bg-error/5 rounded-lg px-3">
-                      <span className="text-error text-sm font-medium">Top-up due now (bid was higher than the estimate)</span>
-                      <span className="text-error font-bold">
-                        ₦{upfrontAdjustmentDue.toLocaleString('en-NG')}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between py-2 border-b border-error/30 bg-error/5 rounded-lg px-3">
+                    <span className="text-error text-sm font-medium">5% upfront payment due now</span>
+                    <span className="text-error font-bold">
+                      ₦{upfrontDue.toLocaleString('en-NG')}
+                    </span>
+                  </div>
                   <div className="flex items-center justify-between py-2 border-b border-border">
                     <span className="text-text-secondary text-sm">Includes Platform Commission (5%, charged at pickup)</span>
                     <span className="text-text-primary font-medium">
@@ -3361,7 +3332,7 @@ const ShipperDashboard = () => {
                   <ul className="space-y-1 text-xs text-text-secondary">
                     <li className="flex items-start">
                       <CheckCircle className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
-                      <span><strong className="text-text-primary">5%</strong> already paid at order creation; credited to driver upon acceptance</span>
+                      <span><strong className="text-text-primary">5%</strong> charged from your wallet now and credited to the driver upon acceptance</span>
                     </li>
                     <li className="flex items-start">
                       <Clock className="w-4 h-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
@@ -3462,7 +3433,7 @@ const ShipperDashboard = () => {
                 </p>
                 {bidAcceptSuccessInfo.upfrontAdjustmentDue > 0 && (
                   <p className="text-text-secondary text-xs mt-2">
-                    ₦{bidAcceptSuccessInfo.upfrontAdjustmentDue.toLocaleString("en-NG")} (5% upfront adjustment) deducted from your wallet.
+                    ₦{bidAcceptSuccessInfo.upfrontAdjustmentDue.toLocaleString("en-NG")} (5% upfront payment) deducted from your wallet.
                   </p>
                 )}
               </div>
