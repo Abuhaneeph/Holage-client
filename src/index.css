@@ -18,6 +18,15 @@
 }
 
 /* You can add custom global styles here if needed */
+html, body {
+  /* Guards against any stray element (a misplaced absolute-positioned dropdown,
+     a sub-pixel rounding error, etc.) making the whole page horizontally
+     scrollable/pannable and exposing white space past the app's edge. Components
+     that genuinely need horizontal scroll (nav bars, tables) use overflow-x-auto
+     on their own container, which is unaffected by this. */
+  overflow-x: hidden;
+}
+
 body {
   font-family: sans-serif;
 }

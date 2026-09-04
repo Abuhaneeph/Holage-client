@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Bell, X, Check, CheckCheck, Trash2, Loader } from "lucide-react"
 import { useToast } from "../context/ToastContext"
 import ConfirmModal from "./ConfirmModal"
@@ -14,7 +14,6 @@ const NotificationCenter = ({ userId }) => {
   const [loading, setLoading] = useState(false)
   const [markingRead, setMarkingRead] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
-  const dropdownRef = useRef(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -22,23 +21,6 @@ const NotificationCenter = ({ userId }) => {
       fetchUnreadCount()
     }
   }, [isOpen, userId])
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen])
 
   // Poll for unread count every 30 seconds
   useEffect(() => {
@@ -182,7 +164,7 @@ const NotificationCenter = ({ userId }) => {
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-colors"
@@ -196,7 +178,14 @@ const NotificationCenter = ({ userId }) => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-card border border-border rounded-2xl shadow-xl z-50 max-h-[600px] flex flex-col">
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setIsOpen(false)}
+        >
+        <div
+          className="bg-card rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm sm:w-96 max-h-[80vh] sm:max-h-[600px] flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="p-4 border-b border-border flex items-center justify-between">
             <h3 className="text-text-primary font-bold text-lg">Notifications</h3>
             <div className="flex items-center space-x-2">
@@ -289,6 +278,7 @@ const NotificationCenter = ({ userId }) => {
               </div>
             )}
           </div>
+        </div>
         </div>
       )}
 
