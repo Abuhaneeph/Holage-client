@@ -1803,24 +1803,36 @@ const ShipperDashboard = () => {
                       <div className="mt-4 pt-4 border-t border-border">
                         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-3">
                           <p className="text-warning font-medium mb-2">Driver has marked shipment as picked up</p>
-                          <p className="text-text-secondary text-sm">Please confirm pickup to charge and release 60% payment, then allow the driver to start the trip to destination.</p>
+                          <p className="text-text-secondary text-sm">Please confirm pickup to charge and release 60% payment plus the 5% platform fee, then allow the driver to start the trip to destination.</p>
                           {(() => {
                             const bidAmt = parseFloat(shipmentDetails[shipment.id]?.acceptedBidWithRating?.bidAmount || shipment.estimatedCost || 0)
                             if (bidAmt <= 0) return null
+                            const carrierAmt = calculateStageAmount(bidAmt, 60)
+                            const platformAmt = calculateStageAmount(bidAmt, 5)
                             return (
-                              <div className="flex items-center justify-between pt-2 mt-2 border-t border-warning/20 text-sm">
-                                <span className="text-text-secondary">Amount to be charged (60%)</span>
-                                <span className="text-text-primary font-semibold">₦{calculateStageAmount(bidAmt, 60).toLocaleString('en-NG')}</span>
+                              <div className="space-y-1 pt-2 mt-2 border-t border-warning/20 text-sm">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-text-secondary">Carrier payment (60%)</span>
+                                  <span className="text-text-primary font-medium">₦{carrierAmt.toLocaleString('en-NG')}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-text-secondary">Platform fee (5%)</span>
+                                  <span className="text-text-primary font-medium">₦{platformAmt.toLocaleString('en-NG')}</span>
+                                </div>
+                                <div className="flex items-center justify-between pt-1 border-t border-warning/30">
+                                  <span className="text-text-secondary font-medium">Amount to be charged</span>
+                                  <span className="text-text-primary font-bold">₦{(carrierAmt + platformAmt).toLocaleString('en-NG')}</span>
+                                </div>
                               </div>
                             )
                           })()}
                         </div>
                         <button
-                          onClick={() => setPendingConfirm({ title: 'Confirm pickup?', message: 'This will charge 60% from your wallet and release it to the trucker/driver.', confirmLabel: 'Confirm pickup', onConfirm: () => handleConfirmPickup(shipment.id) })}
+                          onClick={() => setPendingConfirm({ title: 'Confirm pickup?', message: 'This will charge 60% + 5% platform fee from your wallet — 60% goes to the trucker/driver, 5% is the platform fee.', confirmLabel: 'Confirm pickup', onConfirm: () => handleConfirmPickup(shipment.id) })}
                           className="w-full bg-warning text-white py-3 rounded-xl font-bold hover:bg-warning/90 transition-colors flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />
-                          <span>Confirm Pickup (Release 60% Payment)</span>
+                          <span>Confirm Pickup (Release 60% + 5% Fee)</span>
                         </button>
                       </div>
                     )}
