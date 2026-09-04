@@ -15,7 +15,6 @@ import {
   Clock,
   MapPin,
   Navigation,
-  DollarSign,
   Loader,
   LogOut,
   Upload,
@@ -1351,7 +1350,7 @@ const TruckerDashboard = () => {
               <div className="bg-gradient-to-br from-secondary to-secondary/80 rounded-2xl p-4 shadow-md">
                 <div className="flex items-center justify-between mb-2">
                   <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                    <DollarSign className="w-5 h-5 text-white" />
+                    <span className="text-lg font-bold text-white leading-none">₦</span>
                   </div>
                 </div>
                 <p className="text-white/80 text-sm">This Month</p>

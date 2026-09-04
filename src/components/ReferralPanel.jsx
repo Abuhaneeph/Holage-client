@@ -97,14 +97,14 @@ const ReferralPanel = () => {
       {data.invitedUsers?.length > 0 && (
         <div className="mt-4 pt-4 border-t border-border">
           <p className="text-text-secondary text-xs uppercase tracking-wide mb-2">Your Invitees</p>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
             {data.invitedUsers.map((invitee) => (
-              <div key={invitee.id} className="flex items-center justify-between text-sm gap-2">
-                <span className="text-text-primary truncate">
-                  {invitee.fullName}{' '}
-                  <span className="text-text-secondary capitalize">({String(invitee.role).replace('_', ' ')})</span>
-                </span>
-                <span className={`flex-shrink-0 ${invitee.inviteRewardPaid ? 'text-success font-medium' : 'text-text-secondary'}`}>
+              <div key={invitee.id} className="flex items-center justify-between gap-3 bg-muted/30 rounded-xl px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-text-primary font-semibold text-sm truncate">{invitee.fullName}</p>
+                  <p className="text-text-secondary text-xs capitalize">{String(invitee.role).replace('_', ' ')}</p>
+                </div>
+                <span className={`flex-shrink-0 text-xs font-medium text-right ${invitee.inviteRewardPaid ? 'text-success' : 'text-warning'}`}>
                   {invitee.inviteRewardPaid ? 'Rewarded' : 'Pending first shipment'}
                 </span>
               </div>

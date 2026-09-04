@@ -1635,7 +1635,7 @@ const ShipperDashboard = () => {
                               <p className={`text-${statusInfo.color} font-medium text-sm`}>{statusInfo.label}</p>
                         {shipment.status === 'pending' && (
                                 <button
-                                  onClick={() => setPendingConfirm({ title: 'Delete this shipment?', message: "This can't be undone.", confirmLabel: 'Delete', destructive: true, onConfirm: () => handleDeleteShipment(shipment.id) })}
+                                  onClick={() => setPendingConfirm({ title: 'Delete this shipment?', message: "Are you sure you want to delete this shipment? This can't be undone.", confirmLabel: 'Delete', destructive: true, onConfirm: () => handleDeleteShipment(shipment.id) })}
                                   disabled={deletingShipmentId === shipment.id}
                                   className="bg-error/10 text-error px-4 py-2 rounded-xl font-medium text-sm disabled:opacity-50"
                                 >
@@ -1741,7 +1741,7 @@ const ShipperDashboard = () => {
                         </button>
                         {shipment.status === 'pending' && (
                           <button
-                            onClick={() => setPendingConfirm({ title: 'Delete this shipment?', message: "This can't be undone.", confirmLabel: 'Delete', destructive: true, onConfirm: () => handleDeleteShipment(shipment.id) })}
+                            onClick={() => setPendingConfirm({ title: 'Delete this shipment?', message: "Are you sure you want to delete this shipment? This can't be undone.", confirmLabel: 'Delete', destructive: true, onConfirm: () => handleDeleteShipment(shipment.id) })}
                             disabled={deletingShipmentId === shipment.id}
                             className="bg-error/10 text-error px-4 py-2.5 sm:py-3 rounded-xl font-medium text-xs sm:text-sm disabled:opacity-50 whitespace-nowrap"
                           >
@@ -3030,6 +3030,7 @@ const ShipperDashboard = () => {
                   type="date"
                   value={shipmentForm.pickupDate}
                   onChange={(e) => handleFormChange('pickupDate', e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-4 bg-input border border-border rounded-xl text-text-primary text-lg"
                   required
                 />
