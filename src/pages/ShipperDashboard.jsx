@@ -3113,7 +3113,7 @@ const ShipperDashboard = () => {
                   <p className="text-text-secondary text-sm mb-1">Estimated Cost</p>
                   <p className="text-success font-bold text-3xl">{costEstimate.cost.formattedCost}</p>
                   <p className="text-text-primary text-sm font-medium mt-2">
-                    No payment is due to create this shipment — 5% is charged when you accept a bid
+                    5% is charged when you accept a bid
                   </p>
                   <p className="text-text-secondary text-xs mt-1">
                     60% + 5% commission charged at pickup • 30% at delivery
