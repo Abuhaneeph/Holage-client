@@ -2031,7 +2031,6 @@ const ShipperDashboard = () => {
                             {shipmentBids[shipment.id]
                               .sort((a, b) => parseFloat(a.bidAmount) - parseFloat(b.bidAmount))
                               .map((bid) => {
-                                const driverName = bid.driverName || bid.truckerName || 'Driver'
                                 const bidRating = bid.rating || bid.driverRating || bid.truckerRating
                                 const capacityLabel = bid.carryingCapacity
                                   ? `${bid.carryingCapacity} tons`
@@ -2040,74 +2039,38 @@ const ShipperDashboard = () => {
                                 return (
                                 <div
                                   key={bid.id}
-                                  className={`bg-muted/30 border rounded-xl p-4 ${
-                                    bid.status === 'accepted' ? 'border-success' : 
-                                    bid.status === 'rejected' ? 'border-error/30' : 
+                                  className={`bg-muted/30 border rounded-xl p-3 ${
+                                    bid.status === 'accepted' ? 'border-success' :
+                                    bid.status === 'rejected' ? 'border-error/30' :
                                     'border-border'
                                   }`}
                                 >
-                                  <div className="flex items-start gap-4">
+                                  <div className="flex items-center gap-3">
                                     <div className="flex-shrink-0">
                                       {bid.vehicleImageUrl ? (
                                         <img
                                           src={bid.vehicleImageUrl}
                                           alt="Truck"
-                                          className="w-20 h-20 object-cover rounded-lg border border-border"
+                                          className="w-14 h-14 object-cover rounded-lg border border-border"
                                         />
                                       ) : (
-                                        <div className="w-20 h-20 rounded-lg border border-border bg-muted flex items-center justify-center">
-                                          <Truck className="w-8 h-8 text-text-secondary" />
+                                        <div className="w-14 h-14 rounded-lg border border-border bg-muted flex items-center justify-center">
+                                          <Truck className="w-6 h-6 text-text-secondary" />
                                         </div>
                                       )}
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-text-secondary text-xs">Bid amount</p>
+                                      <p className="text-text-primary font-bold text-lg leading-tight">
+                                        ₦{parseFloat(bid.bidAmount || 0).toLocaleString('en-NG')}
+                                      </p>
                                       {bid.vehiclePlateNumber && (
-                                        <p className="text-text-secondary text-xs font-medium text-center mt-1">{bid.vehiclePlateNumber}</p>
+                                        <p className="text-text-secondary text-xs font-mono">{bid.vehiclePlateNumber}</p>
                                       )}
                                     </div>
 
-                                    <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                                      <div>
-                                        <p className="text-text-secondary text-xs">Name of Driver</p>
-                                        <p className="text-text-primary font-semibold text-sm">{driverName}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-text-secondary text-xs">Amount (Bidding)</p>
-                                        <p className="text-text-primary font-bold text-lg">
-                                          ₦{parseFloat(bid.bidAmount || 0).toLocaleString('en-NG')}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-text-secondary text-xs">Carrying Capacity</p>
-                                        <p className="text-text-primary text-sm font-medium">{capacityLabel}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-text-secondary text-xs">Km Away</p>
-                                        <p className="text-text-primary text-sm font-medium flex items-center gap-1">
-                                          <MapPin className="w-3.5 h-3.5 text-primary" />
-                                          {bid.kmAway != null ? `${bid.kmAway} km` : '—'}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-text-secondary text-xs">Rating (Driver)</p>
-                                        <p className="text-text-primary text-sm font-medium flex items-center gap-1">
-                                          {bidRating?.count > 0 ? (
-                                            <>
-                                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                              {bidRating.average} ({bidRating.count})
-                                            </>
-                                          ) : (
-                                            'No ratings yet'
-                                          )}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-text-secondary text-xs">Mileage Covered / Trips Completed</p>
-                                        <p className="text-text-primary text-sm font-medium">
-                                          {(bid.mileageCovered ?? 0).toLocaleString('en-NG')} km / {bid.tripsCompleted ?? 0} trips
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    <div className="text-right flex-shrink-0">
+                                    <div className="flex-shrink-0">
                                       {bid.status === 'accepted' && (
                                         <span className="inline-block bg-success/10 text-success px-3 py-1 rounded-lg text-xs font-medium">
                                           Accepted
@@ -2122,7 +2085,7 @@ const ShipperDashboard = () => {
                                         <button
                                           onClick={() => handleAcceptBidClick(bid, shipment)}
                                           disabled={acceptingBidId === bid.id}
-                                          className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                          className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                         >
                                           {acceptingBidId === bid.id ? (
                                             <>
@@ -2137,12 +2100,45 @@ const ShipperDashboard = () => {
                                     </div>
                                   </div>
 
+                                  <div className="grid grid-cols-3 gap-x-2 gap-y-2 mt-3 pt-3 border-t border-border/60 text-xs">
+                                    <div>
+                                      <p className="text-text-secondary">Capacity</p>
+                                      <p className="text-text-primary font-medium">{capacityLabel}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-text-secondary">Km away</p>
+                                      <p className="text-text-primary font-medium flex items-center gap-1">
+                                        <MapPin className="w-3 h-3 text-primary flex-shrink-0" />
+                                        {bid.kmAway != null ? `${bid.kmAway} km` : '—'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-text-secondary">Rating</p>
+                                      <p className="text-text-primary font-medium flex items-center gap-1">
+                                        {bidRating?.count > 0 ? (
+                                          <>
+                                            <Star className="w-3 h-3 fill-amber-400 text-amber-400 flex-shrink-0" />
+                                            {bidRating.average} ({bidRating.count})
+                                          </>
+                                        ) : (
+                                          'No ratings'
+                                        )}
+                                      </p>
+                                    </div>
+                                    <div className="col-span-3">
+                                      <p className="text-text-secondary">Mileage / trips completed</p>
+                                      <p className="text-text-primary font-medium">
+                                        {(bid.mileageCovered ?? 0).toLocaleString('en-NG')} km / {bid.tripsCompleted ?? 0} trips
+                                      </p>
+                                    </div>
+                                  </div>
+
                                   {bid.message && (
-                                    <p className="text-text-secondary text-sm mt-3 italic border-t border-border pt-2">
+                                    <p className="text-text-secondary text-xs mt-2 italic border-t border-border/60 pt-2">
                                       "{bid.message}"
                                     </p>
                                   )}
-                                  <p className="text-text-secondary text-xs mt-2">
+                                  <p className="text-text-secondary text-xs mt-1">
                                     Submitted: {new Date(bid.createdAt).toLocaleString()}
                                   </p>
                                 </div>
