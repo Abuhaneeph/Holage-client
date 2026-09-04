@@ -1829,10 +1829,10 @@ const ShipperDashboard = () => {
                         </div>
                         <button
                           onClick={() => setPendingConfirm({ title: 'Confirm pickup?', message: 'This will charge 60% + 5% platform fee from your wallet — 60% goes to the trucker/driver, 5% is the platform fee.', confirmLabel: 'Confirm pickup', onConfirm: () => handleConfirmPickup(shipment.id) })}
-                          className="w-full bg-warning text-white py-3 rounded-xl font-bold hover:bg-warning/90 transition-colors flex items-center justify-center space-x-2"
+                          className="w-full bg-warning text-white py-3 rounded-xl font-bold hover:bg-warning/90 transition-colors flex items-center justify-center gap-2 text-center"
                         >
-                          <CheckCircle className="w-5 h-5" />
-                          <span>Confirm Pickup (Release 60% + 5% Fee)</span>
+                          <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                          <span className="text-sm sm:text-base whitespace-nowrap">Confirm Pickup (60% + 5%)</span>
                         </button>
                       </div>
                     )}

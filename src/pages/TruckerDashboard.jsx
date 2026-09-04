@@ -1977,17 +1977,14 @@ const TruckerDashboard = () => {
                 </div>
               </div>
               
-              <div className="flex items-center justify-around pt-4 border-t border-white/20">
+              {myRating.count > 0 && (
+                <div className="flex items-center justify-center pt-4 border-t border-white/20">
                   <div className="text-center">
-                  <p className="text-white font-bold text-2xl">47</p>
-                  <p className="text-white/80 text-sm">Loads</p>
+                    <p className="text-white font-bold text-2xl">{myRating.average}</p>
+                    <p className="text-white/80 text-sm">Rating ({myRating.count} {myRating.count === 1 ? 'review' : 'reviews'})</p>
                   </div>
-                <div className="w-px h-12 bg-white/20"></div>
-                  <div className="text-center">
-                  <p className="text-white font-bold text-2xl">4.8</p>
-                  <p className="text-white/80 text-sm">Rating</p>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Personal Information */}
