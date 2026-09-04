@@ -1661,30 +1661,6 @@ const DriverDashboard = () => {
                 </div>
               )}
 
-              <ConfirmModal
-                open={showLogoutConfirm}
-                title="Log out?"
-                message="Are you sure you want to log out?"
-                confirmLabel="Log out"
-                destructive
-                onConfirm={logoutUser}
-                onCancel={() => setShowLogoutConfirm(false)}
-              />
-
-              <ConfirmModal
-                open={pendingConfirm !== null}
-                title={pendingConfirm?.title}
-                message={pendingConfirm?.message}
-                confirmLabel={pendingConfirm?.confirmLabel}
-                destructive={pendingConfirm?.destructive}
-                onConfirm={() => {
-                  const action = pendingConfirm?.onConfirm
-                  setPendingConfirm(null)
-                  action?.()
-                }}
-                onCancel={() => setPendingConfirm(null)}
-              />
-
               {showJoinFleetModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
                   <div className="bg-background rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-5 space-y-4">
@@ -2281,6 +2257,35 @@ const DriverDashboard = () => {
       {ewaybillShipmentId && (
         <EwaybillModal shipmentId={ewaybillShipmentId} onClose={() => setEwaybillShipmentId(null)} />
       )}
+
+      {/* These two were previously nested inside the Profile tab's conditional block, so the
+          Logout button (in the always-visible header) and Start Trip (in the Jobs tab) would
+          set state but the modal to confirm the action would never actually render unless you
+          happened to already be on the Profile tab. Kept at the top level so they work from
+          every tab. */}
+      <ConfirmModal
+        open={showLogoutConfirm}
+        title="Log out?"
+        message="Are you sure you want to log out?"
+        confirmLabel="Log out"
+        destructive
+        onConfirm={logoutUser}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
+
+      <ConfirmModal
+        open={pendingConfirm !== null}
+        title={pendingConfirm?.title}
+        message={pendingConfirm?.message}
+        confirmLabel={pendingConfirm?.confirmLabel}
+        destructive={pendingConfirm?.destructive}
+        onConfirm={() => {
+          const action = pendingConfirm?.onConfirm
+          setPendingConfirm(null)
+          action?.()
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
     </div>
   )
 }
