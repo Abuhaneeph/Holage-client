@@ -1529,7 +1529,32 @@ const ShipperDashboard = () => {
             </div>
           </div>
           <div className="flex items-center space-x-2 flex-shrink-0">
-            <NotificationCenter userId={user?.id} />
+            <NotificationCenter
+              userId={user?.id}
+              onNavigate={(notification) => {
+                const category = notification.category || notification.relatedType
+                switch (category) {
+                  case 'shipment':
+                  case 'bid':
+                    setActiveView('shipments')
+                    if (notification.relatedId) setExpandedShipmentId(notification.relatedId)
+                    break
+                  case 'payment':
+                  case 'transaction':
+                    setActiveView('wallet')
+                    break
+                  case 'referral':
+                    setActiveView('referrals')
+                    break
+                  case 'dispute':
+                  case 'complaint':
+                    navigateTo('complaint')
+                    break
+                  default:
+                    break
+                }
+              }}
+            />
             <button
               onClick={handleGlobalRefresh}
               disabled={refreshingAll}

@@ -389,13 +389,10 @@ export const AppProvider = ({ children }) => {
       if (data.requiresVerification) {
         handleInputChange("verificationCode", "")
       }
+      // Only surface the "verification code sent" message here — referralCode/inviteCode
+      // toasts used to stack on top of it right as the user lands on the verify-email
+      // page. Both values are shown again after verification instead.
       toast.success(data.message)
-      if (data.referralCode) {
-        toast.success(`Your referral code: ${data.referralCode} — you will see it again after email verification.`)
-      }
-      if (data.inviteCode) {
-        toast.success(`Your invite code: ${data.inviteCode} — share it to earn ₦500 when your invitee completes their first shipment.`)
-      }
       return data
     } catch (err) {
       console.error("Registration failed:", err)

@@ -987,7 +987,25 @@ const DriverDashboard = () => {
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <NotificationCenter userId={driverInfo.id} />
+            <NotificationCenter
+              userId={driverInfo.id}
+              onNavigate={(notification) => {
+                const category = notification.category || notification.relatedType
+                switch (category) {
+                  case 'shipment':
+                  case 'bid':
+                    setActiveTab('jobs')
+                    break
+                  case 'payment':
+                  case 'transaction':
+                  case 'referral':
+                    setActiveTab('wallet')
+                    break
+                  default:
+                    break
+                }
+              }}
+            />
             <button
               onClick={handleGlobalRefresh}
               disabled={refreshingAll}

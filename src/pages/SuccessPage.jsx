@@ -16,6 +16,8 @@ const SuccessPage = () => {
       navigateTo("shipper-dashboard")
     } else if (userRole === "fleet_manager") {
       navigateTo("fleet-manager-dashboard")
+    } else if (userRole === "agent") {
+      navigateTo("agent-dashboard")
     } else {
       navigateTo("landing")
     }

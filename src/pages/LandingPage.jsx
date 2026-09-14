@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Package, Shield, Truck, ArrowRight, Globe, Zap, UserPlus, LogIn } from "lucide-react"
+import { Package, Shield, Truck, ArrowRight, Globe, Zap, UserPlus, LogIn, Download } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 import Header from "../components/Header"
 import Reveal from "../components/Reveal"
@@ -176,6 +176,15 @@ const LandingPage = () => {
                 <span>Register as an agent</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
+              <a
+                href="https://drive.google.com/file/d/1pmaTVm1BVl0fJBirQPHg4Y9IzkFLehQ4/view?usp=sharing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group border-2 border-white/40 bg-white/10 text-white px-8 py-4 rounded-2xl font-bold hover:bg-white/15 hover:border-white/60 transition-all duration-300 transform hover:scale-105 shadow-xl flex items-center justify-center space-x-2 backdrop-blur-sm"
+              >
+                <Download className="w-5 h-5" />
+                <span>Download App (Android)</span>
+              </a>
             </Reveal>
 
             <div className="mt-8 flex justify-center gap-2">

@@ -30,6 +30,7 @@ import { useAppContext } from "../context/AppContext"
 import { useToast } from "../context/ToastContext"
 import ShipmentProgressTracker from "../components/ShipmentProgressTracker"
 import ConfirmModal from "../components/ConfirmModal"
+import WalletStatement from "../components/WalletStatement"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -91,6 +92,8 @@ const AdminDashboard = () => {
   const [loadingTranscript, setLoadingTranscript] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
   const [bookingRefSearch, setBookingRefSearch] = useState("")
+  const [statementEmailInput, setStatementEmailInput] = useState("")
+  const [statementEmail, setStatementEmail] = useState(null)
   const defaultTruckPricing = {
     '10 ton truck': 1285,
     '15 ton truck': 1428,
@@ -2461,6 +2464,48 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* User Statement Lookup — pull any user's wallet statement of account by email,
+                e.g. for a dispute or a "why was I charged this" support request. */}
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-border">
+              <div className="flex items-start sm:items-center space-x-3 mb-3 sm:mb-4">
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-5 h-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base sm:text-lg font-semibold text-text-primary">User Statement Lookup</h3>
+                  <p className="text-xs sm:text-sm text-text-secondary mt-1">Download any user's statement of account by email</p>
+                </div>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const trimmed = statementEmailInput.trim()
+                  if (!trimmed) return
+                  setStatementEmail(trimmed)
+                }}
+                className="flex flex-col sm:flex-row gap-2 mb-4"
+              >
+                <input
+                  type="email"
+                  value={statementEmailInput}
+                  onChange={(e) => setStatementEmailInput(e.target.value)}
+                  placeholder="user@example.com"
+                  className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-border rounded-xl text-text-primary text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+                <button
+                  type="submit"
+                  className="px-4 sm:px-6 py-2 sm:py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center justify-center space-x-2 text-sm sm:text-base"
+                >
+                  <Search className="w-4 h-4" />
+                  <span>Look Up</span>
+                </button>
+              </form>
+
+              <WalletStatement variant="admin" email={statementEmail} />
             </div>
           </div>
         )}

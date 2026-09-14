@@ -27,8 +27,9 @@ const formatNaira = (amount) => `₦${Number(amount).toLocaleString('en-NG')}`
 /**
  * "Travel history and amount, like a bank statement" — combines wallet transactions with the
  * trip they belong to (route + booking reference) and a running balance per row, instead of a
- * bare transaction list. variant="driver" hits /drivers/wallet/statement, anything else hits
- * /wallet/statement.
+ * bare transaction list. variant="driver" hits /drivers/wallet/statement, variant="admin" hits
+ * /wallet/admin/statement?email=... (any user, admin-only — see `email` prop), anything else
+ * hits /wallet/statement (the caller's own).
  *
  * Supports filtering to a single calendar month (passed to the backend as dateFrom/dateTo query
  * params, since the endpoints only return the most-recent 200 rows by default — a month further
@@ -36,34 +37,56 @@ const formatNaira = (amount) => `₦${Number(amount).toLocaleString('en-NG')}`
  * client-side pagination over the filtered result, and exporting the full filtered statement as
  * a PDF.
  */
-export default function WalletStatement({ variant = 'user' }) {
-  const endpoint = variant === 'driver' ? '/drivers/wallet/statement' : '/wallet/statement'
+export default function WalletStatement({ variant = 'user', email = null }) {
+  const endpoint = variant === 'driver' ? '/drivers/wallet/statement' : variant === 'admin' ? '/wallet/admin/statement' : '/wallet/statement'
   const [statement, setStatement] = useState([])
   const [currentBalance, setCurrentBalance] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [targetUser, setTargetUser] = useState(null)
+  const [loading, setLoading] = useState(variant !== 'admin')
+  const [loadError, setLoadError] = useState(null)
   const [monthFilter, setMonthFilter] = useState('') // '' = default (last 200, unfiltered)
   const [page, setPage] = useState(1)
 
   const currentMonthStr = useMemo(() => toMonthStr(new Date()), [])
 
   useEffect(() => {
+    // Admin variant is lookup-driven — don't fetch anything until an email has been submitted.
+    if (variant === 'admin' && !email) {
+      setStatement([])
+      setCurrentBalance(0)
+      setTargetUser(null)
+      setLoadError(null)
+      return
+    }
+
     let cancelled = false
     const load = async () => {
       setLoading(true)
+      setLoadError(null)
       try {
         let url = endpoint
+        const params = []
+        if (variant === 'admin') params.push(`email=${encodeURIComponent(email)}`)
         if (monthFilter) {
           const { dateFrom, dateTo } = monthToDateRange(monthFilter)
-          url = `${endpoint}?dateFrom=${dateFrom}&dateTo=${dateTo}`
+          params.push(`dateFrom=${dateFrom}`, `dateTo=${dateTo}`)
         }
+        if (params.length) url = `${endpoint}?${params.join('&')}`
+
         const res = await apiFetch(url)
-        if (!cancelled && res.ok) {
+        if (cancelled) return
+        if (res.ok) {
           setStatement(res.data.statement || [])
           setCurrentBalance(res.data.currentBalance || 0)
+          setTargetUser(res.data.user || null)
           setPage(1)
+        } else {
+          setLoadError(res.data?.message || 'Failed to load statement.')
+          setStatement([])
+          setTargetUser(null)
         }
       } catch (e) {
-        // ignore — card just shows an empty state
+        if (!cancelled) setLoadError('Failed to load statement.')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -71,7 +94,7 @@ export default function WalletStatement({ variant = 'user' }) {
     load()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variant, monthFilter])
+  }, [variant, email, monthFilter])
 
   const totalPages = Math.max(1, Math.ceil(statement.length / PAGE_SIZE))
   const pagedStatement = statement.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -125,14 +148,29 @@ export default function WalletStatement({ variant = 'user' }) {
   return (
     <div className="bg-card border border-border rounded-2xl p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-text-primary font-bold text-lg flex items-center gap-2">
-          <FileText className="w-5 h-5 text-primary" /> Statement
-        </h3>
-        <p className="text-text-secondary text-sm">
-          Balance: <span className="text-text-primary font-semibold">{formatNaira(currentBalance)}</span>
-        </p>
+        <div>
+          <h3 className="text-text-primary font-bold text-lg flex items-center gap-2">
+            <FileText className="w-5 h-5 text-primary" /> Statement
+          </h3>
+          {variant === 'admin' && targetUser && (
+            <p className="text-text-secondary text-xs mt-1">{targetUser.fullName} ({targetUser.email}) — {targetUser.role}</p>
+          )}
+        </div>
+        {(variant !== 'admin' || targetUser) && (
+          <p className="text-text-secondary text-sm">
+            Balance: <span className="text-text-primary font-semibold">{formatNaira(currentBalance)}</span>
+          </p>
+        )}
       </div>
 
+      {variant === 'admin' && !email ? (
+        <div className="bg-muted/30 rounded-xl p-8 text-center text-text-secondary text-sm">
+          Enter an email above and click Look Up to view a user's statement.
+        </div>
+      ) : loadError ? (
+        <div className="bg-error/10 border border-error/20 rounded-xl p-4 text-center text-error text-sm">{loadError}</div>
+      ) : (
+        <>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
           <input
@@ -235,6 +273,8 @@ export default function WalletStatement({ variant = 'user' }) {
               </button>
             </div>
           )}
+        </>
+      )}
         </>
       )}
     </div>

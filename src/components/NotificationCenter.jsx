@@ -7,7 +7,7 @@ import ConfirmModal from "./ConfirmModal"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
-const NotificationCenter = ({ userId }) => {
+const NotificationCenter = ({ userId, onNavigate }) => {
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
@@ -148,6 +148,16 @@ const NotificationCenter = ({ userId }) => {
     }
   }
 
+  const handleNotificationClick = (notification) => {
+    if (!notification.isRead) {
+      markAsRead(notification.id)
+    }
+    if (onNavigate) {
+      onNavigate(notification)
+      setIsOpen(false)
+    }
+  }
+
   const formatTime = (dateString) => {
     const date = new Date(dateString)
     const now = new Date()
@@ -222,7 +232,8 @@ const NotificationCenter = ({ userId }) => {
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-4 hover:bg-muted/30 transition-colors ${
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`p-4 hover:bg-muted/30 transition-colors ${onNavigate ? 'cursor-pointer' : ''} ${
                       !notification.isRead ? 'bg-primary/5' : ''
                     }`}
                   >
@@ -250,7 +261,7 @@ const NotificationCenter = ({ userId }) => {
                         <div className="flex items-center space-x-2 mt-2">
                           {!notification.isRead && (
                             <button
-                              onClick={() => markAsRead(notification.id)}
+                              onClick={(e) => { e.stopPropagation(); markAsRead(notification.id) }}
                               disabled={markingRead === notification.id}
                               className="text-primary text-xs font-medium hover:text-primary/80 disabled:opacity-50 flex items-center space-x-1"
                               title="Mark as read"
@@ -264,7 +275,7 @@ const NotificationCenter = ({ userId }) => {
                             </button>
                           )}
                           <button
-                            onClick={() => setConfirmDeleteId(notification.id)}
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(notification.id) }}
                             className="p-2 text-error text-xs font-medium hover:text-error/80 flex items-center space-x-1 rounded-lg transition-colors"
                             title="Delete"
                           >

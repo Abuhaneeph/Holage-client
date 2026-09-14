@@ -1326,7 +1326,34 @@ const FleetManagerDashboard = () => {
             </div>
           </div>
           <div className="flex items-center justify-end space-x-2 flex-shrink-0">
-            <NotificationCenter userId={user?.id} />
+            <NotificationCenter
+              userId={user?.id}
+              onNavigate={(notification) => {
+                const category = notification.category || notification.relatedType
+                switch (category) {
+                  case 'shipment':
+                  case 'bid':
+                    setActiveView('shipments')
+                    break
+                  case 'payment':
+                  case 'transaction':
+                    setActiveView('wallet')
+                    break
+                  case 'referral':
+                    setActiveView('referrals')
+                    break
+                  case 'dispute':
+                  case 'complaint':
+                    navigateTo('complaint')
+                    break
+                  case 'vehicle_assignment':
+                    setActiveView('home')
+                    break
+                  default:
+                    break
+                }
+              }}
+            />
             <button
               onClick={handleGlobalRefresh}
               disabled={refreshingAll}

@@ -691,7 +691,11 @@ const SignupPage = () => {
                           </div>
                         )}
 
-                        {["shipper", "trucker", "fleet_manager", "agent"].includes(userRole) && (
+                        {/* Agents excluded: the invite reward only ever fires off a shipment's
+                            shipperId or assigned carrier, and an agent account is never either
+                            of those, so inviting someone into an agent signup could never pay
+                            out -- no point offering the field. */}
+                        {["shipper", "trucker", "fleet_manager"].includes(userRole) && (
                           <div className="space-y-2">
                             <label className="block text-sm font-medium text-text-secondary">
                               Invite code (optional)
