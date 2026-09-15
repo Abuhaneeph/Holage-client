@@ -25,7 +25,15 @@ console.log('🔧 [API Config] VITE_API_URL env:', import.meta.env.VITE_API_URL)
 // AppProvider component
 export const AppProvider = ({ children }) => {
   const toast = useToast()
-  const [currentPage, setCurrentPage] = useState("landing")
+  // Public pages that get their own clean URL so they can be linked directly
+  const PUBLIC_URL_PAGES = ["privacy-policy"]
+
+  const pageFromPath = () => {
+    const path = window.location.pathname.replace(/^\//, "")
+    return PUBLIC_URL_PAGES.includes(path) ? path : null
+  }
+
+  const [currentPage, setCurrentPage] = useState(() => pageFromPath() ?? "landing")
   const [userRole, setUserRole] = useState("")
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -60,8 +68,22 @@ export const AppProvider = ({ children }) => {
 
   // Navigation handler
   const navigateTo = (page) => {
+    if (PUBLIC_URL_PAGES.includes(page)) {
+      window.history.pushState(null, "", `/${page}`)
+    } else if (PUBLIC_URL_PAGES.includes(currentPage)) {
+      window.history.pushState(null, "", "/")
+    }
     setCurrentPage(page)
   }
+
+  // Keep the page in sync when the user presses the browser back/forward buttons
+  useEffect(() => {
+    const onPopState = () => {
+      setCurrentPage(pageFromPath() ?? "landing")
+    }
+    window.addEventListener("popstate", onPopState)
+    return () => window.removeEventListener("popstate", onPopState)
+  }, [])
 
   /** Opens signup with a role pre-selected (skips role cards). Uses sessionStorage because routing is in-memory. */
   const navigateToSignupWithRole = (role) => {

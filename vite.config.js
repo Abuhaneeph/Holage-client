@@ -14,7 +14,8 @@ export default defineConfig(({ command }) => ({
   server: {
     fs: {
       strict: false
-    }
+    },
+    historyApiFallback: true
   },
   // Defense in depth: drop console/debugger calls from the production bundle so any
   // console.log left behind (auth headers, API responses, PII) never ships to the browser.

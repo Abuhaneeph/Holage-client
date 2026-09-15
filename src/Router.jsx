@@ -20,6 +20,7 @@ const StaffSignupPage = lazy(() => import("./pages/StaffSignupPage"))
 const StaffDashboard = lazy(() => import("./pages/StaffDashboard"))
 const ComplaintPage = lazy(() => import("./pages/ComplaintPage"))
 const DriverDashboard = lazy(() => import("./pages/DriverDashboard"))
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"))
 
 const PageLoader = () => (
   <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
@@ -87,6 +88,8 @@ const Router = () => {
         return <LoginPage />
       case "driver-dashboard":
         return <DriverDashboard />
+      case "privacy-policy":
+        return <PrivacyPolicyPage />
       default:
         return <LandingPage />
     }

@@ -328,7 +328,10 @@ const LandingPage = () => {
             <p className="text-gray-400 text-sm text-center">
               © 2024 HOLAGE. All rights reserved.
               <span className="mx-2">|</span>
-              <span className="text-secondary cursor-pointer hover:text-accent transition-colors">
+              <span
+                className="text-secondary cursor-pointer hover:text-accent transition-colors"
+                onClick={() => navigateTo("privacy-policy")}
+              >
                 Privacy Policy
               </span>
               <span className="mx-2">|</span>
