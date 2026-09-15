@@ -21,6 +21,7 @@ const StaffDashboard = lazy(() => import("./pages/StaffDashboard"))
 const ComplaintPage = lazy(() => import("./pages/ComplaintPage"))
 const DriverDashboard = lazy(() => import("./pages/DriverDashboard"))
 const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"))
+const DeleteAccountPage = lazy(() => import("./pages/DeleteAccountPage"))
 
 const PageLoader = () => (
   <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
@@ -90,6 +91,8 @@ const Router = () => {
         return <DriverDashboard />
       case "privacy-policy":
         return <PrivacyPolicyPage />
+      case "delete-account":
+        return <DeleteAccountPage />
       default:
         return <LandingPage />
     }

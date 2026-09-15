@@ -26,7 +26,7 @@ console.log('🔧 [API Config] VITE_API_URL env:', import.meta.env.VITE_API_URL)
 export const AppProvider = ({ children }) => {
   const toast = useToast()
   // Public pages that get their own clean URL so they can be linked directly
-  const PUBLIC_URL_PAGES = ["privacy-policy"]
+  const PUBLIC_URL_PAGES = ["privacy-policy", "delete-account"]
 
   const pageFromPath = () => {
     const path = window.location.pathname.replace(/^\//, "")
@@ -522,6 +522,20 @@ export const AppProvider = ({ children }) => {
     }
   }
 
+  // Google Play "Delete account" requirement — public web form for someone who wants their
+  // data deleted without installing the app. Unauthenticated (no session to verify identity
+  // against), so this just records the request; an admin verifies and actions it manually.
+  const requestAccountDeletion = async ({ fullName, email, phone, role, reason }) => {
+    try {
+      const data = await callApi("/auth/deletion-request", "POST", { fullName, email, phone, role, reason })
+      toast.success(data.message || "Your deletion request has been received.")
+      return data
+    } catch (err) {
+      console.error("Account deletion request failed:", err)
+      throw err
+    }
+  }
+
   const verifyResetCode = async (email, resetCode) => {
     try {
       const data = await callApi("/auth/verify-reset-code", "POST", { email, resetCode })
@@ -843,6 +857,7 @@ export const AppProvider = ({ children }) => {
     verifyEmail,
     resendVerificationCode,
     forgotPassword,
+    requestAccountDeletion,
     verifyResetCode, // Added missing function
     resetPassword,
     driverForgotPassword,

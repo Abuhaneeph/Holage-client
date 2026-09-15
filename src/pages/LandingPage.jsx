@@ -338,6 +338,13 @@ const LandingPage = () => {
               <span className="text-accent cursor-pointer hover:text-secondary transition-colors">
                 Terms of Service
               </span>
+              <span className="mx-2">|</span>
+              <span
+                className="text-secondary cursor-pointer hover:text-accent transition-colors"
+                onClick={() => navigateTo("delete-account")}
+              >
+                Delete Account
+              </span>
             </p>
           </div>
         </div>
