@@ -24,7 +24,7 @@ const ROLES = [
 
 const DeleteAccountPage = () => {
   const { navigateTo, requestAccountDeletion } = useAppContext()
-  const [form, setForm] = useState({ fullName: "", email: "", phone: "", role: "", reason: "" })
+  const [form, setForm] = useState({ fullName: "", email: "", phone: "", role: "", reason: "", scope: "full_account" })
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState("")
@@ -88,8 +88,9 @@ const DeleteAccountPage = () => {
               </div>
               <p className="text-text-secondary text-sm leading-relaxed">
                 Open Holage → go to your <strong className="text-text font-medium">Profile</strong> tab →
-                scroll down and tap <strong className="text-text font-medium">Delete Account</strong>.
-                You'll confirm with your password and it's deleted immediately.
+                scroll down to <strong className="text-text font-medium">Delete KYC/Identity Data</strong> (keeps
+                your account) or <strong className="text-text font-medium">Delete Account</strong> (everything).
+                Both take effect immediately.
               </p>
             </div>
             <div className="bg-surface border border-border rounded-lg p-5">
@@ -105,12 +106,8 @@ const DeleteAccountPage = () => {
           </div>
 
           <Section title="What gets deleted">
-            <ul className="list-disc pl-5 space-y-2">
-              <li>Your name, email, phone number, and password</li>
-              <li>KYC documents (ID, driver's licence, vehicle registration, utility bill)</li>
-              <li>Bank account and payout details</li>
-              <li>Profile photos</li>
-            </ul>
+            <p><strong className="text-text font-medium">Entire account:</strong> your name, email, phone number, password, KYC documents (ID, driver's licence, vehicle registration, utility bill), bank/payout details, and profile photo.</p>
+            <p><strong className="text-text font-medium">KYC/identity data only:</strong> NIN, BVN, and uploaded identity documents/photo. Your login, wallet, and shipment history stay exactly as they are — you'll just need to re-submit KYC before bidding, shipping, or withdrawing again.</p>
           </Section>
 
           <Section title="What's retained, and why">
@@ -139,6 +136,39 @@ const DeleteAccountPage = () => {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4 not-prose">
+                <div>
+                  <label className="block text-xs font-medium text-text mb-2">What would you like deleted? *</label>
+                  <div className="space-y-2">
+                    <label className="flex items-start gap-2.5 bg-surface border border-border rounded-lg p-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <input
+                        type="radio"
+                        name="scope"
+                        value="full_account"
+                        checked={form.scope === "full_account"}
+                        onChange={handleChange}
+                        className="mt-0.5"
+                      />
+                      <span className="text-sm text-text">
+                        <strong className="font-medium">My entire account</strong>
+                        <span className="block text-text-secondary text-xs mt-0.5">Profile, KYC documents, bank details, login — everything. Cannot be undone.</span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2.5 bg-surface border border-border rounded-lg p-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <input
+                        type="radio"
+                        name="scope"
+                        value="kyc_data"
+                        checked={form.scope === "kyc_data"}
+                        onChange={handleChange}
+                        className="mt-0.5"
+                      />
+                      <span className="text-sm text-text">
+                        <strong className="font-medium">Just my KYC/identity data</strong>
+                        <span className="block text-text-secondary text-xs mt-0.5">NIN, BVN, and uploaded documents/photo only. Your account and login stay active.</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-text mb-1.5">Full Name *</label>
@@ -203,7 +233,7 @@ const DeleteAccountPage = () => {
                   disabled={submitting}
                   className="bg-primary text-white text-sm font-medium px-6 py-2.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
                 >
-                  {submitting ? "Submitting..." : "Request Account Deletion"}
+                  {submitting ? "Submitting..." : form.scope === "kyc_data" ? "Request KYC/Identity Data Deletion" : "Request Account Deletion"}
                 </button>
               </form>
             )}
