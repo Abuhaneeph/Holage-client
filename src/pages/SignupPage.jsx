@@ -329,7 +329,6 @@ const SignupPage = () => {
                               ? "border-transparent bg-gradient-to-br from-primary to-secondary text-white shadow-xl shadow-primary/25"
                               : "border-border bg-surface/80 hover:border-secondary/50 hover:bg-white"
                           }`}
-                          disabled={loading}
                         >
                           <div className="flex items-start gap-3">
                             <span
@@ -363,7 +362,6 @@ const SignupPage = () => {
                       type="button"
                       onClick={() => navigateTo("login")}
                       className="font-medium text-secondary transition-colors hover:text-accent"
-                      disabled={loading}
                     >
                       Log in
                     </button>
