@@ -63,6 +63,19 @@ const ShipmentInsuranceStatus = ({ shipmentId }) => {
     )
   }
 
+  if (policy.policyStatus === "failed") {
+    // A failed Tangerine call still creates a DB row (no premium/policy number) — showing the
+    // normal premium/status display here would render as confusing blanks (₦0, —, Unknown)
+    // instead of explaining what happened.
+    return (
+      <div className="mt-4 pt-4 border-t border-border">
+        <div className="bg-warning/5 border border-warning/20 rounded-xl p-3 text-xs text-text-secondary">
+          Cargo insurance couldn't be set up{policy.failureReason ? `: ${policy.failureReason}` : "."} Your freight booking is unaffected — contact support if you still want this shipment insured.
+        </div>
+      </div>
+    )
+  }
+
   const isPaid = policy.paymentStatus === "Paid"
 
   return (
