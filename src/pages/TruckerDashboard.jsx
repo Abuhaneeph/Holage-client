@@ -44,6 +44,7 @@ import ReferralPanel from "../components/ReferralPanel"
 import BonusWallet from "../components/BonusWallet"
 import WalletStatement from "../components/WalletStatement"
 import EwaybillModal from "../components/EwaybillModal"
+import PhoneNumberField from "../components/PhoneNumberField"
 import { formatWithCommas, parseFormattedNumber } from "../utils/currencyFormat"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
@@ -2018,16 +2019,11 @@ const TruckerDashboard = () => {
               </h3>
               
               <div className="space-y-4">
-                <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
-                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-5 h-5 text-primary" />
-                </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-text-secondary text-sm mb-1">Phone Number</p>
-                    <p className="text-text-primary font-medium">{documents?.phone || "Not provided"}</p>
-                </div>
-                </div>
-                
+                <PhoneNumberField
+                  phone={documents?.phone}
+                  onUpdated={(newPhone) => setDocuments(d => ({ ...d, phone: newPhone }))}
+                />
+
                 <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
                   <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <MapPin className="w-5 h-5 text-primary" />
@@ -2037,7 +2033,7 @@ const TruckerDashboard = () => {
                     <p className="text-text-primary font-medium">{documents?.address || "Not provided"}</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
                   <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Truck className="w-5 h-5 text-primary" />
@@ -2047,7 +2043,7 @@ const TruckerDashboard = () => {
                     <p className="text-text-primary font-medium">{documents?.plateNumber || "Not provided"}</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start space-x-3 p-3 bg-muted/30 rounded-xl">
                   <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Truck className="w-5 h-5 text-primary" />
