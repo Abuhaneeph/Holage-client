@@ -52,6 +52,7 @@ import ReferralPanel from "../components/ReferralPanel"
 import BonusWallet from "../components/BonusWallet"
 import WalletStatement from "../components/WalletStatement"
 import EwaybillModal from "../components/EwaybillModal"
+import ShipmentInsuranceStatus from "../components/ShipmentInsuranceStatus"
 import { formatWithCommas, parseFormattedNumber } from "../utils/currencyFormat"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
@@ -1088,6 +1089,7 @@ const ShipperDashboard = () => {
           route: `${acceptedShipment.pickupState} → ${acceptedShipment.destinationState}`,
           upfrontAdjustmentDue,
           message: data.message,
+          insurance: data.insurance,
         })
         setShowBidAcceptSuccessModal(true)
         // Refresh shipments and bids
@@ -1905,6 +1907,10 @@ const ShipperDashboard = () => {
                           ✓ Delivery confirmed on {shipment.deliveryConfirmedAt ? new Date(shipment.deliveryConfirmedAt).toLocaleString() : 'N/A'}
                         </div>
                       </div>
+                    )}
+
+                    {Boolean(shipment.insurance) && Boolean(shipment.truckerId) && (
+                      <ShipmentInsuranceStatus shipmentId={shipment.id} />
                     )}
 
                     {/* Ratings: show accepted driver/trucker rating and allow shipper to rate after delivery */}
@@ -3061,45 +3067,46 @@ const ShipperDashboard = () => {
                 />
               </div>
 
-              {/* Insurance temporarily disabled until the real insurer integration replaces the
-                  flat placeholder fee — see holage_insurance_integration memory. Flip to true to
-                  re-enable. */}
-              {false && (
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-xl">
-                    <input
-                      type="checkbox"
-                      id="insurance"
-                      checked={shipmentForm.insurance}
-                      onChange={(e) => handleFormChange('insurance', e.target.checked)}
-                      className="w-6 h-6 rounded border-border text-primary"
-                    />
-                    <label htmlFor="insurance" className="text-text-primary font-medium">
-                      Insurance (+₦200,000)
-                    </label>
-                  </div>
-
-                  {shipmentForm.insurance && (
-                    <div className="p-4 bg-muted/30 rounded-xl">
-                      <label className="block text-text-primary font-medium mb-2">
-                        Declared Cargo Value (₦) <span className="text-error">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={formatWithCommas(shipmentForm.declaredValue)}
-                        onChange={(e) => handleFormChange('declaredValue', parseFormattedNumber(e.target.value))}
-                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                        placeholder="e.g., 1,500,000"
-                        required
-                      />
-                      <p className="text-text-secondary text-xs mt-1">
-                        Required for insured shipments — this is the value the cargo would be covered for.
-                      </p>
-                    </div>
-                  )}
+              {/* Real cargo insurance via Tangerine (GIT policy). The shipper opts in and
+                  declares cargo value here, but the actual premium can't be quoted yet — it
+                  depends on the specific vehicle, which isn't known until a bid is accepted.
+                  The real premium + payment link is shown after bid acceptance. */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-xl">
+                  <input
+                    type="checkbox"
+                    id="insurance"
+                    checked={shipmentForm.insurance}
+                    onChange={(e) => handleFormChange('insurance', e.target.checked)}
+                    className="w-6 h-6 rounded border-border text-primary"
+                  />
+                  <label htmlFor="insurance" className="text-text-primary font-medium">
+                    Add cargo insurance
+                  </label>
                 </div>
-              )}
+
+                {shipmentForm.insurance && (
+                  <div className="p-4 bg-muted/30 rounded-xl">
+                    <label className="block text-text-primary font-medium mb-2">
+                      Declared Cargo Value (₦) <span className="text-error">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formatWithCommas(shipmentForm.declaredValue)}
+                      onChange={(e) => handleFormChange('declaredValue', parseFormattedNumber(e.target.value))}
+                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
+                      placeholder="e.g., 1,500,000"
+                      required
+                    />
+                    <p className="text-text-secondary text-xs mt-1">
+                      The value your cargo would be insured for. The actual premium depends on the
+                      truck assigned to your shipment, so it's calculated and shown once you accept a bid —
+                      you'll get a secure link to pay it then.
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {/* Distance and Cost Estimate */}
               {calculating && (
@@ -3150,10 +3157,10 @@ const ShipperDashboard = () => {
                   <p className="text-text-secondary text-xs mt-2">
                     {shipmentForm.truckType ? `${truckOptions.find(opt => opt.value === shipmentForm.truckType)?.label || shipmentForm.truckType}` : 'Truck type not selected'} • {distanceInfo?.distance} km
                   </p>
-                  {costEstimate.cost.insuranceFee > 0 && (
+                  {shipmentForm.insurance && (
                     <div className="mt-3 pt-3 border-t border-success/20 space-y-1">
                       <p className="text-text-secondary text-xs">
-                        Insurance Fee: +₦{costEstimate.cost.insuranceFee.toLocaleString('en-NG')}
+                        Cargo insurance premium isn't included above — it's quoted separately once a bid is accepted.
                       </p>
                     </div>
                   )}
@@ -3481,6 +3488,32 @@ const ShipperDashboard = () => {
                   </li>
                 </ul>
               </div>
+
+              {bidAcceptSuccessInfo.insurance?.success && (
+                <div className="bg-success/5 rounded-xl p-4 border border-success/20 text-left mb-6">
+                  <p className="text-text-primary text-sm font-medium mb-2">Cargo insurance is ready</p>
+                  <p className="text-text-secondary text-xs mb-3">
+                    Premium: <span className="text-success font-bold text-base">₦{Number(bidAcceptSuccessInfo.insurance.policy.premium).toLocaleString("en-NG")}</span>
+                  </p>
+                  <a
+                    href={bidAcceptSuccessInfo.insurance.policy.paymentURL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full text-center bg-success text-white py-2.5 rounded-xl font-bold hover:bg-success/90 transition-colors text-sm"
+                  >
+                    Pay Insurance Premium
+                  </a>
+                  <p className="text-text-secondary text-xs mt-2">
+                    Policy #{bidAcceptSuccessInfo.insurance.policy.policyNo} — you can also pay later from the shipment details page.
+                  </p>
+                </div>
+              )}
+              {bidAcceptSuccessInfo.insurance?.success === false && (
+                <div className="bg-warning/5 rounded-xl p-4 border border-warning/20 text-left mb-6">
+                  <p className="text-text-primary text-sm font-medium mb-1">Cargo insurance couldn't be set up</p>
+                  <p className="text-text-secondary text-xs">{bidAcceptSuccessInfo.insurance.reason} — your freight booking is unaffected. Contact support if you still want this shipment insured.</p>
+                </div>
+              )}
 
               <button
                 type="button"
