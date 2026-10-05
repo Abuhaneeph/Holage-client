@@ -45,6 +45,7 @@ import ShipmentProgressTracker from "../components/ShipmentProgressTracker"
 import BonusWallet from "../components/BonusWallet"
 import WalletStatement from "../components/WalletStatement"
 import EwaybillModal from "../components/EwaybillModal"
+import PhoneNumberField from "../components/PhoneNumberField"
 import { formatWithCommas, parseFormattedNumber } from "../utils/currencyFormat"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
@@ -1514,6 +1515,16 @@ const DriverDashboard = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-card border border-border rounded-2xl p-4">
+                <PhoneNumberField
+                  phone={driverInfo?.phoneNumber}
+                  onUpdated={(newPhone) => setDriverInfo(d => ({ ...d, phoneNumber: newPhone }))}
+                />
+                <p className="text-text-secondary text-xs mt-2">
+                  This is also the phone number you log in with.
+                </p>
               </div>
 
               <div className={`bg-card border-2 rounded-xl p-4 ${
