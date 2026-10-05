@@ -137,6 +137,8 @@ const ShipperDashboard = () => {
   const [showBidAcceptModal, setShowBidAcceptModal] = useState(false)
   const [selectedBidForAccept, setSelectedBidForAccept] = useState(null)
   const [selectedShipmentForBid, setSelectedShipmentForBid] = useState(null)
+  const [bidAcceptInsurance, setBidAcceptInsurance] = useState(false)
+  const [bidAcceptDeclaredValue, setBidAcceptDeclaredValue] = useState('')
   const [showBidAcceptSuccessModal, setShowBidAcceptSuccessModal] = useState(false)
   const [bidAcceptSuccessInfo, setBidAcceptSuccessInfo] = useState(null)
   const [shipmentDetails, setShipmentDetails] = useState({}) // { shipmentId: { acceptedBidWithRating, shipmentRatings } }
@@ -1047,6 +1049,8 @@ const ShipperDashboard = () => {
   const handleAcceptBidClick = (bid, shipment) => {
     setSelectedBidForAccept(bid)
     setSelectedShipmentForBid(shipment)
+    setBidAcceptInsurance(false)
+    setBidAcceptDeclaredValue('')
     setShowBidAcceptModal(true)
   }
 
@@ -1067,6 +1071,11 @@ const ShipperDashboard = () => {
       return
     }
 
+    if (bidAcceptInsurance && (!bidAcceptDeclaredValue || parseFloat(bidAcceptDeclaredValue) <= 0)) {
+      toast.error('Enter a declared cargo value to add insurance.')
+      return
+    }
+
     setShowBidAcceptModal(false)
     setAcceptingBidId(bidId)
     try {
@@ -1074,10 +1083,15 @@ const ShipperDashboard = () => {
       const response = await fetch(`${API_BASE_URL}/bids/${bidId}/accept`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          insurance: bidAcceptInsurance,
+          declaredValue: bidAcceptInsurance ? parseFloat(bidAcceptDeclaredValue) : undefined,
+        }),
       })
-      
+
       const data = await response.json()
       if (response.ok && data.success) {
         const acceptedBid = selectedBidForAccept
@@ -3067,46 +3081,8 @@ const ShipperDashboard = () => {
                 />
               </div>
 
-              {/* Real cargo insurance via Tangerine (GIT policy). The shipper opts in and
-                  declares cargo value here, but the actual premium can't be quoted yet — it
-                  depends on the specific vehicle, which isn't known until a bid is accepted.
-                  The real premium + payment link is shown after bid acceptance. */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-xl">
-                  <input
-                    type="checkbox"
-                    id="insurance"
-                    checked={shipmentForm.insurance}
-                    onChange={(e) => handleFormChange('insurance', e.target.checked)}
-                    className="w-6 h-6 rounded border-border text-primary"
-                  />
-                  <label htmlFor="insurance" className="text-text-primary font-medium">
-                    Add cargo insurance
-                  </label>
-                </div>
-
-                {shipmentForm.insurance && (
-                  <div className="p-4 bg-muted/30 rounded-xl">
-                    <label className="block text-text-primary font-medium mb-2">
-                      Declared Cargo Value (₦) <span className="text-error">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={formatWithCommas(shipmentForm.declaredValue)}
-                      onChange={(e) => handleFormChange('declaredValue', parseFormattedNumber(e.target.value))}
-                      className="w-full px-4 py-3 bg-input border border-border rounded-xl text-text-primary"
-                      placeholder="e.g., 1,500,000"
-                      required
-                    />
-                    <p className="text-text-secondary text-xs mt-1">
-                      The value your cargo would be insured for. The actual premium depends on the
-                      truck assigned to your shipment, so it's calculated and shown once you accept a bid —
-                      you'll get a secure link to pay it then.
-                    </p>
-                  </div>
-                )}
-              </div>
+              {/* Cargo insurance is opted into at bid acceptance, not here — the real premium
+                  can't be quoted until a specific vehicle is known. See the Accept Bid dialog. */}
 
               {/* Distance and Cost Estimate */}
               {calculating && (
@@ -3380,6 +3356,42 @@ const ShipperDashboard = () => {
                       <span><strong className="text-text-primary">30%</strong> charged from your wallet and credited to the carrier at delivery confirmation</span>
                     </li>
                   </ul>
+                </div>
+
+                {/* Cargo insurance opt-in — asked here rather than at shipment creation,
+                    since the real premium can't be quoted until the vehicle carrying this
+                    shipment (this bid's trucker/driver) is known. */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-3 p-3 bg-muted/30 rounded-xl">
+                    <input
+                      type="checkbox"
+                      id="bid-accept-insurance"
+                      checked={bidAcceptInsurance}
+                      onChange={(e) => setBidAcceptInsurance(e.target.checked)}
+                      className="w-5 h-5 rounded border-border text-primary"
+                    />
+                    <label htmlFor="bid-accept-insurance" className="text-text-primary text-sm font-medium">
+                      Add cargo insurance for this shipment
+                    </label>
+                  </div>
+                  {bidAcceptInsurance && (
+                    <div className="p-3 bg-muted/30 rounded-xl">
+                      <label className="block text-text-primary text-sm font-medium mb-2">
+                        Declared Cargo Value (₦) <span className="text-error">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={formatWithCommas(bidAcceptDeclaredValue)}
+                        onChange={(e) => setBidAcceptDeclaredValue(parseFormattedNumber(e.target.value))}
+                        className="w-full px-3 py-2.5 bg-input border border-border rounded-xl text-text-primary text-sm"
+                        placeholder="e.g., 1,500,000"
+                      />
+                      <p className="text-text-secondary text-xs mt-1">
+                        The real premium is calculated right after you accept — you'll get a secure payment link.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Warning if insufficient balance */}
