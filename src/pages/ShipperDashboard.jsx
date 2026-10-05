@@ -3514,6 +3514,21 @@ const ShipperDashboard = () => {
                   <p className="text-text-secondary text-xs">{bidAcceptSuccessInfo.insurance.reason} — your freight booking is unaffected. Contact support if you still want this shipment insured.</p>
                 </div>
               )}
+              {bidAcceptSuccessInfo.insurance?.skipped && bidAcceptSuccessInfo.insurance.reason !== 'not_requested' && (
+                <div className="bg-warning/5 rounded-xl p-4 border border-warning/20 text-left mb-6">
+                  <p className="text-text-primary text-sm font-medium mb-1">Cargo insurance wasn't set up</p>
+                  <p className="text-text-secondary text-xs">
+                    {{
+                      no_declared_value: "No declared cargo value was provided.",
+                      not_configured: "The insurance provider isn't configured yet.",
+                      no_vehicle_on_record: "No vehicle registration is on file for the assigned trucker/driver.",
+                      missing_identity_verification: "The assigned trucker/driver's identity verification (NIN/CAC) is incomplete.",
+                      cargo_type_not_mapped: "This cargo type isn't yet mapped to an insurer category.",
+                    }[bidAcceptSuccessInfo.insurance.reason] || bidAcceptSuccessInfo.insurance.reason}
+                    {' '}Your freight booking is unaffected — contact support if you still want this shipment insured.
+                  </p>
+                </div>
+              )}
 
               <button
                 type="button"

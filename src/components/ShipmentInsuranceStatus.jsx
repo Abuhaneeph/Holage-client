@@ -48,7 +48,20 @@ const ShipmentInsuranceStatus = ({ shipmentId }) => {
     )
   }
 
-  if (notFound || !policy) return null
+  if (notFound || !policy) {
+    // Insurance was requested (that's the only way this component gets mounted — see the
+    // Boolean(shipment.insurance) gate in ShipperDashboard.jsx) but no policy record exists,
+    // meaning generation was skipped at bid acceptance (e.g. missing identity verification,
+    // unmapped cargo type). Silently showing nothing here would look identical to insurance
+    // just not having loaded yet, so say so explicitly instead.
+    return (
+      <div className="mt-4 pt-4 border-t border-border">
+        <div className="bg-warning/5 border border-warning/20 rounded-xl p-3 text-xs text-text-secondary">
+          Cargo insurance was requested but couldn't be set up for this shipment. Contact support if you still want it insured.
+        </div>
+      </div>
+    )
+  }
 
   const isPaid = policy.paymentStatus === "Paid"
 
