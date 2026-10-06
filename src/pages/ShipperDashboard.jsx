@@ -3501,7 +3501,7 @@ const ShipperDashboard = () => {
                 <div className="bg-success/5 rounded-xl p-4 border border-success/20 text-left mb-6">
                   <p className="text-text-primary text-sm font-medium mb-2">Cargo insurance is ready</p>
                   <p className="text-text-secondary text-xs mb-3">
-                    Premium: <span className="text-success font-bold text-base">₦{Number(bidAcceptSuccessInfo.insurance.policy.premium).toLocaleString("en-NG")}</span>
+                    Premium: <span className="text-success font-bold text-base">₦{Number(String(bidAcceptSuccessInfo.insurance.policy.premium).replace(/,/g, "")).toLocaleString("en-NG")}</span>
                   </p>
                   <a
                     href={bidAcceptSuccessInfo.insurance.policy.paymentURL}

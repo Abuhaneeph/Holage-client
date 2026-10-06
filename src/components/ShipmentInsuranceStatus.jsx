@@ -16,8 +16,8 @@ const ShipmentInsuranceStatus = ({ shipmentId }) => {
 
   useEffect(() => {
     let cancelled = false
-    const fetchStatus = async () => {
-      setLoading(true)
+    const fetchStatus = async ({ showLoader = true } = {}) => {
+      if (showLoader) setLoading(true)
       try {
         const token = localStorage.getItem('authToken')
         const res = await fetch(`${API_BASE_URL}/shipping/shipments/${shipmentId}/insurance`, {
@@ -27,6 +27,7 @@ const ShipmentInsuranceStatus = ({ shipmentId }) => {
         if (cancelled) return
         if (res.ok && data.success) {
           setPolicy(data.policy)
+          setNotFound(false)
         } else {
           setNotFound(true)
         }
@@ -37,7 +38,21 @@ const ShipmentInsuranceStatus = ({ shipmentId }) => {
       }
     }
     fetchStatus()
-    return () => { cancelled = true }
+
+    // The shipper pays on Tangerine's hosted page in a new tab — there's no webhook back to us,
+    // so re-poll whenever they return to this tab instead of leaving the stale "Pending" status
+    // up until they happen to manually refresh.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchStatus({ showLoader: false })
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("focus", onVisible)
+
+    return () => {
+      cancelled = true
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("focus", onVisible)
+    }
   }, [shipmentId])
 
   if (loading) {
