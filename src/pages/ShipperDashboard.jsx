@@ -3453,7 +3453,7 @@ const ShipperDashboard = () => {
       {/* Bid Accepted Success Modal */}
       {showBidAcceptSuccessModal && bidAcceptSuccessInfo && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border">
+          <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-border">
             <div className="p-6 text-center">
               <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-9 h-9 text-success" />
