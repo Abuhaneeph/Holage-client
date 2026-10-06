@@ -3530,7 +3530,7 @@ const ShipperDashboard = () => {
                       no_declared_value: "No declared cargo value was provided.",
                       not_configured: "The insurance provider isn't configured yet.",
                       no_vehicle_on_record: "No vehicle registration is on file for the assigned trucker/driver.",
-                      missing_identity_verification: "The assigned trucker/driver's identity verification (NIN/CAC) is incomplete.",
+                      missing_identity_verification: "Your identity verification (NIN/CAC) is incomplete.",
                       cargo_type_not_mapped: "This cargo type isn't yet mapped to an insurer category.",
                     }[bidAcceptSuccessInfo.insurance.reason] || bidAcceptSuccessInfo.insurance.reason}
                     {' '}Your freight booking is unaffected — contact support if you still want this shipment insured.
