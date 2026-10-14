@@ -326,7 +326,7 @@ const LandingPage = () => {
               </button>
             </div>
             <p className="text-gray-400 text-sm text-center">
-              © 2024 HOLAGE. All rights reserved.
+              © 2026 Holage Africa Limited. All rights reserved.
               <span className="mx-2">|</span>
               <span
                 className="text-secondary cursor-pointer hover:text-accent transition-colors"
@@ -345,6 +345,9 @@ const LandingPage = () => {
               >
                 Delete Account
               </span>
+            </p>
+            <p className="text-gray-500 text-xs text-center">
+              No. 2, Dwei, Du, Jos South, Plateau State, Nigeria
             </p>
           </div>
         </div>
