@@ -54,32 +54,32 @@ const DeleteAccountPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-primary/80">
       <Header />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
         <button
           onClick={() => navigateTo("landing")}
-          className="flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition-colors mb-8"
+          className="flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors mb-8"
         >
           <ArrowLeft size={15} />
           Back to Home
         </button>
 
-        <div className="mb-10 pb-8 border-b border-border">
-          <p className="text-xs font-medium tracking-widest uppercase text-primary mb-2">
+        <div className="mb-10 pb-8 border-b border-white/10">
+          <p className="text-xs font-medium tracking-widest uppercase text-accent mb-2">
             Account &amp; Data
           </p>
-          <h1 className="text-3xl sm:text-4xl font-bold text-text mb-4">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4">
             Delete Your Account
           </h1>
-          <p className="text-sm text-text-secondary max-w-2xl leading-relaxed">
+          <p className="text-sm text-white/70 max-w-2xl leading-relaxed">
             You can permanently delete your Holage account and personal data at any time,
             whether or not you still have the app installed.
           </p>
         </div>
 
-        <div className="space-y-10">
+        <div className="bg-card rounded-3xl shadow-2xl p-6 sm:p-10 space-y-10">
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="bg-surface border border-border rounded-lg p-5">
               <div className="flex items-center gap-2 mb-2">
