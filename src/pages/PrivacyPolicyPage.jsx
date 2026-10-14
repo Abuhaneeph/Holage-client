@@ -243,7 +243,7 @@ const PrivacyPolicyPage = () => {
             <Section id="contact" title="10. Contact Us">
               <p>For privacy enquiries, data access requests, or to report a security concern:</p>
               <div className="mt-3 bg-surface border border-border rounded-lg p-5 inline-block">
-                <p className="font-medium text-text">Holage Technologies</p>
+                <p className="font-medium text-text">Holage Africa Limited</p>
                 <p className="mt-1">
                   Email:{" "}
                   <a
@@ -269,7 +269,7 @@ const PrivacyPolicyPage = () => {
             {/* Footer */}
             <div className="pt-8 border-t border-border space-y-2 text-xs text-text-secondary">
               <div className="flex flex-wrap justify-between gap-3">
-                <span>© 2026 Holage Technologies. All rights reserved.</span>
+                <span>© 2026 Holage Africa Limited. All rights reserved.</span>
                 <span>Nigeria Data Protection Act 2023 compliant</span>
               </div>
               <p>No. 2, Dwei, Du, Jos South, Plateau State, Nigeria</p>

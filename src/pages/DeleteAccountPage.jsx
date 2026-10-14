@@ -240,7 +240,7 @@ const DeleteAccountPage = () => {
           </Section>
 
           <div className="pt-8 border-t border-border text-xs text-text-secondary">
-            <span>© 2026 Holage Technologies. All rights reserved.</span>
+            <span>© 2026 Holage Africa Limited. All rights reserved.</span>
           </div>
         </div>
       </div>
