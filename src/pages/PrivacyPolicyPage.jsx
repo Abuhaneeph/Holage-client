@@ -34,7 +34,7 @@ const PrivacyPolicyPage = () => {
   const { navigateTo } = useAppContext()
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-primary/80">
       <Header />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
@@ -42,34 +42,35 @@ const PrivacyPolicyPage = () => {
         {/* Back button */}
         <button
           onClick={() => navigateTo("landing")}
-          className="flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition-colors mb-8"
+          className="flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors mb-8"
         >
           <ArrowLeft size={15} />
           Back to Home
         </button>
 
         {/* Page header */}
-        <div className="mb-10 pb-8 border-b border-border">
-          <p className="text-xs font-medium tracking-widest uppercase text-primary mb-2">
+        <div className="mb-10 pb-8 border-b border-white/10">
+          <p className="text-xs font-medium tracking-widest uppercase text-accent mb-2">
             Legal Document
           </p>
-          <h1 className="text-3xl sm:text-4xl font-bold text-text mb-4">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4">
             Privacy Policy
           </h1>
-          <div className="flex flex-wrap gap-4 text-xs text-text-secondary">
+          <div className="flex flex-wrap gap-4 text-xs text-white/60">
             <span>Effective 15 September 2026</span>
             <span>·</span>
             <span>Last updated 15 September 2026</span>
             <span>·</span>
             <span>Version 1.0</span>
           </div>
-          <p className="mt-4 text-sm text-text-secondary max-w-2xl leading-relaxed">
+          <p className="mt-4 text-sm text-white/70 max-w-2xl leading-relaxed">
             Holage ("we", "us", or "our") operates a logistics platform connecting shippers
             with truckers and fleet managers across Nigeria. This policy explains what personal
             information we collect, why we collect it, and how you can exercise your rights over it.
           </p>
         </div>
 
+        <div className="bg-card rounded-3xl shadow-2xl p-6 sm:p-10">
         <div className="flex gap-12 items-start">
 
           {/* Sidebar TOC — hidden on mobile */}
@@ -246,10 +247,17 @@ const PrivacyPolicyPage = () => {
                 <p className="mt-1">
                   Email:{" "}
                   <a
-                    href="mailto:Muhdjunior419@gmail.com"
+                    href="mailto:info@holagehq.com"
                     className="text-primary hover:underline font-medium"
                   >
-                    Muhdjunior419@gmail.com
+                    info@holagehq.com
+                  </a>
+                  {" "}or{" "}
+                  <a
+                    href="mailto:holagehq@gmail.com"
+                    className="text-primary hover:underline font-medium"
+                  >
+                    holagehq@gmail.com
                   </a>
                 </p>
                 <p className="mt-2 text-xs text-text-secondary">
@@ -259,12 +267,16 @@ const PrivacyPolicyPage = () => {
             </Section>
 
             {/* Footer */}
-            <div className="pt-8 border-t border-border flex flex-wrap justify-between gap-3 text-xs text-text-secondary">
-              <span>© 2026 Holage Technologies. All rights reserved.</span>
-              <span>Nigeria Data Protection Act 2023 compliant</span>
+            <div className="pt-8 border-t border-border space-y-2 text-xs text-text-secondary">
+              <div className="flex flex-wrap justify-between gap-3">
+                <span>© 2026 Holage Technologies. All rights reserved.</span>
+                <span>Nigeria Data Protection Act 2023 compliant</span>
+              </div>
+              <p>No. 2, Dwei, Du, Jos South, Plateau State, Nigeria</p>
             </div>
 
           </div>
+        </div>
         </div>
       </div>
     </div>
