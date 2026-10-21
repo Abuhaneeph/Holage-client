@@ -178,6 +178,20 @@ const LandingPage = () => {
               </button>
             </Reveal>
 
+            <Reveal delay={300} className="flex justify-center mt-6">
+              <a
+                href="https://play.google.com/store/apps/details?id=com.holage.app"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img
+                  src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
+                  alt="Get it on Google Play"
+                  className="h-14"
+                />
+              </a>
+            </Reveal>
+
             <div className="mt-8 flex justify-center gap-2">
               {heroSlides.map((slide, index) => (
                 <button
