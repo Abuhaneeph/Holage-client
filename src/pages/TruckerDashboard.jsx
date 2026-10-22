@@ -943,7 +943,7 @@ const TruckerDashboard = () => {
     // Remove commas before parsing
     const bidAmount = parseFloat(removeCommas(bidForm.bidAmount))
     const estimatedCost = parseFloat(selectedShipment.estimatedCost || 0)
-    const maxBidAmount = estimatedCost + 200000
+    const maxBidAmount = estimatedCost + 300000
 
     if (isNaN(bidAmount) || bidAmount <= 0) {
       toast.error('Please enter a valid bid amount')
@@ -951,7 +951,7 @@ const TruckerDashboard = () => {
     }
 
     if (bidAmount > maxBidAmount) {
-      toast.error(`Bid amount cannot exceed ₦${maxBidAmount.toLocaleString('en-NG')} (Base: ₦${estimatedCost.toLocaleString('en-NG')} + Max addition: ₦200,000)`)
+      toast.error(`Bid amount cannot exceed ₦${maxBidAmount.toLocaleString('en-NG')} (Base: ₦${estimatedCost.toLocaleString('en-NG')} + Max addition: ₦300,000)`)
       return
     }
 
@@ -2815,7 +2815,7 @@ const TruckerDashboard = () => {
                   Base Cost: <span className="font-bold text-primary">₦{parseFloat(selectedShipment.estimatedCost || 0).toLocaleString('en-NG')}</span>
                 </p>
                 <p className="text-text-secondary text-xs mt-1">
-                  Maximum Bid: ₦{(parseFloat(selectedShipment.estimatedCost || 0) + 200000).toLocaleString('en-NG')}
+                  Maximum Bid: ₦{(parseFloat(selectedShipment.estimatedCost || 0) + 300000).toLocaleString('en-NG')}
                 </p>
                 {editingBid && (
                   <p className="text-warning text-xs mt-2 font-medium">
@@ -2841,7 +2841,7 @@ const TruckerDashboard = () => {
                   className="w-full px-4 py-3 bg-input border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all text-text-primary"
                 />
                 <p className="text-text-secondary text-xs mt-1">
-                  You can bid below the base cost, or add up to ₦200,000 above it
+                  You can bid below the base cost, or add up to ₦300,000 above it
                 </p>
               </div>
 

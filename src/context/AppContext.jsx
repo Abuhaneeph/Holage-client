@@ -103,13 +103,13 @@ export const AppProvider = ({ children }) => {
 
   // Handle token expiration - clear session and redirect to login
   const handleTokenExpiration = () => {
-    // Clear all auth data
+    // Clear all auth data — NOT rememberedEmail/rememberedPhone, which reflect the user's
+    // "Remember Me" choice and should survive a token simply expiring (a routine, frequent
+    // event unrelated to that choice); only logging out or unchecking the box should clear them.
     localStorage.removeItem("authToken")
     localStorage.removeItem("userInfo")
     localStorage.removeItem("driverInfo")
     localStorage.removeItem("userRole")
-    localStorage.removeItem("rememberedEmail")
-    localStorage.removeItem("rememberedPhone")
     localStorage.removeItem("driverBankDetails")
     
     // Clear user state
@@ -456,13 +456,12 @@ export const AppProvider = ({ children }) => {
   }
 
   // Call when API returns 401 / token expired – clears session and sends user to login (so they aren’t stuck)
+  // Deliberately leaves rememberedEmail/rememberedPhone alone — see handleTokenExpiration above.
   const handleSessionExpired = () => {
     localStorage.removeItem("authToken")
     localStorage.removeItem("userInfo")
     localStorage.removeItem("driverInfo")
     localStorage.removeItem("userRole")
-    localStorage.removeItem("rememberedEmail")
-    localStorage.removeItem("rememberedPhone")
     localStorage.removeItem("driverBankDetails")
     setUser(null)
     setUserRole("")

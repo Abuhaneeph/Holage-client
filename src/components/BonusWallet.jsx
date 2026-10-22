@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react'
 import { apiFetch } from '../utils/api'
 import { formatWithCommas, parseFormattedNumber } from '../utils/currencyFormat'
 
-const MIN_WITHDRAWAL = 30000
+// Fallback shown only before the server's role-based minimum has loaded.
+const DEFAULT_MIN_WITHDRAWAL = 10000
 
 /**
  * Bonus/cashback wallet card — a second, separate balance from the main wallet, funded by
- * referral rewards (invite reward, agent commission). Withdrawals here have a ₦30,000 minimum,
+ * referral rewards (invite reward, agent commission). The minimum withdrawal is role-based
+ * (agents: ₦30,000, everyone else: ₦10,000) and comes from the server via minWithdrawal,
  * enforced both here and server-side.
  *
  * variant="driver" hits /drivers/wallet/bonus (drivers don't have stored bank details, so the
@@ -20,6 +22,7 @@ export default function BonusWallet({ variant = 'user' }) {
   const withdrawEndpoint = isDriver ? '/drivers/wallet/bonus/withdraw' : '/wallet/bonus/withdraw'
 
   const [balance, setBalance] = useState(null)
+  const [minWithdrawal, setMinWithdrawal] = useState(DEFAULT_MIN_WITHDRAWAL)
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [showWithdraw, setShowWithdraw] = useState(false)
@@ -36,6 +39,7 @@ export default function BonusWallet({ variant = 'user' }) {
       const res = await apiFetch(infoEndpoint)
       if (res.ok) {
         setBalance(res.data.wallet?.balance ?? 0)
+        if (res.data.wallet?.minWithdrawal) setMinWithdrawal(res.data.wallet.minWithdrawal)
         if (res.data.transactions) setTransactions(res.data.transactions)
       }
       if (transactionsEndpoint) {
@@ -59,8 +63,8 @@ export default function BonusWallet({ variant = 'user' }) {
     setMessage(null)
     const numericAmount = Number(parseFormattedNumber(amount))
 
-    if (!numericAmount || numericAmount < MIN_WITHDRAWAL) {
-      setMessage({ type: 'error', text: `Minimum bonus wallet withdrawal is ₦${MIN_WITHDRAWAL.toLocaleString('en-NG')}` })
+    if (!numericAmount || numericAmount < minWithdrawal) {
+      setMessage({ type: 'error', text: `Minimum bonus wallet withdrawal is ₦${minWithdrawal.toLocaleString('en-NG')}` })
       return
     }
     if (numericAmount > (balance || 0)) {
@@ -106,7 +110,7 @@ export default function BonusWallet({ variant = 'user' }) {
         <p className="text-2xl font-bold text-gray-900">
           {loading ? '—' : `₦${Number(balance || 0).toLocaleString('en-NG')}`}
         </p>
-        <p className="text-xs text-gray-500 mt-1">Minimum withdrawal: ₦{MIN_WITHDRAWAL.toLocaleString('en-NG')}</p>
+        <p className="text-xs text-gray-500 mt-1">Minimum withdrawal: ₦{minWithdrawal.toLocaleString('en-NG')}</p>
       </div>
 
       <button
@@ -130,7 +134,7 @@ export default function BonusWallet({ variant = 'user' }) {
               inputMode="numeric"
               value={formatWithCommas(amount)}
               onChange={(e) => setAmount(parseFormattedNumber(e.target.value))}
-              placeholder={MIN_WITHDRAWAL.toLocaleString('en-NG')}
+              placeholder={minWithdrawal.toLocaleString('en-NG')}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
               required
             />

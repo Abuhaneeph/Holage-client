@@ -1369,17 +1369,19 @@ const ShipperDashboard = () => {
 
   const weightOptions = [5, 10, 15, 20, 30, 40, 50, 60].map((w) => ({ label: `${w} tons`, value: String(w) }))
 
+  // '10 ton packers' has no reference photo yet — add
+  // public/assets/truck_types/10_tons.jpg and an image entry here once supplied.
   const truckOptions = [
-    { label: "Flatbed trucks", value: "Flatbed trucks" },
-    { label: "Container trucks", value: "Container trucks" },
-    { label: "refrigerated trucks", value: "refrigerated trucks" },
+    { label: "Flatbed trucks", value: "Flatbed trucks", image: "/assets/truck_types/flatbed.jpg" },
+    { label: "Container trucks", value: "Container trucks", image: "/assets/truck_types/container.jpg" },
+    { label: "refrigerated trucks", value: "refrigerated trucks", image: "/assets/truck_types/refrigerated.jpg" },
     { label: "10 ton packers", value: "10 ton packers" },
-    { label: "15 ton packers", value: "15 ton packers" },
-    { label: "20 ton 12 tyres", value: "20 ton 12 tyres" },
-    { label: "30 ton 12 tyres", value: "30 ton 12 tyres" },
-    { label: "40 tons trailer", value: "40 tons trailer" },
-    { label: "50 tons trailer", value: "50 tons trailer" },
-    { label: "60 tons trailer", value: "60 tons trailer" }
+    { label: "15 ton packers", value: "15 ton packers", image: "/assets/truck_types/15_tons.jpg" },
+    { label: "20 ton 12 tyres", value: "20 ton 12 tyres", image: "/assets/truck_types/20_tons.jpg" },
+    { label: "30 ton 12 tyres", value: "30 ton 12 tyres", image: "/assets/truck_types/30_tons.jpg" },
+    { label: "40 tons trailer", value: "40 tons trailer", image: "/assets/truck_types/40_tons.jpg" },
+    { label: "50 tons trailer", value: "50 tons trailer", image: "/assets/truck_types/50_tons.jpg" },
+    { label: "60 tons trailer", value: "60 tons trailer", image: "/assets/truck_types/60_tons.jpg" }
   ]
 
   const formatStateName = (stateSlug) => toTitleCase(stateSlug)
@@ -1774,7 +1776,7 @@ const ShipperDashboard = () => {
                             setExpandedShipmentId(newExpandedId)
                             if (newExpandedId) {
                               if (shipment.status === 'pending') fetchShipmentBids(shipment.id)
-                              if (['picked_up', 'delivered'].includes(shipment.status)) fetchShipmentDetail(shipment.id)
+                              else fetchShipmentDetail(shipment.id)
                             }
                           }}
                           className="flex-1 sm:flex-initial bg-primary text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-medium text-sm sm:text-base whitespace-nowrap"
@@ -1833,6 +1835,26 @@ const ShipperDashboard = () => {
                         statesData={states}
                       />
                     </div>
+
+                    {/* Call Driver — phone is only present once a bid is accepted
+                        (stripped server-side before then, see bidController.js) */}
+                    {shipment.status !== 'pending' && (() => {
+                      const accepted = shipmentDetails[shipment.id]?.acceptedBidWithRating
+                      const phone = accepted?.driverPhone || accepted?.truckerPhone || accepted?.fleetManagerPhone
+                      if (!phone) return null
+                      const driverLabel = accepted?.driverName || accepted?.truckerName || 'Driver'
+                      return (
+                        <div className="mt-4 pt-4 border-t border-border">
+                          <a
+                            href={`tel:${phone}`}
+                            className="flex items-center justify-center gap-2 w-full border border-success text-success py-3 rounded-xl font-bold hover:bg-success/5 transition-colors"
+                          >
+                            <Phone className="w-4 h-4" />
+                            Call {driverLabel}
+                          </a>
+                        </div>
+                      )
+                    })()}
 
                     {/* Confirmation Buttons */}
                     {shipment.status === 'picked_up' && !Boolean(shipment.pickupConfirmed) && (
@@ -3055,10 +3077,19 @@ const ShipperDashboard = () => {
                   onClick={() => setShowTruckModal(true)}
                   className="w-full px-4 py-4 bg-input border border-border rounded-xl text-left flex items-center justify-between text-lg hover:bg-muted/50 transition-colors"
                 >
-                  <span className={shipmentForm.truckType ? "text-text-primary font-medium" : "text-text-secondary"}>
-                    {truckOptions.find(opt => opt.value === shipmentForm.truckType)?.label || "Select truck"}
+                  <span className="flex items-center gap-3 min-w-0">
+                    {truckOptions.find(opt => opt.value === shipmentForm.truckType)?.image && (
+                      <img
+                        src={truckOptions.find(opt => opt.value === shipmentForm.truckType).image}
+                        alt=""
+                        className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                      />
+                    )}
+                    <span className={`truncate ${shipmentForm.truckType ? "text-text-primary font-medium" : "text-text-secondary"}`}>
+                      {truckOptions.find(opt => opt.value === shipmentForm.truckType)?.label || "Select truck"}
+                    </span>
                   </span>
-                  <ChevronDown className="w-5 h-5 text-text-secondary" />
+                  <ChevronDown className="w-5 h-5 text-text-secondary flex-shrink-0" />
                 </button>
                 <p className="text-text-secondary text-xs mt-1.5">
                   Ensure you pick a truck that can contain your shipment, either by weight or space.

@@ -67,17 +67,26 @@ const SelectModal = ({ isOpen, onClose, title, options, value, onChange, searcha
                 <button
                   key={option.value}
                   onClick={() => handleSelect(option.value)}
-                  className={`w-full text-left px-4 py-4 rounded-xl mb-2 transition-colors flex items-center justify-between ${
+                  className={`w-full text-left px-4 py-4 rounded-xl mb-2 transition-colors flex items-center gap-3 justify-between ${
                     value === option.value
                       ? 'bg-primary/10 border-2 border-primary'
                       : 'bg-muted/30 hover:bg-muted/50 border-2 border-transparent'
                   }`}
                 >
-                  <span className={`font-medium text-lg ${
-                    value === option.value ? 'text-primary' : 'text-text-primary'
-                  }`}>
-                    {option.label}
-                  </span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {option.image && (
+                      <img
+                        src={option.image}
+                        alt=""
+                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                      />
+                    )}
+                    <span className={`font-medium text-lg truncate ${
+                      value === option.value ? 'text-primary' : 'text-text-primary'
+                    }`}>
+                      {option.label}
+                    </span>
+                  </div>
                   {value === option.value && (
                     <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
                       <Check className="w-4 h-4 text-white" />
