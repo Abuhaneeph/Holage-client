@@ -352,7 +352,7 @@ const LandingPage = () => {
               </span>
             </p>
             <p className="text-gray-500 text-xs text-center">
-              No. 2, Dwei, Du, Jos South, Plateau State, Nigeria
+              3, Katako, Mallam Kure St, Jos, Plateau State, Nigeria
             </p>
           </div>
         </div>

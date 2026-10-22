@@ -272,7 +272,7 @@ const PrivacyPolicyPage = () => {
                 <span>© 2026 Holage Africa Limited. All rights reserved.</span>
                 <span>Nigeria Data Protection Act 2023 compliant</span>
               </div>
-              <p>No. 2, Dwei, Du, Jos South, Plateau State, Nigeria</p>
+              <p>3, Katako, Mallam Kure St, Jos, Plateau State, Nigeria</p>
             </div>
 
           </div>
