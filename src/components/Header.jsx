@@ -4,8 +4,14 @@ import { useState } from "react"
 import { Truck, Menu, X, LogIn, UserPlus } from "lucide-react"
 import { useAppContext } from "../context/AppContext"
 
+const NAV_ITEMS = [
+  { label: "Home", page: "landing" },
+  { label: "How it Works", page: "how-it-works" },
+  { label: "Contact Us", page: "support" },
+]
+
 const Header = ({ transparent = false }) => {
-  const { navigateTo, navigateToSignupWithRole } = useAppContext()
+  const { currentPage, navigateTo, navigateToSignupWithRole } = useAppContext()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
@@ -34,17 +40,22 @@ const Header = ({ transparent = false }) => {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
-            {["Home", "How it Works", "Pricing", "Support"].map((label) => (
+            {NAV_ITEMS.map(({ label, page }) => {
+              const active = currentPage === page
+              return (
               <button
                 key={label}
-                onClick={() => label === "Home" && navigateTo("landing")}
-                className={`${
-                  transparent ? "text-white/80 hover:text-white" : "text-text-primary hover:text-secondary"
-                } transition-colors font-medium`}
+                onClick={() => navigateTo(page)}
+                className={`transition-colors font-medium ${
+                  active
+                    ? transparent ? "text-white" : "text-secondary"
+                    : transparent ? "text-white/80 hover:text-white" : "text-text-primary hover:text-secondary"
+                }`}
               >
                 {label}
               </button>
-            ))}
+              )
+            })}
           </nav>
 
           {/* Desktop Auth Buttons */}
@@ -108,17 +119,19 @@ const Header = ({ transparent = false }) => {
               : "border-t border-border bg-surface"
           }`}>
             <nav className="flex flex-col space-y-2 px-4">
-              {["Home", "How it Works", "Pricing", "Support"].map((label) => (
+              {NAV_ITEMS.map(({ label, page }) => (
                 <button
                   key={label}
                   onClick={() => {
-                    if (label === "Home") navigateTo("landing")
+                    navigateTo(page)
                     setMobileMenuOpen(false)
                   }}
-                  className={`text-left transition-colors py-2.5 font-medium ${
-                    transparent 
-                      ? "text-white hover:text-white hover:bg-white/10 rounded-lg px-2" 
-                      : "text-text-primary hover:text-secondary"
+                  className={`text-left transition-colors py-2.5 font-medium rounded-lg px-2 ${
+                    currentPage === page
+                      ? transparent ? "text-white bg-white/10" : "text-secondary bg-secondary/10"
+                      : transparent
+                        ? "text-white hover:text-white hover:bg-white/10"
+                        : "text-text-primary hover:text-secondary"
                   }`}
                 >
                   {label}

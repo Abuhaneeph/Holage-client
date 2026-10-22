@@ -26,7 +26,7 @@ console.log('🔧 [API Config] VITE_API_URL env:', import.meta.env.VITE_API_URL)
 export const AppProvider = ({ children }) => {
   const toast = useToast()
   // Public pages that get their own clean URL so they can be linked directly
-  const PUBLIC_URL_PAGES = ["privacy-policy", "delete-account"]
+  const PUBLIC_URL_PAGES = ["privacy-policy", "delete-account", "how-it-works", "support", "terms-of-service"]
 
   const pageFromPath = () => {
     const path = window.location.pathname.replace(/^\//, "")

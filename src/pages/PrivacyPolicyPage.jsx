@@ -1,6 +1,5 @@
-import { useAppContext } from "../context/AppContext"
 import Header from "../components/Header"
-import { ArrowLeft } from "lucide-react"
+import Footer from "../components/Footer"
 
 const Section = ({ id, title, children }) => (
   <section id={id} className="scroll-mt-8">
@@ -31,22 +30,11 @@ const TOCLink = ({ href, children }) => (
 )
 
 const PrivacyPolicyPage = () => {
-  const { navigateTo } = useAppContext()
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-primary/80">
-      <Header />
+      <Header transparent />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-
-        {/* Back button */}
-        <button
-          onClick={() => navigateTo("landing")}
-          className="flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors mb-8"
-        >
-          <ArrowLeft size={15} />
-          Back to Home
-        </button>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-40 sm:pt-48 pb-10">
 
         {/* Page header */}
         <div className="mb-10 pb-8 border-b border-white/10">
@@ -279,6 +267,8 @@ const PrivacyPolicyPage = () => {
         </div>
         </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

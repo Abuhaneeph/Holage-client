@@ -1,7 +1,8 @@
 import { useState } from "react"
 import { useAppContext } from "../context/AppContext"
 import Header from "../components/Header"
-import { ArrowLeft, Smartphone, Globe } from "lucide-react"
+import Footer from "../components/Footer"
+import { Smartphone, Globe } from "lucide-react"
 
 const Section = ({ title, children }) => (
   <section>
@@ -23,7 +24,7 @@ const ROLES = [
 ]
 
 const DeleteAccountPage = () => {
-  const { navigateTo, requestAccountDeletion } = useAppContext()
+  const { requestAccountDeletion } = useAppContext()
   const [form, setForm] = useState({ fullName: "", email: "", phone: "", role: "", reason: "", scope: "full_account" })
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -55,17 +56,9 @@ const DeleteAccountPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-primary/80">
-      <Header />
+      <Header transparent />
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-        <button
-          onClick={() => navigateTo("landing")}
-          className="flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors mb-8"
-        >
-          <ArrowLeft size={15} />
-          Back to Home
-        </button>
-
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-40 sm:pt-48 pb-10">
         <div className="mb-10 pb-8 border-b border-white/10">
           <p className="text-xs font-medium tracking-widest uppercase text-accent mb-2">
             Account &amp; Data
@@ -244,6 +237,8 @@ const DeleteAccountPage = () => {
           </div>
         </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

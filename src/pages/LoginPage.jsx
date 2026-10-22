@@ -300,7 +300,7 @@ const LoginPage = () => {
 
       <Header transparent />
 
-      <div className="relative z-10 container mx-auto px-4 pb-16 pt-28 sm:pt-32 lg:pt-36 lg:px-6">
+      <div className="relative z-10 container mx-auto px-4 pb-16 pt-40 sm:pt-48 lg:pt-52 lg:px-6">
         <div className="flex flex-col-reverse gap-12 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
           <div className="space-y-10 text-white">
             <Reveal className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-white/70 backdrop-blur sm:px-5 sm:text-xs">
